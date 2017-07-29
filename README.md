@@ -1,20 +1,19 @@
-# BadgerScript
+## BadgerScript
 
 A toy language written in C.
 
 Test with:
 
 ```text
-make
-
-src/fh tests/test.fh
+$ make
+$ src/fh tests/test.fh
 ```
 
-## Status
+### Status
 
 Parsing files to AST is working.
 
 
-## License
+### License
 
 MIT License ([LICENSE](https://github.com/ricardo-massaro/badgerscript/blob/master/LICENSE))
