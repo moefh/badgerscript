@@ -70,6 +70,7 @@ struct fh_token {
 struct fh_symtab;
 struct fh_tokenizer;
 struct fh_parser;
+struct fh_compiler;
 
 struct fh_ast {
   struct fh_buffer string_pool;
@@ -120,5 +121,11 @@ void fh_parser_dump(struct fh_parser *p);
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 void *fh_parse_error_oom(struct fh_parser *p, struct fh_src_loc loc);
 void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *expected);
+
+struct fh_compiler *fh_new_compiler(struct fh_ast *ast);
+void fh_free_compiler(struct fh_compiler *c);
+int fh_compile(struct fh_compiler *c);
+const uint8_t *fh_get_compiler_error(struct fh_compiler *p);
+void *fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
 #endif /* FH_I_H_FILE */

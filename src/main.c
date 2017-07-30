@@ -2,7 +2,72 @@
 
 #include <stdio.h>
 
+#include "lib/fh_i.h"
 #include "lib/ast.h"
+
+static int run_file(const char *filename)
+{
+  struct fh_input *in;
+  struct fh_ast *ast = NULL;
+  struct fh_parser *p = NULL;
+  struct fh_compiler *c = NULL;
+
+  printf("-> opening input file...\n");
+  in = fh_open_input_file(filename);
+  if (! in) {
+    printf("ERROR: can't open '%s'\n", filename);
+    goto err;
+  }
+  
+  ast = fh_new_ast();
+  if (! ast) {
+    printf("ERROR: out of memory for AST\n");
+    goto err;
+  }
+
+  // parse
+  p = fh_new_parser(in, ast);
+  if (! p) {
+    printf("ERROR: out of memory for parser\n");
+    goto err;
+  }
+
+  printf("-> parsing...\n");
+  if (fh_parse(p) < 0) {
+    printf("%s:%s\n", filename, fh_get_parser_error(p));
+    goto err;
+  }
+  fh_parser_dump(p);
+
+  // compile
+  c = fh_new_compiler(ast);
+  if (! c) {
+    printf("ERROR: out of memory for compiler\n");
+    goto err;
+  }
+  printf("-> compiling...\n");
+  if (fh_compile(c) < 0) {
+    printf("%s:%s\n", filename, fh_get_compiler_error(c));
+    goto err;
+  }
+
+  fh_free_compiler(c);
+  fh_free_parser(p);
+  fh_free_ast(ast);
+  fh_close_input(in);
+  return 0;
+  
+ err:
+  if (c)
+    fh_free_compiler(c);
+  if (p)
+    fh_free_parser(p);
+  if (ast)
+    fh_free_ast(ast);
+  if (in)
+    fh_close_input(in);
+  return 1;
+}
 
 int main(int argc, char **argv)
 {
@@ -10,35 +75,6 @@ int main(int argc, char **argv)
     printf("USAGE: %s filename\n", argv[0]);
     return 1;
   }
-  struct fh_input *in = fh_open_input_file(argv[1]);
-  if (! in) {
-    printf("ERROR: can't open '%s'\n", argv[1]);
-    return 1;
-  }
 
-  struct fh_ast *ast = fh_new_ast();
-  if (! ast) {
-    fh_close_input(in);
-    printf("ERROR: out of memory for AST\n");
-    return 1;
-  }
-  struct fh_parser *p = fh_new_parser(in, ast);
-  if (! p) {
-    fh_close_input(in);
-    fh_free_ast(ast);
-    printf("ERROR: out of memory for parser\n");
-    return 1;
-  }
-
-  if (fh_parse(p) < 0) {
-    printf("ERROR: %s\n", fh_get_parser_error(p));
-  } else {
-    fh_parser_dump(p);
-  }
-  
-  fh_free_parser(p);
-  fh_free_ast(ast);
-  fh_close_input(in);
-  
-  return 0;
+  return run_file(argv[1]);
 }

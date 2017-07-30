@@ -100,6 +100,7 @@ struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum f
   if (! expr)
     return fh_parse_error_oom(p, loc);
   expr->type = type;
+  expr->loc = loc;
   return expr;
 }
 
@@ -109,6 +110,7 @@ struct fh_p_stmt *fh_new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum f
   if (! stmt)
     return fh_parse_error_oom(p, loc);
   stmt->type = type;
+  stmt->loc = loc;
   return stmt;
 }
 

@@ -1,29 +1,41 @@
 
 function f(x, y) {
-  x = y = 0;
-  x = 2 * x + 0.5;
-  print("hello, world!\n");
-  return f(x,1) + 2 * y;
-  {
-    x = 1;
-  }
-  if (x >= 42)
+  # expressions
+  var z = x + y;
+  y = 2 * x + 0.5;
+
+  # function call
+  x = f(x, 5) + f(f(1,2), 0);
+
+  # if
+  if (x == 42)
     print("jackpot\n");
   else
     print("no luck\n");
-  x = 0;
-  while (true) {
-    if (x == 5)
-      continue;
-    if (x > 10)
-      break;
-    print(x);
-    x = x + 1;
+  print("hello, world!\n");
+
+  # block
+  {
+    x = 1;
+    f(0,1);
   }
+
+  # loop
+  var i = 0;
+  while (true) {
+    if (i == 5)
+      continue;
+    if (i > 10)
+      break;
+    print(i);
+    i = i + 1;
+  }
+
+  return x + 1;
 }
 
 function main(args) {
   var x = 1;
-  print("hello, world\n", f(x) + 1.5);
+  print("hello, world", f(x, 0) + 1.5, "\n");
   return 0;
 }

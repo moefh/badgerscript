@@ -726,6 +726,7 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
     return NULL;
   if (! tok_is_symbol(&tok))
     return fh_parse_error_expected(p, tok.loc, "function name");
+  func->loc = tok.loc;
   func->name = tok.data.symbol_id;
 
   // rest of function
