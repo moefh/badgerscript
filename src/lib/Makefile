@@ -6,7 +6,7 @@ CFLAGS = -O2 -Wall -g
 AR = ar
 ARFLAGS = rs
 
-OBJS = util.o buffer.o stack.o symtab.o operator.o tokenizer.o parser.o dump.o
+OBJS = util.o input.o buffer.o stack.o symtab.o operator.o tokenizer.o parser.o ast.o dump.o
 
 .PHONY: all clean
 

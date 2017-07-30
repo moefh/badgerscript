@@ -6,20 +6,26 @@
 
 int main(int argc, char **argv)
 {
-  struct fh_parser *p;
-  struct fh_input in;
-
   if (argc <= 1) {
     printf("USAGE: %s filename\n", argv[0]);
     return 1;
   }
-  if (fh_input_open_file(&in, argv[1]) < 0) {
+  struct fh_input *in = fh_open_input_file(argv[1]);
+  if (! in) {
     printf("ERROR: can't open '%s'\n", argv[1]);
     return 1;
   }
-  
-  p = fh_new_parser(&in);
-  if (p == NULL) {
+
+  struct fh_ast *ast = fh_new_ast();
+  if (! ast) {
+    fh_close_input(in);
+    printf("ERROR: out of memory for AST\n");
+    return 1;
+  }
+  struct fh_parser *p = fh_new_parser(in, ast);
+  if (! p) {
+    fh_close_input(in);
+    fh_free_ast(ast);
     printf("ERROR: out of memory for parser\n");
     return 1;
   }
@@ -31,7 +37,8 @@ int main(int argc, char **argv)
   }
   
   fh_free_parser(p);
-  fh_input_close_file(&in);
+  fh_free_ast(ast);
+  fh_close_input(in);
   
   return 0;
 }

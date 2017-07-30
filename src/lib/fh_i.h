@@ -112,14 +112,13 @@ const uint8_t *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
 const uint8_t *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok);
 const uint8_t *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok);
 
-const uint8_t *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id);
-const uint8_t *fh_get_ast_string(struct fh_ast *ast, fh_string_id id);
-const uint8_t *fh_get_ast_op(struct fh_ast *ast, uint32_t op);
-
-struct fh_parser *fh_new_parser(struct fh_input *in);
+struct fh_parser *fh_new_parser(struct fh_input *in, struct fh_ast *ast);
 void fh_free_parser(struct fh_parser *p);
 int fh_parse(struct fh_parser *p);
 const uint8_t *fh_get_parser_error(struct fh_parser *p);
 void fh_parser_dump(struct fh_parser *p);
+void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
+void *fh_parse_error_oom(struct fh_parser *p, struct fh_src_loc loc);
+void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *expected);
 
 #endif /* FH_I_H_FILE */

@@ -14,8 +14,8 @@
 #define FH_IS_DIGIT(c) ((c) >= '0' && (c) < '9')
 #define FH_IS_ALNUM(c) (FH_IS_ALPHA(c) || FH_IS_DIGIT(c))
 
-struct keyword {
-  enum fh_keyword_type keyword;
+const static struct keyword {
+  enum fh_keyword_type type;
   const char *name;
 } keywords[] = {
   { KW_FUNCTION,   "function" },
@@ -97,7 +97,7 @@ struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t)
 const uint8_t *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
 {
   for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); i++) {
-    if (keywords[i].keyword == tok->data.keyword)
+    if (keywords[i].type == tok->data.keyword)
       return (uint8_t *) keywords[i].name;
   }
   return NULL;
@@ -137,7 +137,7 @@ static int next_byte(struct fh_tokenizer *t)
   }
   
   if (t->buf_pos == t->buf_len) {
-    ssize_t r = t->in->funcs->read(t->in->src, t->buf, BUF_SIZE);
+    ssize_t r = fh_input_read(t->in, t->buf, BUF_SIZE);
     if (r < 0)
       return -1;
     t->buf_len = (uint32_t) r;
@@ -175,7 +175,7 @@ static int find_keyword(uint8_t *keyword, size_t keyword_size, enum fh_keyword_t
 {
   for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); i++) {
     if (strncmp((char *) keyword, keywords[i].name, keyword_size) == 0 && keywords[i].name[keyword_size] == '\0') {
-      *ret = keywords[i].keyword;
+      *ret = keywords[i].type;
       return 1;
     }
   }

@@ -55,45 +55,6 @@ struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
   return ret;
 }
 
-static ssize_t file_read(void *src, uint8_t *line, ssize_t max_len)
-{
-  FILE *f = src;
-
-  size_t ret = fread(line, 1, max_len, f);
-  if (ret == 0) {
-    if (ferror(f) || feof(f))
-      return -1;
-  }
-  return ret;
-}
-
-int fh_input_open_file(struct fh_input *in, const char *filename)
-{
-  static struct fh_input_funcs file_input_funcs = {
-    .read = file_read,
-  };
-  
-  FILE *f = fopen(filename, "rb");
-  if (f == NULL)
-    return -1;
-  in->src = f;
-  in->funcs = &file_input_funcs;
-  return 0;
-}
-
-int fh_input_close_file(struct fh_input *in)
-{
-  int ret = 0;
-  
-  if (in->src) {
-    FILE *f = in->src;
-    ret = fclose(f);
-    in->src = NULL;
-  }
-
-  return ret;
-}
-
 ssize_t fh_utf8_len(uint8_t *str, size_t str_size)
 {
   size_t len = 0;
