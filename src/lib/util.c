@@ -1,8 +1,13 @@
 /* util.c */
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "fh_i.h"
+
+struct fh_output {
+  FILE *f;
+};
 
 const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
 {
@@ -85,6 +90,17 @@ ssize_t fh_utf8_len(uint8_t *str, size_t str_size)
   }
 
   return len;
+}
+
+void fh_output(struct fh_output *out, char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  if (out && out->f)
+    vfprintf(out->f, fmt, ap);
+  else
+    vprintf(fmt, ap);
+  va_end(ap);
 }
 
 void fh_dump_mem(const char *label, const void *data, size_t len)

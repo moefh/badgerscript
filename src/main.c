@@ -4,12 +4,14 @@
 
 #include "lib/fh_i.h"
 #include "lib/ast.h"
+#include "lib/bytecode.h"
 
 static int run_file(const char *filename)
 {
   struct fh_input *in;
   struct fh_ast *ast = NULL;
   struct fh_parser *p = NULL;
+  struct fh_bc *bc = NULL;
   struct fh_compiler *c = NULL;
 
   printf("-> opening input file...\n");
@@ -19,13 +21,12 @@ static int run_file(const char *filename)
     goto err;
   }
   
+  // parse
   ast = fh_new_ast();
   if (! ast) {
     printf("ERROR: out of memory for AST\n");
     goto err;
   }
-
-  // parse
   p = fh_new_parser(in, ast);
   if (! p) {
     printf("ERROR: out of memory for parser\n");
@@ -40,7 +41,12 @@ static int run_file(const char *filename)
   fh_parser_dump(p);
 
   // compile
-  c = fh_new_compiler(ast);
+  bc = fh_new_bc();
+  if (! bc) {
+    printf("ERROR: out of memory for bytecode\n");
+    goto err;
+  }
+  c = fh_new_compiler(ast, bc);
   if (! c) {
     printf("ERROR: out of memory for compiler\n");
     goto err;
@@ -50,8 +56,10 @@ static int run_file(const char *filename)
     printf("%s:%s\n", filename, fh_get_compiler_error(c));
     goto err;
   }
+  fh_dump_bc(bc, NULL);
 
   fh_free_compiler(c);
+  fh_free_bc(bc);
   fh_free_parser(p);
   fh_free_ast(ast);
   fh_close_input(in);
@@ -60,6 +68,8 @@ static int run_file(const char *filename)
  err:
   if (c)
     fh_free_compiler(c);
+  if (bc)
+    fh_free_bc(bc);
   if (p)
     fh_free_parser(p);
   if (ast)

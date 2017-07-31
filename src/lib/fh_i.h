@@ -67,6 +67,8 @@ struct fh_token {
   } data;
 };
 
+struct fh_bc;
+struct fh_output;
 struct fh_symtab;
 struct fh_tokenizer;
 struct fh_parser;
@@ -83,6 +85,7 @@ ssize_t fh_utf8_len(uint8_t *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok);
 void fh_dump_mem(const char *label, const void *data, size_t len);
+void fh_output(struct fh_output *out, char *fmt, ...) __attribute__((format (printf, 2, 3)));
 
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_free_buffer(struct fh_buffer *buf);
@@ -122,10 +125,13 @@ void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
 void *fh_parse_error_oom(struct fh_parser *p, struct fh_src_loc loc);
 void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *expected);
 
-struct fh_compiler *fh_new_compiler(struct fh_ast *ast);
+struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc);
 void fh_free_compiler(struct fh_compiler *c);
 int fh_compile(struct fh_compiler *c);
 const uint8_t *fh_get_compiler_error(struct fh_compiler *p);
 void *fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
+uint32_t *fh_get_compiler_instructions(struct fh_compiler *c, int32_t *len);
+
+void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
 
 #endif /* FH_I_H_FILE */

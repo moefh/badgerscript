@@ -6,18 +6,21 @@
 
 #include "fh_i.h"
 #include "ast.h"
+#include "bytecode.h"
 
 struct fh_compiler {
   struct fh_ast *ast;
+  struct fh_bc *bc;
   uint8_t last_err_msg[256];
 };
 
-struct fh_compiler *fh_new_compiler(struct fh_ast *ast)
+struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc)
 {
   struct fh_compiler *c = malloc(sizeof(struct fh_compiler));
   if (! c)
     return NULL;
   c->ast = ast;
+  c->bc = bc;
   c->last_err_msg[0] = '\0';
   return c;
 }
@@ -46,7 +49,21 @@ void *fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt,
 
 static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func)
 {
-  fh_compiler_error(c, func->loc, "compilation not implemented");
+  if (! fh_bc_add_func(c->bc, func->loc, func->func.n_params, 0))
+    goto err;
+
+  // some test instructions
+  if (! fh_bc_add_instr(c->bc, func->loc, MAKE_INSTR_AsBx(OP_JMP, 0,1)))
+    goto err;
+  if (! fh_bc_add_instr(c->bc, func->loc, MAKE_INSTR_ABC(OP_ADD, 1,2,3)))
+    goto err;
+  if (! fh_bc_add_instr(c->bc, func->loc, MAKE_INSTR_ABC(OP_RET, 1,1,0)))
+    goto err;
+
+  return 0;
+
+ err:
+  fh_compiler_error(c, func->loc, "out of memory");
   return -1;
 }
 
