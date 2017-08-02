@@ -14,7 +14,7 @@
 #define FH_IS_DIGIT(c) ((c) >= '0' && (c) < '9')
 #define FH_IS_ALNUM(c) (FH_IS_ALPHA(c) || FH_IS_DIGIT(c))
 
-const static struct keyword {
+static const struct keyword {
   enum fh_keyword_type type;
   const char *name;
 } keywords[] = {

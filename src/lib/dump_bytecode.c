@@ -34,6 +34,7 @@ void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
   uint32_t n_funcs;
   struct fh_bc_func *funcs = fh_get_bc_funcs(bc, &n_funcs);
 
+  fh_output(out, "; bytecode contains %d instructions:\n", n_instr);
   for (uint32_t i = 0; i < n_instr; i++) {
     for (uint32_t j = 0; j < n_funcs; j++) {
       if (funcs[j].pc == i) {
@@ -43,4 +44,5 @@ void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
     }
     dump_instr(bc, out, i, instr[i]);
   }
+  fh_output(out, "; end of bytecode\n");
 }
