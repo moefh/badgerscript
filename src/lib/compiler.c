@@ -9,7 +9,6 @@
 #include "bytecode.h"
 
 #define TMP_VARIABLE ((fh_symbol_id)-1)
-#define MAX_FUNC_REGS 255
 
 struct reg_info {
   fh_symbol_id var;
@@ -86,6 +85,14 @@ const uint8_t *fh_get_compiler_error(struct fh_compiler *c)
   return c->last_err_msg;
 }
 
+const uint8_t *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
+{
+  const uint8_t *name = fh_get_ast_symbol(c->ast, sym);
+  if (! name)
+    name = (uint8_t *) "<INTERNAL COMPILER ERROR: UNKNOWN VARIABLE>";
+  return name;
+}
+
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...)
 {
   char str[256];
@@ -110,6 +117,7 @@ static int add_const_number(struct fh_compiler *c, struct fh_src_loc loc, double
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return -1;
+
   int k = fh_add_bc_const_number(fi->bc_func, num);
   if (k < 0)
     return fh_compiler_error(c, loc, "too many constants in function");
@@ -124,9 +132,33 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   const  uint8_t *str_val = fh_get_ast_string(c->ast, str);
   if (! str_val)
     return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: string not found");
+
   int k = fh_add_bc_const_string(fi->bc_func, str_val);
   if (k < 0)
     return fh_compiler_error(c, loc, "out of memory for string");
+  return k;
+}
+
+static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id func)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+
+  struct fh_bc_func *bc_func = NULL;
+  for (int i = 0; i < c->ast->funcs.num; i++) {
+    struct fh_p_named_func *ast_f = fh_stack_item(&c->ast->funcs, i);
+    if (ast_f->name == func) {
+      bc_func = fh_get_bc_func(c->bc, i);
+      break;
+    }
+  }
+  if (! bc_func)
+    return fh_compiler_error(c, loc, "undefined function '%s'\n", get_ast_symbol_name(c, func));
+
+  int k = fh_add_bc_const_func(fi->bc_func, bc_func);
+  if (k < 0)
+    return fh_compiler_error(c, loc, "out of memory for function");
   return k;
 }
 
@@ -169,14 +201,69 @@ static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id 
 static void free_reg(struct fh_compiler *c, struct fh_src_loc loc, int reg)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi) {
+    fprintf(stderr, "%s\n", fh_get_compiler_error(c));
+    return;
+  }
+
+  struct reg_info *ri = fh_stack_item(&fi->regs, reg);
+  if (! ri) {
+    fprintf(stderr, "INTERNAL COMPILER ERROR: freeing invalid register (%d)\n", reg);
+    return;
+  }
+
+  ri->alloc = false;
+}
+
+static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+
+  int last_alloc = -1;
+  for (int i = fi->regs.num-1; i >= 0; i--) {
+    struct reg_info *ri = fh_stack_item(&fi->regs, i);
+    if (ri->alloc) {
+      last_alloc = i;
+      break;
+    }
+  }
+
+  int first_reg = last_alloc + 1;
+  if (first_reg+n >= MAX_FUNC_REGS) {
+    fh_compiler_error(c, loc, "too many registers used");
+    return -1;
+  }
+  for (int i = 0; i < n; i++) {
+    int reg = first_reg + i;
+    if (fi->regs.num <= reg) {
+      if (fh_push(&fi->regs, NULL) < 0) {
+        fh_compiler_error(c, loc, "out of memory");
+        return -1;
+      }
+    }
+    struct reg_info *ri = fh_stack_item(&fi->regs, reg);
+    ri->alloc = true;
+    ri->var = TMP_VARIABLE;
+  }
+
+  if (fi->num_regs <= first_reg+n-1)
+    fi->num_regs = first_reg+n;
+  return first_reg;
+}
+
+static void free_tmp_regs(struct fh_compiler *c, struct fh_src_loc loc)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return;
 
-  struct reg_info *ri = fh_stack_item(&fi->regs, reg);
-  if (! ri) // || ! ri->alloc)
-    fprintf(stderr, "INTERNAL COMPILER ERROR: freeing invalid register (%d)\n", reg);
-
-  ri->alloc = false;
+  for (int i = 0; i < fi->regs.num; i++) {
+    struct reg_info *ri = fh_stack_item(&fi->regs, i);
+    if (ri->alloc && ri->var == TMP_VARIABLE)
+      ri->alloc = false;
+  }
 }
 
 static int set_reg_var(struct fh_compiler *c, struct fh_src_loc loc, int reg, fh_symbol_id var)
@@ -198,25 +285,23 @@ static int get_var_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
   if (! fi)
     return -1;
 
-  for (int i = 0; i < fi->regs.num; i++) {
+  for (int i = fi->regs.num-1; i >= 0; i--) {
     struct reg_info *ri = fh_stack_item(&fi->regs, i);
     if (ri->alloc && ri->var == var)
       return i;
   }
 
-  const uint8_t *name = fh_get_ast_symbol(c->ast, var);
-  if (! name)
-    name = (uint8_t *) "<INTERNAL COMPILER ERROR: UNKNOWN VARIABLE>";
-  return fh_compiler_error(c, loc, "undeclared variable '%s'", name);
+  return fh_compiler_error(c, loc, "undeclared variable '%s'", get_ast_symbol_name(c, var));
 }
 
 static int get_opcode_for_op(struct fh_compiler *c, struct fh_src_loc loc, uint32_t op)
 {
   switch (op) {
-  case '+': return OP_ADD;
-  case '-': return OP_SUB;
-  case '*': return OP_MUL;
-  case '/': return OP_DIV;
+  case '+': return OPC_ADD;
+  case '-': return OPC_SUB;
+  case '*': return OPC_MUL;
+  case '/': return OPC_DIV;
+  case '%': return OPC_MOD;
 
   default:
     return fh_compiler_error(c, loc, "operator not implemented: '%s'", fh_get_ast_op(c->ast, op));
@@ -226,15 +311,31 @@ static int get_opcode_for_op(struct fh_compiler *c, struct fh_src_loc loc, uint3
 static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var, int dest_reg)
 {
   int reg = get_var_reg(c, loc, var);
-  if (reg < 0)
-    return -1;
-  if (dest_reg < 0)
-    return reg;
-  if (reg != dest_reg) {
-    if (add_instr(c, loc, MAKE_INSTR_AB(OP_MOV, dest_reg, reg)) < 0)
-      return -1;
+  if (reg >= 0) {
+    // local variable
+    if (dest_reg < 0)
+      return reg;
+    if (reg != dest_reg) {
+      if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, reg)) < 0)
+        return -1;
+    }
+    return dest_reg;
   }
-  return dest_reg;
+
+  int k = add_const_func(c, loc, var);
+  if (k >= 0) {
+    // global function
+    if (dest_reg < 0) {
+      dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+      if (dest_reg < 0)
+        return -1;
+    }
+    if (add_instr(c, loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
+      return -1;
+    return dest_reg;
+  }
+
+  return fh_compiler_error(c, loc, "unknown variable or function '%s'", get_ast_symbol_name(c, var));
 }
 
 static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
@@ -250,7 +351,7 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
       if (dest_reg < 0)
         return left_reg;
       if (dest_reg != left_reg) {
-        if (add_instr(c, loc, MAKE_INSTR_AB(OP_MOV, dest_reg, left_reg)) < 0)
+        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, left_reg)) < 0)
           return -1;
       }
       return dest_reg;
@@ -261,10 +362,14 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
   case '+':
   case '-':
   case '*':
-  case '/': {
+  case '/':
+  case '%': {
     int left_reg;
     if (dest_reg >= 0 && expr->left->type == EXPR_VAR) {
       left_reg = get_var_reg(c, expr->left->loc, expr->left->data.var);
+    } else if (expr->left->type == EXPR_NUMBER) {
+      left_reg = add_const_number(c, loc, expr->left->data.num);
+      if (left_reg >= 0) left_reg += MAX_FUNC_REGS+1;
     } else {
       left_reg = compile_expr(c, expr->left, dest_reg);
     }
@@ -273,6 +378,9 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
     int right_reg;
     if (dest_reg >= 0 && expr->right->type == EXPR_VAR) {
       right_reg = get_var_reg(c, expr->left->loc, expr->right->data.var);
+    } else if (expr->right->type == EXPR_NUMBER) {
+      right_reg = add_const_number(c, loc, expr->right->data.num);
+      if (right_reg >= 0) right_reg += MAX_FUNC_REGS+1;
     } else {
       right_reg = compile_expr(c, expr->right, -1);
     }
@@ -303,7 +411,30 @@ static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr, int req_dest_reg)
 {
-  return fh_compiler_error(c, loc, "func call not implemented");
+  int dest_reg = req_dest_reg;
+  if (dest_reg < 0) {
+    dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+    if (dest_reg < 0)
+      return -1;
+  }
+
+  int first_reg = alloc_n_regs(c, loc, expr->n_args+1);
+  if (first_reg < 0)
+    return -1;
+  if (compile_expr(c, expr->func, first_reg) < 0)
+    return -1;
+  for (int i = 0; i < expr->n_args; i++) {
+    if (compile_expr(c, &expr->args[i], first_reg+i+1) < 0)
+      return -1;
+  }
+
+  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_CALL, dest_reg, first_reg, expr->n_args)) < 0)
+    return -1;
+  
+  for (int i = 0; i < expr->n_args+1; i++)
+    free_reg(c, loc, first_reg+i);
+
+  return dest_reg;
 }
 
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg)
@@ -313,7 +444,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
   case EXPR_BIN_OP:    return compile_bin_op(c, expr->loc, &expr->data.bin_op, req_dest_reg);
   case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op, req_dest_reg);
   case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call, req_dest_reg);
-  case EXPR_FUNC:      /* return compile_func(c, expr->loc, &expr->data.func, req_dest_reg); */ return fh_compiler_error(c, expr->loc, "function-in-function not implemented");
+  case EXPR_FUNC:      return fh_compiler_error(c, expr->loc, "compilation of inner function implemented");
   default:
     break;
   }
@@ -330,7 +461,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
     int k = add_const_number(c, expr->loc, expr->data.num);
     if (k < 0)
       goto err;
-    if (add_instr(c, expr->loc, MAKE_INSTR_ABx(OP_LOADK, dest_reg, k)) < 0)
+    if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
       goto err;
     break;
   }
@@ -339,7 +470,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
     int k = add_const_string(c, expr->loc, expr->data.str);
     if (k < 0)
       goto err;
-    if (add_instr(c, expr->loc, MAKE_INSTR_ABx(OP_LOADK, dest_reg, k)) < 0)
+    if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
       goto err;
     break;
  }
@@ -369,7 +500,7 @@ static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct
     if (compile_expr(c, decl->val, reg) < 0)
       return -1;
   } else {
-    if (add_instr(c, loc, MAKE_INSTR_A(OP_LOAD0, reg)) < 0)
+    if (add_instr(c, loc, MAKE_INSTR_A(OPC_LD0, reg)) < 0)
       return -1;
   }
   if (set_reg_var(c, loc, reg, decl->var) < 0)
@@ -384,9 +515,9 @@ static int compile_return(struct fh_compiler *c, struct fh_src_loc loc, struct f
     if (reg < 0)
       return -1;
     free_reg(c, loc, reg);
-    return add_instr(c, loc, MAKE_INSTR_AB(OP_RET, 1, reg));
+    return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, reg, 1));
   }
-  return add_instr(c, loc, MAKE_INSTR_AB(OP_RET, 0, 0));
+  return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0));
 }
 
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
@@ -397,18 +528,25 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
     return 0;
     
   case STMT_VAR_DECL:
-    return compile_var_decl(c, stmt->loc, &stmt->data.decl);
+    if (compile_var_decl(c, stmt->loc, &stmt->data.decl) < 0)
+      return -1;
+    free_tmp_regs(c, stmt->loc);
+    return 0;
 
-  case STMT_EXPR: {
-    // TODO: free regs used by expr compilation
-    return compile_expr(c, stmt->data.expr, -1);
-  }
+  case STMT_EXPR:
+    if (compile_expr(c, stmt->data.expr, -1) < 0)
+      return -1;
+    free_tmp_regs(c, stmt->loc);
+    return 0;
 
   case STMT_BLOCK:
     return compile_block(c, stmt->loc, &stmt->data.block);
 
   case STMT_RETURN:
-    return compile_return(c, stmt->loc, &stmt->data.ret);
+    if (compile_return(c, stmt->loc, &stmt->data.ret))
+      return -1;
+    free_tmp_regs(c, stmt->loc);
+    return 0;
     
   case STMT_IF:
   case STMT_WHILE:
@@ -436,38 +574,36 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   return 0;
 }
 
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func)
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_bc_func *bc_func)
 {
-  struct fh_bc_func *bc_func = fh_add_bc_func(c->bc, loc, func->n_params, 0);
-  if (! bc_func) {
-    fh_compiler_error(c, loc, "out of memory");
-    return -1;
-  }
   struct func_info *fi = new_func_info(c, bc_func);
   if (! fi) {
     fh_compiler_error(c, loc, "out of memory");
     return -1;
   }
 
+  bc_func->addr = fh_get_bc_num_instructions(c->bc);
+  
   for (int i = 0; i < func->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
       return -1;
   }
-  
+
   if (compile_block(c, loc, &func->body) < 0)
     return -1;
 
-  if (add_instr(c, loc, MAKE_INSTR_AB(OP_RET, 0, 0)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0)) < 0)
     return -1;
   
+  bc_func->n_opc = fh_get_bc_num_instructions(c->bc) - bc_func->addr;
   bc_func->n_regs = fi->num_regs;
   pop_func_info(c);
   return 0;
 }
 
-static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func)
+static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_bc_func *bc_func)
 {
-  if (compile_func(c, func->loc, &func->func) < 0)
+  if (compile_func(c, func->loc, &func->func, bc_func) < 0)
     return -1;
 
   if (c->funcs.num > 0)
@@ -480,9 +616,17 @@ int fh_compile(struct fh_compiler *c)
 {
   for (int i = 0; i < c->ast->funcs.num; i++) {
     struct fh_p_named_func *f = fh_stack_item(&c->ast->funcs, i);
-    if (compile_named_func(c, f) < 0)
+    if (! fh_add_bc_func(c->bc, f->loc, f->func.n_params))
       goto err;
   }
+
+  for (int i = 0; i < c->ast->funcs.num; i++) {
+    struct fh_p_named_func *func = fh_stack_item(&c->ast->funcs, i);
+    struct fh_bc_func *bc_func = fh_get_bc_func(c->bc, i);
+    if (compile_named_func(c, func, bc_func) < 0)
+      goto err;
+  }
+
   return 0;
 
  err:

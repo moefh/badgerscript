@@ -28,6 +28,7 @@ static struct {
   { '-',        "-",  FH_ASSOC_LEFT,   60 },
   { '*',        "*",  FH_ASSOC_LEFT,   70 },
   { '/',        "/",  FH_ASSOC_LEFT,   70 },
+  { '%',        "%",  FH_ASSOC_LEFT,   70 },
 
   { AST_OP_UNM, "-",  FH_ASSOC_PREFIX, 80 },
   { '!',        "!",  FH_ASSOC_PREFIX, 80 },

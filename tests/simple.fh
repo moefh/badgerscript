@@ -1,12 +1,32 @@
 
-function main()
+function simple()
+{
+  return 1+2;
+}
+
+function f(x,y) { return y; }
+function g(x,y,z) { return z; }
+
+function test()
+{
+  var x = 0;
+  var y = 1;
+  var z = f(g(1,x,3), y);
+  return z;
+}
+
+function main(f)
 {
   var x = 100;
   var y = 101;
   var z = 102;
-  var w = 103;
+  #var w = 103;
 
-  var r = x*y + z*w;
+  var r = 2*x + 3*z;
+  #r = x*y + z*w;
+
+  r = test(x, y, r);
+  r = test(0);
 
   return r;
 }

@@ -31,6 +31,8 @@ static void free_bc_const(struct fh_bc_const *c)
 {
   switch (c->type) {
   case FH_BC_CONST_NUMBER:
+  case FH_BC_CONST_FUNC:
+  case FH_BC_CONST_C_FUNC:
     return;
 
   case FH_BC_CONST_STRING:
@@ -77,16 +79,22 @@ uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t inst
   return bc->instr + pc;
 }
 
-struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params, int n_regs)
+struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params)
 {
   if (fh_push(&bc->funcs, NULL) < 0)
     return NULL;
   struct fh_bc_func *func = fh_stack_top(&bc->funcs);
-  func->pc = bc->num_instr;
   func->n_params = n_params;
-  func->n_regs = n_regs;
+  func->addr = 0;
+  func->n_opc = 0;
+  func->n_regs = 0;
   fh_init_stack(&func->consts, sizeof(struct fh_bc_const));
   return func;
+}
+
+uint32_t fh_get_bc_num_instructions(struct fh_bc *bc)
+{
+  return bc->num_instr;
 }
 
 uint32_t *fh_get_bc_instructions(struct fh_bc *bc, uint32_t *num)
@@ -95,10 +103,24 @@ uint32_t *fh_get_bc_instructions(struct fh_bc *bc, uint32_t *num)
   return bc->instr;
 }
 
-struct fh_bc_func *fh_get_bc_funcs(struct fh_bc *bc, uint32_t *num)
+struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num)
 {
-  *num = bc->funcs.num;
-  return bc->funcs.data;
+  return fh_stack_item(&bc->funcs, num);
+}
+
+int fh_get_bc_num_funcs(struct fh_bc *bc)
+{
+  return bc->funcs.num;
+}
+
+struct fh_bc_const *fh_get_bc_func_const(struct fh_bc_func *func, int num)
+{
+  return fh_stack_item(&func->consts, num);
+}
+
+int fh_get_bc_func_num_consts(struct fh_bc_func *func)
+{
+  return func->consts.num;
 }
 
 static struct fh_bc_const *add_const(struct fh_bc_func *func, int *k)
@@ -111,6 +133,12 @@ static struct fh_bc_const *add_const(struct fh_bc_func *func, int *k)
 
 int fh_add_bc_const_number(struct fh_bc_func *func, double num)
 {
+  for (int i = 0; i < func->consts.num; i++) {
+    struct fh_bc_const *c = fh_get_bc_func_const(func, i);
+    if (c->type == FH_BC_CONST_NUMBER && c->data.num == num)
+      return i;
+  }
+  
   int k;
   struct fh_bc_const *c = add_const(func, &k);
   if (! c)
@@ -122,6 +150,12 @@ int fh_add_bc_const_number(struct fh_bc_func *func, double num)
 
 int fh_add_bc_const_string(struct fh_bc_func *func, const uint8_t *str)
 {
+  for (int i = 0; i < func->consts.num; i++) {
+    struct fh_bc_const *c = fh_get_bc_func_const(func, i);
+    if (c->type == FH_BC_CONST_STRING && strcmp((char *) c->data.str, (char *) str) == 0)
+      return i;
+  }
+
   int k;
   struct fh_bc_const *c = add_const(func, &k);
   if (! c)
@@ -136,8 +170,19 @@ int fh_add_bc_const_string(struct fh_bc_func *func, const uint8_t *str)
   return k;
 }
 
-struct fh_bc_const *fh_get_bc_func_consts(struct fh_bc_func *func, uint32_t *num)
+int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f)
 {
-  *num = func->consts.num;
-  return func->consts.data;
+  for (int i = 0; i < func->consts.num; i++) {
+    struct fh_bc_const *c = fh_get_bc_func_const(func, i);
+    if (c->type == FH_BC_CONST_FUNC && c->data.func == f)
+      return i;
+  }
+
+  int k;
+  struct fh_bc_const *c = add_const(func, &k);
+  if (! c)
+    return -1;
+  c->type = FH_BC_CONST_FUNC;
+  c->data.func = f;
+  return k;
 }
