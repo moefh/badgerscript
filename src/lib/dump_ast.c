@@ -90,12 +90,6 @@ static void dump_expr(struct fh_ast *ast, struct fh_output *out, int indent, str
     fh_output(out, ")");
     return;
 
-  case EXPR_ASSIGN:
-    dump_expr(ast, out, indent, expr->data.assign.dest);
-    fh_output(out, " = ");
-    dump_expr(ast, out, indent, expr->data.assign.val);
-    return;
-
   case EXPR_FUNC:
     fh_output(out, "<...func...>");
     return;

@@ -1,4 +1,7 @@
 fh
+core
+.*.swp
+.gdb_history
 
 # Emacs backups
 *~

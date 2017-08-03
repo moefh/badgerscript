@@ -7,33 +7,34 @@
 #include "ast.h"
 
 static struct {
+  uint32_t op;
   char name[4];
   enum fh_op_assoc assoc;
   int32_t prec;
 } ast_ops[] = {
-  { "=",  FH_ASSOC_RIGHT,  10 },
+  { '=',        "=",  FH_ASSOC_RIGHT,  10 },
   
-  { "||", FH_ASSOC_LEFT,   20 },
-  { "&&", FH_ASSOC_LEFT,   30 },
+  { AST_OP_OR,  "||", FH_ASSOC_LEFT,   20 },
+  { AST_OP_AND, "&&", FH_ASSOC_LEFT,   30 },
   
-  { "==", FH_ASSOC_LEFT,   40 },
-  { "!=", FH_ASSOC_LEFT,   40 },
-  { "<",  FH_ASSOC_LEFT,   50 },
-  { ">",  FH_ASSOC_LEFT,   50 },
-  { "<=", FH_ASSOC_LEFT,   50 },
-  { ">=", FH_ASSOC_LEFT,   50 },
+  { AST_OP_EQ,  "==", FH_ASSOC_LEFT,   40 },
+  { AST_OP_NEQ, "!=", FH_ASSOC_LEFT,   40 },
+  { '<',        "<",  FH_ASSOC_LEFT,   50 },
+  { '>',        ">",  FH_ASSOC_LEFT,   50 },
+  { AST_OP_LE,  "<=", FH_ASSOC_LEFT,   50 },
+  { AST_OP_GE,  ">=", FH_ASSOC_LEFT,   50 },
   
-  { "+",  FH_ASSOC_LEFT,   60 },
-  { "-",  FH_ASSOC_LEFT,   60 },
-  { "*",  FH_ASSOC_LEFT,   70 },
-  { "/",  FH_ASSOC_LEFT,   70 },
+  { '+',        "+",  FH_ASSOC_LEFT,   60 },
+  { '-',        "-",  FH_ASSOC_LEFT,   60 },
+  { '*',        "*",  FH_ASSOC_LEFT,   70 },
+  { '/',        "/",  FH_ASSOC_LEFT,   70 },
 
-  { "-",  FH_ASSOC_PREFIX, 80 },
-  { "!",  FH_ASSOC_PREFIX, 80 },
-
-  { "^",  FH_ASSOC_RIGHT,  90 },
+  { AST_OP_UNM, "-",  FH_ASSOC_PREFIX, 80 },
+  { '!',        "!",  FH_ASSOC_PREFIX, 80 },
   
-  { ".",  FH_ASSOC_RIGHT,  FUNC_CALL_PREC+10 },
+  { '^',        "^",  FH_ASSOC_RIGHT,  90 },
+  
+  { '.',        ".",  FH_ASSOC_RIGHT,  FUNC_CALL_PREC+10 },
 };
 
 struct fh_ast *fh_new_ast(void)
@@ -47,7 +48,7 @@ struct fh_ast *fh_new_ast(void)
   fh_init_stack(&ast->funcs, sizeof(struct fh_p_named_func));
 
   for (int i = 0; i < sizeof(ast_ops)/sizeof(ast_ops[0]); i++) {
-    if (fh_add_op(&ast->op_table, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0)
+    if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0)
       goto err;
   }
   
@@ -89,9 +90,11 @@ const uint8_t *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)
 
 const uint8_t *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
 {
-  static uint8_t name[4];
-  memcpy(name, &op, sizeof(name));
-  return name;
+  for (int i = 0; i < sizeof(ast_ops)/sizeof(ast_ops[0]); i++) {
+    if (op == ast_ops[i].op)
+      return (uint8_t *) ast_ops[i].name;
+  }
+  return NULL;
 }
 
 struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type)
@@ -133,11 +136,6 @@ void fh_free_expr_children(struct fh_p_expr *expr)
   case EXPR_VAR: return;
   case EXPR_NUMBER: return;
   case EXPR_STRING: return;
-
-  case EXPR_ASSIGN:
-    fh_free_expr(expr->data.assign.dest);
-    fh_free_expr(expr->data.assign.val);
-    return;
 
   case EXPR_UN_OP:
     fh_free_expr(expr->data.un_op.arg);

@@ -18,22 +18,23 @@ void fh_free_op_table(struct fh_op_table *ops)
   fh_free_stack(&ops->binary);
 }
 
-int fh_add_op(struct fh_op_table *ops, char *name, int32_t prec, enum fh_op_assoc assoc)
+int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, enum fh_op_assoc assoc)
 {
-  struct fh_operator op;
+  struct fh_operator opr;
 
   if (strlen(name) >= 4)
     return -1;
 
-  memset(op.name.str, 0, 4);
-  strcpy(op.name.str, name);
-  op.prec = prec;
-  op.assoc = assoc;
+  opr.op = op;
+  opr.prec = prec;
+  opr.assoc = assoc;
+  memset(opr.name, 0, 4);
+  strcpy(opr.name, name);
 
   if (assoc == FH_ASSOC_PREFIX)
-    return fh_push(&ops->prefix, &op);
+    return fh_push(&ops->prefix, &opr);
   if (assoc == FH_ASSOC_LEFT || assoc == FH_ASSOC_RIGHT)
-    return fh_push(&ops->binary, &op);
+    return fh_push(&ops->binary, &opr);
   return -1;
 }
 
@@ -41,7 +42,7 @@ static struct fh_operator *find_op(struct fh_stack *s, char *name)
 {
   struct fh_operator *ops = (struct fh_operator *) s->data;
   for (int i = 0; i < s->num; i++) {
-    if (strcmp(ops[i].name.str, name) == 0)
+    if (strcmp(ops[i].name, name) == 0)
       return &ops[i];
   }
   return NULL;

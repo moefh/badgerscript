@@ -39,10 +39,8 @@ struct fh_buffer {
 struct fh_operator {
   enum fh_op_assoc assoc;
   int32_t prec;
-  union {
-    char str[4];
-    uint32_t id;
-  } name;
+  uint32_t op;
+  char name[4];
 };
 
 struct fh_op_table {
@@ -61,7 +59,6 @@ struct fh_token {
     fh_string_id str;
     enum fh_keyword_type keyword;
     fh_symbol_id symbol_id;
-    uint32_t op_id;
     char op_name[4];
     uint32_t punct;
   } data;
@@ -101,7 +98,7 @@ const uint8_t *fh_symtab_get_symbol(struct fh_symtab *s, fh_symbol_id id);
 
 void fh_init_op_table(struct fh_op_table *ops);
 void fh_free_op_table(struct fh_op_table *ops);
-int fh_add_op(struct fh_op_table *ops, char *name, int32_t prec, enum fh_op_assoc assoc);
+int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, enum fh_op_assoc assoc);
 struct fh_operator *fh_get_binary_op(struct fh_op_table *ops, char *name);
 struct fh_operator *fh_get_prefix_op(struct fh_op_table *ops, char *name);
 struct fh_operator *fh_get_op(struct fh_op_table *ops, char *name);

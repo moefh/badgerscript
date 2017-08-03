@@ -11,7 +11,7 @@ $ src/fh tests/test.fh
 
 ### Status
 
-Parsing files to AST is working. Bytecode compilation is next.
+Parsing files to AST mostly works, bytecode compilation is in development.
 
 ### License
 

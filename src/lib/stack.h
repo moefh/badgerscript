@@ -9,8 +9,8 @@
 struct fh_stack {
   void *data;
   size_t item_size;
-  uint32_t num;
-  uint32_t cap;
+  int num;
+  int cap;
 };
 
 void fh_init_stack(struct fh_stack *s, size_t item_size);

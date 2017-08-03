@@ -73,7 +73,10 @@ int fh_push(struct fh_stack *s, void *item)
     s->cap = new_cap;
   }
 
-  memcpy((char *) s->data + s->num*s->item_size, item, s->item_size);
+  if (item)
+    memcpy((char *) s->data + s->num*s->item_size, item, s->item_size);
+  else
+    memset((char *) s->data + s->num*s->item_size, 0, s->item_size);
   s->num++;
   return 0;
 }

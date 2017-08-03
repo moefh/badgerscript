@@ -1,0 +1,7 @@
+
+function main()
+{
+  var x = 1;
+  var y = x+1;
+  var z;
+}

@@ -163,12 +163,9 @@ static void unget_byte(struct fh_tokenizer *t, uint8_t b)
   t->saved_byte = b;
 }
 
-static uint32_t get_op_id(struct fh_tokenizer *t, char *name)
+static bool is_op(struct fh_tokenizer *t, char *name)
 {
-  struct fh_operator *op = fh_get_op(&t->ast->op_table, name);
-  if (op == NULL)
-    return 0;
-  return op->name.id;
+  return fh_get_op(&t->ast->op_table, name) != NULL;
 }
 
 static int find_keyword(uint8_t *keyword, size_t keyword_size, enum fh_keyword_type *ret)
@@ -343,15 +340,13 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
   struct fh_src_loc op_loc = t->cur_loc;
   char op_name[4] = { c };
   int op_len = 1;
-  uint32_t op_id = 0;
   while (1) {
     op_name[op_len] = '\0';
-    uint32_t try_op = get_op_id(t, op_name);
-    if (try_op == 0) {
+    if (! is_op(t, op_name)) {
+      op_name[--op_len] = '\0';
       unget_byte(t, c);
       break;
     }
-    op_id = try_op;
 
     if (op_len == sizeof(op_name)-1)
       break;
@@ -360,9 +355,9 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
       break;
     op_name[op_len++] = c;
   }
-  if (op_id != 0) {
+  if (op_len > 0) {
     tok->type = TOK_OP;
-    tok->data.op_id = op_id;
+    strcpy(tok->data.op_name, op_name);
     return 0;
   }
 

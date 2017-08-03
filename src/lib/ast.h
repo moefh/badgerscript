@@ -7,6 +7,18 @@
 
 #define FUNC_CALL_PREC 1000
 
+enum {
+  AST_OP_UNM,
+  AST_OP_EQ,
+  AST_OP_NEQ,
+  AST_OP_GT,
+  AST_OP_GE,
+  AST_OP_LT,
+  AST_OP_LE,
+  AST_OP_OR,
+  AST_OP_AND,
+};
+
 /* =========================================== */
 /* == statements ============================= */
 
@@ -69,16 +81,10 @@ enum fh_expr_type {
   EXPR_VAR,
   EXPR_NUMBER,
   EXPR_STRING,
-  EXPR_ASSIGN,
   EXPR_BIN_OP,
   EXPR_UN_OP,
   EXPR_FUNC,
   EXPR_FUNC_CALL,
-};
-
-struct fh_p_expr_assign {
-  struct fh_p_expr *dest;
-  struct fh_p_expr *val;
 };
 
 struct fh_p_expr_bin_op {
@@ -111,7 +117,6 @@ struct fh_p_expr {
     fh_symbol_id var;
     double num;
     fh_string_id str;
-    struct fh_p_expr_assign assign;
     struct fh_p_expr_bin_op bin_op;
     struct fh_p_expr_un_op un_op;
     struct fh_p_expr_func func;

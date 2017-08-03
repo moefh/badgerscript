@@ -5,9 +5,8 @@ function main()
   var y = 101;
   var z = 102;
   var w = 103;
-  var r = 104;
 
-  r = x*y + z*w;
+  var r = x*y + z*w;
 
   return r;
 }

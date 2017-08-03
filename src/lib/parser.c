@@ -189,7 +189,7 @@ static void dump_opr_stack(struct fh_parser *p, struct fh_stack *oprs)
   printf("**** opr stack has %d elements\n", oprs->num);
   for (int i = 0; i < oprs->num; i++) {
     struct fh_operator *op = fh_stack_item(oprs, i);
-    printf("[%d] %s\n", i, op->name.str);
+    printf("[%d] %s\n", i, op->name);
   }
 }
 
@@ -208,7 +208,7 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
     int32_t op_prec = (op->assoc == FH_ASSOC_RIGHT) ? op->prec-1 : op->prec;
     if (op_prec < stop_prec)
       return 0;
-    uint32_t op_id = op->name.id;
+    uint32_t op_id = op->op;
     enum fh_op_assoc op_assoc = op->assoc;
     struct fh_p_expr *expr = fh_new_expr(p, loc, EXPR_NONE);
     if (! expr) {
@@ -225,17 +225,10 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
         fh_parse_error(p, loc, "syntax error");
         return -1;
       }
-      const char *op_name = (const char *) fh_get_ast_op(p->ast, op_id);
-      if (strcmp(op_name, "=") == 0) {
-        expr->type = EXPR_ASSIGN;
-        fh_pop(opns, &expr->data.assign.val);
-        fh_pop(opns, &expr->data.assign.dest);
-      } else {
-        expr->type = EXPR_BIN_OP;
-        expr->data.bin_op.op = op_id;
-        fh_pop(opns, &expr->data.bin_op.right);
-        fh_pop(opns, &expr->data.bin_op.left);
-      }
+      expr->type = EXPR_BIN_OP;
+      expr->data.bin_op.op = op_id;
+      fh_pop(opns, &expr->data.bin_op.right);
+      fh_pop(opns, &expr->data.bin_op.left);
       break;
 
     case FH_ASSOC_PREFIX:
