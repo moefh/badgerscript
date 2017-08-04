@@ -93,6 +93,7 @@ uint32_t *fh_get_bc_instructions(struct fh_bc *c, uint32_t *num);
 uint32_t fh_get_bc_num_instructions(struct fh_bc *bc);
 struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
 int fh_get_bc_num_funcs(struct fh_bc *bc);
+struct fh_bc_const *fh_get_bc_func_consts(struct fh_bc_func *func);
 struct fh_bc_const *fh_get_bc_func_const(struct fh_bc_func *func, int num);
 int fh_get_bc_func_num_consts(struct fh_bc_func *func);
 

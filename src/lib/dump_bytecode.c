@@ -95,7 +95,7 @@ static void dump_instr_a_rkb_rkc(struct fh_output *out, uint32_t instr)
   fh_output(out, "\n");
 }
 
-static void dump_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr)
+void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr)
 {
   UNUSED(bc);
   
@@ -167,7 +167,7 @@ void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
     fh_output(out, "; function with %u parameters, %d regs\n", func->n_params, func->n_regs);
     
     for (uint32_t i = 0; i < func->n_opc; i++)
-      dump_instr(bc, out, func->addr+i, instr[func->addr+i]);
+      fh_dump_bc_instr(bc, out, func->addr+i, instr[func->addr+i]);
 
     int n_consts = fh_get_bc_func_num_consts(func);
     fh_output(out, "\n; %d constants\n", n_consts);

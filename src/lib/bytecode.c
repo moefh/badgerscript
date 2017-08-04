@@ -113,7 +113,8 @@ uint32_t fh_get_bc_num_instructions(struct fh_bc *bc)
 
 uint32_t *fh_get_bc_instructions(struct fh_bc *bc, uint32_t *num)
 {
-  *num = bc->num_instr;
+  if (num)
+    *num = bc->num_instr;
   return bc->instr;
 }
 
@@ -125,6 +126,11 @@ struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num)
 int fh_get_bc_num_funcs(struct fh_bc *bc)
 {
   return bc->funcs.num;
+}
+
+struct fh_bc_const *fh_get_bc_func_consts(struct fh_bc_func *func)
+{
+  return fh_stack_item(&func->consts, 0);
 }
 
 struct fh_bc_const *fh_get_bc_func_const(struct fh_bc_func *func, int num)

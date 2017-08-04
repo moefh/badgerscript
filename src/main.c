@@ -13,6 +13,7 @@ static int run_file(const char *filename)
   struct fh_parser *p = NULL;
   struct fh_bc *bc = NULL;
   struct fh_compiler *c = NULL;
+  struct fh_vm *vm = NULL;
 
   printf("-> opening input file...\n");
   in = fh_open_input_file(filename);
@@ -57,7 +58,23 @@ static int run_file(const char *filename)
     goto err;
   }
   fh_dump_bc(bc, NULL);
+  if (fh_get_bc_num_funcs(bc) == 0) {
+    printf("ERROR: no functions!\n");
+    goto err;
+  }
 
+  // run
+  printf("-> running...\n");
+  vm = fh_new_vm(bc);
+  if (! vm)
+    goto err;
+  struct fh_bc_func *f = fh_get_bc_func(bc, fh_get_bc_num_funcs(bc)-1);
+  if (fh_run_vm_func(vm, f) < 0) {
+    printf("ERROR running bytecode\n");
+    goto err;
+  }
+
+  fh_free_vm(vm);
   fh_free_compiler(c);
   fh_free_bc(bc);
   fh_free_parser(p);
@@ -66,6 +83,8 @@ static int run_file(const char *filename)
   return 0;
   
  err:
+  if (vm)
+    fh_free_vm(vm);
   if (c)
     fh_free_compiler(c);
   if (bc)

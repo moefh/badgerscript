@@ -68,6 +68,7 @@ struct fh_token {
 };
 
 struct fh_bc;
+struct fh_bc_func;
 struct fh_output;
 struct fh_symtab;
 struct fh_tokenizer;
@@ -132,7 +133,12 @@ int fh_compile(struct fh_compiler *c);
 const char *fh_get_compiler_error(struct fh_compiler *p);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 uint32_t *fh_get_compiler_instructions(struct fh_compiler *c, int32_t *len);
-
 void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
+void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
+
+struct fh_vm *fh_new_vm(struct fh_bc *bc);
+void fh_free_vm(struct fh_vm *vm);
+int fh_run_vm(struct fh_vm *vm);
+int fh_run_vm_func(struct fh_vm *vm, struct fh_bc_func *func);
 
 #endif /* FH_I_H_FILE */

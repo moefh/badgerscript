@@ -62,9 +62,9 @@ int fh_stack_shrink_to_fit(struct fh_stack *s)
   return 0;
 }
 
-int fh_push(struct fh_stack *s, void *item)
+int fh_stack_ensure_size(struct fh_stack *s, int n_items)
 {
-  if (s->num >= s->cap) {
+  if (s->num + n_items > s->cap) {
     int new_cap = (s->cap + 16 + 1) / 16 * 16;
     void *new_data = realloc(s->data, new_cap * s->item_size);
     if (new_data == NULL)
@@ -72,6 +72,21 @@ int fh_push(struct fh_stack *s, void *item)
     s->data = new_data;
     s->cap = new_cap;
   }
+  return 0;
+}
+
+int fh_stack_grow(struct fh_stack *s, int n_items)
+{
+  if (fh_stack_ensure_size(s, n_items) < 0)
+    return -1;
+  s->num += n_items;
+  return 0;
+}
+
+int fh_push(struct fh_stack *s, void *item)
+{
+  if (fh_stack_ensure_size(s, 1) < 0)
+    return -1;
 
   if (item)
     memcpy((char *) s->data + s->num*s->item_size, item, s->item_size);
