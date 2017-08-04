@@ -129,7 +129,7 @@ int fh_run_vm(struct fh_vm *vm)
   while (1) {
     printf("\n\n--- stack size is %d, base is %d\n", vm->val_stack.num, frame->reg_base);
     for (int i = 0; i < vm->val_stack.num-frame->reg_base; i++) {
-      printf("[%d] r%d = ", i+frame->reg_base, i); dump_val(&reg_base[i]);
+      printf("[%-3d] r%-2d = ", i+frame->reg_base, i); dump_val(&reg_base[i]);
     }
     printf("---\n");
     fh_dump_bc_instr(vm->bc, NULL, pc - vm->code, *pc);

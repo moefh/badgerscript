@@ -79,6 +79,8 @@ int fh_stack_grow(struct fh_stack *s, int n_items)
 {
   if (fh_stack_ensure_size(s, n_items) < 0)
     return -1;
+
+  memset((char *) s->data + s->num * s->item_size, 0, n_items * s->item_size);
   s->num += n_items;
   return 0;
 }
