@@ -60,11 +60,11 @@ struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
   return ret;
 }
 
-ssize_t fh_utf8_len(uint8_t *str, size_t str_size)
+ssize_t fh_utf8_len(char *str, size_t str_size)
 {
   size_t len = 0;
-  uint8_t *p = str;
-  uint8_t *end = str + str_size;
+  uint8_t *p = (uint8_t *) str;
+  uint8_t *end = (uint8_t *) str + str_size;
 
   while (p < end) {
     uint8_t c = *p++;

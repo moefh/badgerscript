@@ -23,10 +23,11 @@ static bool expr_needs_paren(struct fh_p_expr *expr)
   }
 }
 
-static void dump_string(struct fh_ast *ast, struct fh_output *out, const uint8_t *str)
+static void dump_string(struct fh_ast *ast, struct fh_output *out, const char *str)
 {
+  UNUSED(ast);
   fh_output(out, "\"");
-  for (const uint8_t *p = str; *p != '\0'; p++) {
+  for (const char *p = str; *p != '\0'; p++) {
     switch (*p) {
     case '\n': fh_output(out, "\\n"); break;
     case '\r': fh_output(out, "\\r"); break;

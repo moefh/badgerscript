@@ -40,10 +40,9 @@ int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, en
 
 static struct fh_operator *find_op(struct fh_stack *s, char *name)
 {
-  struct fh_operator *ops = (struct fh_operator *) s->data;
-  for (int i = 0; i < s->num; i++) {
-    if (strcmp(ops[i].name, name) == 0)
-      return &ops[i];
+  stack_foreach(struct fh_operator *, op, s) {;
+    if (strcmp(op->name, name) == 0)
+      return op;
   }
   return NULL;
 }
@@ -65,5 +64,18 @@ struct fh_operator *fh_get_op(struct fh_op_table *ops, char *name)
     return op;
   if ((op = fh_get_binary_op(ops, name)) != NULL)
     return op;
+  return NULL;
+}
+
+struct fh_operator *fh_get_op_by_id(struct fh_op_table *ops, uint32_t op)
+{
+  stack_foreach(struct fh_operator *, opr, &ops->binary) {;
+    if (opr->op == op)
+      return opr;
+  }
+  stack_foreach(struct fh_operator *, opr, &ops->prefix) {;
+    if (opr->op == op)
+      return opr;
+  }
   return NULL;
 }

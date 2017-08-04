@@ -12,7 +12,7 @@
 struct fh_parser {
   struct fh_tokenizer *t;
   struct fh_ast *ast;
-  uint8_t last_err_msg[256];
+  char last_err_msg[256];
   struct fh_src_loc last_loc;
   int has_saved_tok;
   struct fh_token saved_tok;
@@ -75,7 +75,7 @@ void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *
   return fh_parse_error(p, loc, "expected '%s'", expected);
 }
 
-const uint8_t *fh_get_parser_error(struct fh_parser *p)
+const char *fh_get_parser_error(struct fh_parser *p)
 {
   return p->last_err_msg;
 }
@@ -124,7 +124,7 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
   if (op == NULL)
     return 1;
   
-  const uint8_t *tok_op = fh_get_token_op(p->t, tok);
+  const char *tok_op = fh_get_token_op(p->t, tok);
   if (tok_op != NULL && strcmp(op, (const char *) tok_op) == 0)
     return 1;
   return 0;
@@ -165,8 +165,7 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
   return args.num;
   
  err:
-  for (int i = 0; i < args.num; i++) {
-    struct fh_p_expr *e = fh_stack_item(&args, i);
+  stack_foreach(struct fh_p_expr *, e, &args) {
     fh_free_expr_children(e);
   }
   fh_free_stack(&args);
@@ -176,9 +175,9 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
 static void dump_opn_stack(struct fh_parser *p, struct fh_stack *opns)
 {
   printf("**** opn stack has %d elements\n", opns->num);
-  for (int i = 0; i < opns->num; i++) {
-    struct fh_p_expr **pe = fh_stack_item(opns, i);
-    printf("[%d] ", i);
+  int i = 0;
+  stack_foreach(struct fh_p_expr **, pe, opns) {
+    printf("[%d] ", i++);
     fh_dump_expr(p->ast, NULL, *pe);
     printf("\n");
   }
@@ -186,10 +185,11 @@ static void dump_opn_stack(struct fh_parser *p, struct fh_stack *opns)
 
 static void dump_opr_stack(struct fh_parser *p, struct fh_stack *oprs)
 {
+  UNUSED(p);
   printf("**** opr stack has %d elements\n", oprs->num);
-  for (int i = 0; i < oprs->num; i++) {
-    struct fh_operator *op = fh_stack_item(oprs, i);
-    printf("[%d] %s\n", i, op->name);
+  int i = 0;
+  stack_foreach(struct fh_operator *, op, oprs) {
+    printf("[%d] %s\n", i++, op->name);
   }
 }
 
@@ -314,7 +314,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
     if (stop_chars != NULL && tok.type == TOK_PUNCT) {
       bool is_stop = false;
       for (char *stop = stop_chars; *stop != '\0'; stop++) {
-        if (*stop == tok.data.punct) {
+        if ((uint8_t)*stop == tok.data.punct) {
           is_stop = true;
           break;
         }
@@ -436,8 +436,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
   }
 
  err:
-  for (int i = 0; i < opns.num; i++) {
-    struct fh_p_expr **pe = fh_stack_item(&opns, i);
+  stack_foreach(struct fh_p_expr **, pe, &opns) {
     fh_free_expr(*pe);
   }
   fh_free_stack(&opns);
@@ -680,7 +679,7 @@ static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_f
     while (1) {
       if (! tok_is_symbol(&tok))
         return fh_parse_error_expected(p, tok.loc, "name");
-      if (n_params >= sizeof(params)/sizeof(params[0]))
+      if (n_params >= ARRAY_SIZE(params))
         return fh_parse_error(p, tok.loc, "too many parameters");
       params[n_params++] = tok.data.symbol_id;
       
@@ -756,16 +755,14 @@ int fh_parse(struct fh_parser *p)
     fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->t, &tok));
     goto error;
   }
-  for (int i = 0; i < funcs.num; i++) {
-    struct fh_p_named_func *f = fh_stack_item(&funcs, i);
+  stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_push(&p->ast->funcs, f);
   }
   fh_free_stack(&funcs);
   return 0;
 
  error:
-  for (int i = 0; i < funcs.num; i++) {
-    struct fh_p_named_func *f = fh_stack_item(&funcs, i);
+  stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_free_named_func(*f);
   }
   fh_free_stack(&funcs);
@@ -774,8 +771,7 @@ int fh_parse(struct fh_parser *p)
 
 void fh_parser_dump(struct fh_parser *p)
 {
-  for (int i = 0; i < p->ast->funcs.num; i++) {
-    struct fh_p_named_func *f = fh_stack_item(&p->ast->funcs, i);
+  stack_foreach(struct fh_p_named_func *, f, &p->ast->funcs) {
     fh_dump_named_func(p->ast, NULL, f);
   }
 }

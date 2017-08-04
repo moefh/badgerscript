@@ -20,7 +20,10 @@ int fh_stack_is_empty(struct fh_stack *s);
 int fh_stack_count(struct fh_stack *s);
 int fh_push(struct fh_stack *s, void *item);
 int fh_pop(struct fh_stack *s, void *item);
-void *fh_stack_item(struct fh_stack *s, uint32_t index);
+void *fh_stack_item(struct fh_stack *s, int index);
 void *fh_stack_top(struct fh_stack *s);
+void *fh_stack_next(struct fh_stack *s, void *cur);
+
+#define stack_foreach(type, v, s) for (type v = NULL; (v = fh_stack_next(s, v)) != NULL; )
 
 #endif /* STACK_H_FILE */

@@ -6,10 +6,10 @@
 
 #include "bytecode.h"
 
-static void dump_string(struct fh_output *out, const uint8_t *str)
+static void dump_string(struct fh_output *out, const char *str)
 {
   fh_output(out, "\"");
-  for (const uint8_t *p = str; *p != '\0'; p++) {
+  for (const char *p = str; *p != '\0'; p++) {
     switch (*p) {
     case '\n': fh_output(out, "\\n"); break;
     case '\r': fh_output(out, "\\r"); break;
@@ -57,6 +57,8 @@ static void dump_instr_ab(struct fh_output *out, uint32_t instr)
 
 static void dump_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr)
 {
+  UNUSED(bc);
+  
   fh_output(out, "%-5d  %08x   ", addr, instr);
   switch (GET_INSTR_OP(instr)) {
   case OPC_RET:
@@ -66,7 +68,7 @@ static void dump_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, ui
       fh_output(out, "ret\n");
     return;
     
-  case OPC_CALL:  fh_output(out, "call    "); dump_instr_abc(out, instr); return;
+  case OPC_CALL:  fh_output(out, "call    r%d, r%d, %d\n", GET_INSTR_RA(instr), GET_INSTR_RB(instr), GET_INSTR_RC(instr)); return;
   case OPC_JMP:   fh_output(out, "jmp     %d    ; to %d\n",  GET_INSTR_RS(instr), addr + 1 + GET_INSTR_RS(instr)); return;
 
   case OPC_ADD:   fh_output(out, "add     "); dump_instr_abc(out, instr); return;

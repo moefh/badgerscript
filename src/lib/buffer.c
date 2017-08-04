@@ -25,7 +25,7 @@ int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
   size_t new_size = buf->size + add_size;  // TODO: check overflow
   if (new_size > buf->cap) {
     size_t new_cap = ((new_size + 1024 + 1) / 1024) * 1024;
-    uint8_t *new_p = realloc(buf->p, new_cap);
+    void *new_p = realloc(buf->p, new_cap);
     if (new_p == NULL)
       return -1;
     buf->p = new_p;
@@ -36,7 +36,7 @@ int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
   return 0;
 }
 
-ssize_t fh_buf_add_string(struct fh_buffer *buf, uint8_t *str, size_t str_size)
+ssize_t fh_buf_add_string(struct fh_buffer *buf, char *str, size_t str_size)
 {
   ssize_t pos = buf->size;
   if (fh_buf_grow(buf, str_size + 1) < 0)

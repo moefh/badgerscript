@@ -24,7 +24,7 @@ struct func_info {
 struct fh_compiler {
   struct fh_ast *ast;
   struct fh_bc *bc;
-  uint8_t last_err_msg[256];
+  char last_err_msg[256];
   struct fh_stack funcs;
 };
 
@@ -80,16 +80,16 @@ static void pop_func_info(struct fh_compiler *c)
   fh_free_stack(&fi.regs);
 }
 
-const uint8_t *fh_get_compiler_error(struct fh_compiler *c)
+const char *fh_get_compiler_error(struct fh_compiler *c)
 {
   return c->last_err_msg;
 }
 
-const uint8_t *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
+const char *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
 {
-  const uint8_t *name = fh_get_ast_symbol(c->ast, sym);
+  const char *name = fh_get_ast_symbol(c->ast, sym);
   if (! name)
-    name = (uint8_t *) "<INTERNAL COMPILER ERROR: UNKNOWN VARIABLE>";
+    name = "<INTERNAL COMPILER ERROR: UNKNOWN VARIABLE>";
   return name;
 }
 
@@ -129,7 +129,7 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return -1;
-  const  uint8_t *str_val = fh_get_ast_string(c->ast, str);
+  const char *str_val = fh_get_ast_string(c->ast, str);
   if (! str_val)
     return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: string not found");
 
@@ -146,12 +146,13 @@ static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbo
     return -1;
 
   struct fh_bc_func *bc_func = NULL;
-  for (int i = 0; i < c->ast->funcs.num; i++) {
-    struct fh_p_named_func *ast_f = fh_stack_item(&c->ast->funcs, i);
+  int i = 0;
+  stack_foreach(struct fh_p_named_func *, ast_f, &c->ast->funcs) {
     if (ast_f->name == func) {
       bc_func = fh_get_bc_func(c->bc, i);
       break;
     }
+    i++;
   }
   if (! bc_func)
     return fh_compiler_error(c, loc, "undefined function '%s'\n", get_ast_symbol_name(c, func));
@@ -169,12 +170,13 @@ static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id 
     return -1;
 
   int new_reg = -1;
-  for (int i = 0; i < fi->regs.num; i++) {
-    struct reg_info *ri = fh_stack_item(&fi->regs, i);
+  int i = 0;
+  stack_foreach(struct reg_info *, ri, &fi->regs) {
     if (! ri->alloc) {
       new_reg = i;
       break;
     }
+    i++;
   }
 
   if (new_reg < 0) {
@@ -259,8 +261,7 @@ static void free_tmp_regs(struct fh_compiler *c, struct fh_src_loc loc)
   if (! fi)
     return;
 
-  for (int i = 0; i < fi->regs.num; i++) {
-    struct reg_info *ri = fh_stack_item(&fi->regs, i);
+  stack_foreach(struct reg_info *, ri, &fi->regs) {
     if (ri->alloc && ri->var == TMP_VARIABLE)
       ri->alloc = false;
   }
@@ -406,6 +407,8 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
 
 static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int req_dest_reg)
 {
+  UNUSED(expr);
+  UNUSED(req_dest_reg);
   return fh_compiler_error(c, loc, "un op not implemented");
 }
 
@@ -592,8 +595,10 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   if (compile_block(c, loc, &func->body) < 0)
     return -1;
 
-  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0)) < 0)
-    return -1;
+  if (func->body.n_stmts == 0 || func->body.stmts[func->body.n_stmts-1]->type != STMT_RETURN) {
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0)) < 0)
+      return -1;
+  }
   
   bc_func->n_opc = fh_get_bc_num_instructions(c->bc) - bc_func->addr;
   bc_func->n_regs = fi->num_regs;
@@ -614,21 +619,17 @@ static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *fun
 
 int fh_compile(struct fh_compiler *c)
 {
-  for (int i = 0; i < c->ast->funcs.num; i++) {
-    struct fh_p_named_func *f = fh_stack_item(&c->ast->funcs, i);
+  stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
     if (! fh_add_bc_func(c->bc, f->loc, f->func.n_params))
-      goto err;
+      return -1;
   }
 
-  for (int i = 0; i < c->ast->funcs.num; i++) {
-    struct fh_p_named_func *func = fh_stack_item(&c->ast->funcs, i);
-    struct fh_bc_func *bc_func = fh_get_bc_func(c->bc, i);
-    if (compile_named_func(c, func, bc_func) < 0)
-      goto err;
+  int i = 0;
+  stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
+    struct fh_bc_func *bc_func = fh_get_bc_func(c->bc, i++);
+    if (compile_named_func(c, f, bc_func) < 0)
+      return -1;
   }
 
   return 0;
-
- err:
-  return -1;
 }

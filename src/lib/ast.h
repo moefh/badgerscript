@@ -137,9 +137,9 @@ struct fh_p_named_func {
 
 struct fh_ast *fh_new_ast(void);
 void fh_free_ast(struct fh_ast *ast);
-const uint8_t *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id);
-const uint8_t *fh_get_ast_string(struct fh_ast *ast, fh_string_id id);
-const uint8_t *fh_get_ast_op(struct fh_ast *ast, uint32_t op);
+const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id);
+const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id);
+const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op);
 
 struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type);
 struct fh_p_stmt *fh_new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type);

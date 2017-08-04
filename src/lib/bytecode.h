@@ -61,7 +61,7 @@ struct fh_bc_const {
   enum fh_bc_const_type type;
   union {
     double num;
-    uint8_t *str;
+    char *str;
     struct fh_bc_func *func;
     fh_c_func *c_func;
   } data;
@@ -80,7 +80,7 @@ void fh_free_bc(struct fh_bc *bc);
 struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params);
 uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t instr);
 int fh_add_bc_const_number(struct fh_bc_func *func, double num);
-int fh_add_bc_const_string(struct fh_bc_func *func, const uint8_t *str);
+int fh_add_bc_const_string(struct fh_bc_func *func, const char *str);
 int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f);
 
 uint32_t *fh_get_bc_instructions(struct fh_bc *c, uint32_t *num);

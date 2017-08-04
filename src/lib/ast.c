@@ -48,7 +48,7 @@ struct fh_ast *fh_new_ast(void)
   fh_init_buffer(&ast->string_pool);
   fh_init_stack(&ast->funcs, sizeof(struct fh_p_named_func));
 
-  for (int i = 0; i < sizeof(ast_ops)/sizeof(ast_ops[0]); i++) {
+  for (int i = 0; i < ARRAY_SIZE(ast_ops); i++) {
     if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0)
       goto err;
   }
@@ -66,8 +66,7 @@ struct fh_ast *fh_new_ast(void)
 
 void fh_free_ast(struct fh_ast *ast)
 {
-  for (int i = 0; i < ast->funcs.num; i++) {
-    struct fh_p_named_func *func = fh_stack_item(&ast->funcs, i);
+  stack_foreach(struct fh_p_named_func *, func, &ast->funcs) {
     fh_free_named_func(*func);
   }
   fh_free_stack(&ast->funcs);
@@ -79,23 +78,22 @@ void fh_free_ast(struct fh_ast *ast)
   free(ast);
 }
 
-const uint8_t *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
+const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
 {
   return fh_symtab_get_symbol(ast->symtab, id);
 }
 
-const uint8_t *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)
+const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)
 {
   return ast->string_pool.p + id;
 }
 
-const uint8_t *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
+const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
 {
-  for (int i = 0; i < sizeof(ast_ops)/sizeof(ast_ops[0]); i++) {
-    if (op == ast_ops[i].op)
-      return (uint8_t *) ast_ops[i].name;
-  }
-  return NULL;
+  struct fh_operator *opr = fh_get_op_by_id(&ast->op_table, op);
+  if (opr == NULL)
+    return NULL;
+  return opr->name;
 }
 
 struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type)

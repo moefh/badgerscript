@@ -35,9 +35,9 @@ struct fh_tokenizer {
   struct fh_src_loc cur_loc;
   uint32_t buf_pos;
   uint32_t buf_len;
-  uint8_t buf[BUF_SIZE];
+  char buf[BUF_SIZE];
 
-  uint8_t last_err_msg[256];
+  char last_err_msg[256];
   struct fh_src_loc last_err_loc;
   
   int saved_byte;
@@ -84,7 +84,7 @@ static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, 
   t->last_err_loc = loc;
 }
 
-const uint8_t *fh_get_tokenizer_error(struct fh_tokenizer *t)
+const char *fh_get_tokenizer_error(struct fh_tokenizer *t)
 {
   return t->last_err_msg;
 }
@@ -94,26 +94,28 @@ struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t)
   return t->last_err_loc;
 }
 
-const uint8_t *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
 {
-  for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); i++) {
+  UNUSED(t);
+  for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
     if (keywords[i].type == tok->data.keyword)
-      return (uint8_t *) keywords[i].name;
+      return keywords[i].name;
   }
   return NULL;
 }
 
-const uint8_t *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
 {
   return fh_symtab_get_symbol(t->ast->symtab, tok->data.symbol_id);
 }
 
-const uint8_t *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok)
 {
-  return (const uint8_t *) tok->data.op_name;
+  UNUSED(t);
+  return tok->data.op_name;
 }
 
-const uint8_t *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok)
 {
   if (tok->type == TOK_STRING)
     return t->ast->string_pool.p + tok->data.str;
@@ -143,7 +145,7 @@ static int next_byte(struct fh_tokenizer *t)
     t->buf_len = (uint32_t) r;
     t->buf_pos = 0;
   }
-  uint8_t ret = t->buf[t->buf_pos++];
+  uint8_t ret = (uint8_t) t->buf[t->buf_pos++];
   if (ret == '\n') {
     t->cur_loc.line++;
     t->cur_loc.col = 0;
@@ -168,9 +170,9 @@ static bool is_op(struct fh_tokenizer *t, char *name)
   return fh_get_op(&t->ast->op_table, name) != NULL;
 }
 
-static int find_keyword(uint8_t *keyword, size_t keyword_size, enum fh_keyword_type *ret)
+static int find_keyword(char *keyword, size_t keyword_size, enum fh_keyword_type *ret)
 {
-  for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); i++) {
+  for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
     if (strncmp((char *) keyword, keywords[i].name, keyword_size) == 0 && keywords[i].name[keyword_size] == '\0') {
       *ret = keywords[i].type;
       return 1;

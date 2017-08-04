@@ -38,7 +38,7 @@ void *fh_stack_top(struct fh_stack *s)
   return fh_stack_item(s, s->num-1);
 }
 
-void *fh_stack_item(struct fh_stack *s, uint32_t index)
+void *fh_stack_item(struct fh_stack *s, int index)
 {
   if (index >= s->num)
     return NULL;
@@ -65,7 +65,7 @@ int fh_stack_shrink_to_fit(struct fh_stack *s)
 int fh_push(struct fh_stack *s, void *item)
 {
   if (s->num >= s->cap) {
-    uint32_t new_cap = (s->cap + 16 + 1) / 16 * 16;
+    int new_cap = (s->cap + 16 + 1) / 16 * 16;
     void *new_data = realloc(s->data, new_cap * s->item_size);
     if (new_data == NULL)
       return -1;
@@ -90,4 +90,14 @@ int fh_pop(struct fh_stack *s, void *item)
   if (item)
     memcpy(item, (char *) s->data + s->num*s->item_size, s->item_size);
   return 0;
+}
+
+void *fh_stack_next(struct fh_stack *s, void *cur)
+{
+  if (cur == NULL)
+    return s->data;
+  cur = (char *) cur + s->item_size;
+  if (cur >= (void *) ((char *) s->data + s->num*s->item_size))
+    return NULL;
+  return cur;
 }

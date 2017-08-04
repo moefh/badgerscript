@@ -1,6 +1,6 @@
 
 CC = gcc
-CFLAGS = -O2 -Wall -g
+CFLAGS = -O2 -Wall -Wextra -g
 #CFLAGS = -Wall -g
 
 AR = ar
