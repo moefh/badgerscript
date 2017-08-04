@@ -19,6 +19,9 @@ struct func_info {
   struct fh_bc_func *bc_func;
   int num_regs;
   struct fh_stack regs;
+
+  uint32_t continue_target_addr;
+  struct fh_stack fix_break_addrs;
 };
 
 struct fh_compiler {
@@ -30,6 +33,7 @@ struct fh_compiler {
 
 static void pop_func_info(struct fh_compiler *c);
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block);
+static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg);
 
 struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc)
@@ -58,10 +62,17 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_bc_func 
   fi.num_regs = 0;
   fi.bc_func = bc_func;
   fh_init_stack(&fi.regs, sizeof(struct reg_info));
+  fi.continue_target_addr = (uint32_t) -1;
+  fh_init_stack(&fi.fix_break_addrs, sizeof(uint32_t));
 
   if (fh_push(&c->funcs, &fi) < 0)
     return NULL;
   return fh_stack_top(&c->funcs);
+}
+
+static uint32_t get_cur_pc(struct fh_compiler *c)
+{
+  return fh_get_bc_num_instructions(c->bc);
 }
 
 static struct func_info *get_cur_func_info(struct fh_compiler *c, struct fh_src_loc loc)
@@ -78,6 +89,7 @@ static void pop_func_info(struct fh_compiler *c)
   if (fh_pop(&c->funcs, &fi) < 0)
     return;
   fh_free_stack(&fi.regs);
+  fh_free_stack(&fi.fix_break_addrs);
 }
 
 const char *fh_get_compiler_error(struct fh_compiler *c)
@@ -109,6 +121,26 @@ static int add_instr(struct fh_compiler *c, struct fh_src_loc loc, uint32_t inst
 {
   if (! fh_add_bc_instr(c->bc, loc, instr))
     fh_compiler_error(c, loc, "out of memory for bytecode");
+  return 0;
+}
+
+static int set_jmp_target(struct fh_compiler *c, struct fh_src_loc loc, uint32_t instr_addr, uint32_t target_addr)
+{
+  int64_t diff = (int64_t) target_addr - (int64_t) instr_addr - 1;
+  if (diff < -(1<<17) || diff > (1<<17))
+    return fh_compiler_error(c, loc, "too far to jump (%u to %u)", instr_addr, target_addr);
+  uint32_t num_instr = fh_get_bc_num_instructions(c->bc);
+  if (instr_addr >= num_instr)
+    return fh_compiler_error(c, loc, "invalid instruction location (%u)", instr_addr);
+  if (target_addr > num_instr)
+    return fh_compiler_error(c, loc, "invalid jump target location (%u)", target_addr);
+
+  //printf("diff = %u - %u - 1 = %ld\n", target_addr, instr_addr, diff);
+  
+  uint32_t instr = fh_get_bc_instruction(c->bc, instr_addr);
+  instr &= ~((uint32_t)0x3ffff<<14);
+  instr |= PLACE_INSTR_RS(diff);
+  fh_set_bc_instruction(c->bc, instr_addr, instr);
   return 0;
 }
 
@@ -489,7 +521,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
   return dest_reg;
 
  err:
-  if (req_dest_reg < 0 && dest_reg >= req_dest_reg)
+  if (req_dest_reg < 0 && dest_reg >= 0)
     free_reg(c, expr->loc, dest_reg);
   return -1;
 }
@@ -511,13 +543,192 @@ static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct
   return 0;
 }
 
+static int get_opcode_for_test(struct fh_compiler *c, struct fh_src_loc loc, uint32_t op, int *invert)
+{
+  switch (op) {
+  case '<':        *invert = 0; return OPC_CMP_LT;
+  case '>':        *invert = 1; return OPC_CMP_LE;
+  case AST_OP_LE:  *invert = 0; return OPC_CMP_LE;
+  case AST_OP_GE:  *invert = 1; return OPC_CMP_LT;
+  case AST_OP_EQ:  *invert = 0; return OPC_CMP_EQ;
+  case AST_OP_NEQ: *invert = 1; return OPC_CMP_EQ;
+    
+  default:
+    return fh_compiler_error(c, loc, "invalid operator for test: '%u", op);
+  }
+}
+
+static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int invert_test)
+{
+  if (test->type == EXPR_UN_OP && test->data.un_op.op == '!') {
+    invert_test = ! invert_test;
+    test = test->data.un_op.arg;
+  }
+  
+  if (test->type == EXPR_BIN_OP) {
+    switch (test->data.bin_op.op) {
+    case '>':
+    case '<':
+    case AST_OP_GE:
+    case AST_OP_LE:
+    case AST_OP_EQ:
+    case AST_OP_NEQ: {
+      int left_reg;
+      if (test->data.bin_op.left->type == EXPR_NUMBER) {
+        left_reg = add_const_number(c, test->data.bin_op.left->loc, test->data.bin_op.left->data.num);
+        if (left_reg >= 0) left_reg += MAX_FUNC_REGS+1;
+      } else {
+        left_reg = compile_expr(c, test->data.bin_op.left, -1);
+      }
+      if (left_reg < 0)
+        return -1;
+      int right_reg;
+      if (test->data.bin_op.right->type == EXPR_NUMBER) {
+        right_reg = add_const_number(c, test->data.bin_op.right->loc, test->data.bin_op.right->data.num);
+        if (right_reg >= 0) right_reg += MAX_FUNC_REGS+1;
+      } else {
+        right_reg = compile_expr(c, test->data.bin_op.right, -1);
+      }
+      if (right_reg < 0)
+        return -1;
+      int invert = 0;
+      int opcode = get_opcode_for_test(c, test->loc, test->data.bin_op.op, &invert);
+      if (opcode < 0)
+        return -1;
+      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_reg, right_reg)) < 0)
+        return -1;
+      return 0;
+    }
+
+    default:
+      break;
+    }
+  }
+
+  int reg;
+  if (test->type == EXPR_NUMBER) {
+    reg = add_const_number(c, test->loc, test->data.num);
+    if (reg >= 0) reg += MAX_FUNC_REGS+1;
+  } else {
+    reg = compile_expr(c, test, -1);
+  }
+  if (reg < 0)
+    return -1;
+  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, invert_test, reg)) < 0)
+    return -1;
+  return 0;
+}
+
+static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_if *stmt_if)
+{
+  if (compile_test(c, stmt_if->test, 1) < 0)
+    return -1;
+  free_tmp_regs(c, loc);
+
+  // jmp to_false
+  uint32_t addr_jmp_to_false = get_cur_pc(c);
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+    return -1;
+
+  if (compile_stmt(c, stmt_if->true_stmt) < 0)
+    return -1;
+  free_tmp_regs(c, loc);
+
+  // jmp to_end
+  uint32_t addr_jmp_to_end = get_cur_pc(c);
+  if (stmt_if->false_stmt) {
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+      return -1;
+  }
+  // to_false:
+  if (set_jmp_target(c, loc, addr_jmp_to_false, get_cur_pc(c)) < 0)
+    return -1;
+  if (stmt_if->false_stmt) {
+    if (compile_stmt(c, stmt_if->false_stmt) < 0)
+      return -1;
+    free_tmp_regs(c, loc);
+    // to_end:
+    if (set_jmp_target(c, loc, addr_jmp_to_end, get_cur_pc(c)) < 0)
+      return -1;
+  }
+  return 0;
+}
+
+static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_while *stmt_while)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+  uint32_t save_continue_target_addr = fi->continue_target_addr;
+  int num_fix_break_addrs = fi->fix_break_addrs.num;
+  
+  fi->continue_target_addr = get_cur_pc(c);
+  if (compile_test(c, stmt_while->test, 0) < 0)
+    return -1;
+  free_tmp_regs(c, loc);
+
+  // jmp to_end
+  uint32_t addr_jmp_to_end = get_cur_pc(c);
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+    return -1;
+
+  if (compile_stmt(c, stmt_while->stmt) < 0)
+    return -1;
+  free_tmp_regs(c, loc);
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, fi->continue_target_addr-get_cur_pc(c)-1)) < 0)
+    return -1;
+
+  // to_end:
+  uint32_t addr_end = get_cur_pc(c);
+  if (set_jmp_target(c, loc, addr_jmp_to_end, addr_end) < 0)
+    return -1;
+
+  while (fi->fix_break_addrs.num > num_fix_break_addrs) {
+    uint32_t break_addr;
+    if (fh_pop(&fi->fix_break_addrs, &break_addr) < 0)
+      return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: can't pop break address");
+    if (set_jmp_target(c, loc, break_addr, addr_end) < 0)
+      return -1;
+  }
+  fi->continue_target_addr = save_continue_target_addr;
+  return 0;
+}
+
+static int compile_break(struct fh_compiler *c, struct fh_src_loc loc)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+
+  uint32_t break_addr = get_cur_pc(c);
+  if (fh_push(&fi->fix_break_addrs, &break_addr) < 0)
+    return fh_compiler_error(c, loc, "out of memory");
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+    return -1;
+  return 0;
+}
+
+static int compile_continue(struct fh_compiler *c, struct fh_src_loc loc)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+  if (fi->continue_target_addr == (uint32_t) -1) {
+    fh_compiler_error(c, loc, "'continue' not inside 'while'");
+    return -1;
+  }
+  
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, fi->continue_target_addr)) < 0)
+    return -1;
+  return 0;
+}
+
 static int compile_return(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_return *ret)
 {
   if (ret->val) {
     int reg = compile_expr(c, ret->val, -1);
     if (reg < 0)
       return -1;
-    free_reg(c, loc, reg);
     return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, reg, 1));
   }
   return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0));
@@ -552,10 +763,16 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
     return 0;
     
   case STMT_IF:
+    return compile_if(c, stmt->loc, &stmt->data.stmt_if);
+    
   case STMT_WHILE:
+    return compile_while(c, stmt->loc, &stmt->data.stmt_while);
+    
   case STMT_BREAK:
+    return compile_break(c, stmt->loc);
+    
   case STMT_CONTINUE:
-    return fh_compiler_error(c, stmt->loc, "compilation of this statement type not implemented\n");
+    return compile_continue(c, stmt->loc);
   }
 
   return fh_compiler_error(c, stmt->loc, "invalid statement node type: %d\n", stmt->type);
@@ -586,7 +803,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   }
 
   bc_func->addr = fh_get_bc_num_instructions(c->bc);
-  
+ 
   for (int i = 0; i < func->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
       return -1;

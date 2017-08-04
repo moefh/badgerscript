@@ -30,3 +30,21 @@ function main(f)
 
   return r;
 }
+
+function test_if(x)
+{
+  if (0)
+    x = 1;
+  else
+    x = 2;
+  return x;
+}
+
+function test_while()
+{
+  var x = 0;
+  while (x < 10) {
+    test(x);
+    x = x + 1;
+  }
+}

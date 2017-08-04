@@ -1,4 +1,6 @@
 
+function print() {}
+
 function f(x, y) {
   # expressions
   var z = x + y;
@@ -22,7 +24,7 @@ function f(x, y) {
 
   # loop
   var i = 0;
-  while (true) {
+  while (1) {
     if (i == 5)
       continue;
     if (i > 10)

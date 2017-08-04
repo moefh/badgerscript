@@ -18,6 +18,10 @@ enum fh_bc_opcode {
   OPC_LDC,
   
   OPC_JMP,
+  OPC_TEST,
+  OPC_CMP_EQ,
+  OPC_CMP_LT,
+  OPC_CMP_LE,
   
   OPC_ADD,
   OPC_SUB,
@@ -83,6 +87,8 @@ int fh_add_bc_const_number(struct fh_bc_func *func, double num);
 int fh_add_bc_const_string(struct fh_bc_func *func, const char *str);
 int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f);
 
+uint32_t fh_get_bc_instruction(struct fh_bc *c, uint32_t addr);
+void fh_set_bc_instruction(struct fh_bc *c, uint32_t addr, uint32_t instr);
 uint32_t *fh_get_bc_instructions(struct fh_bc *c, uint32_t *num);
 uint32_t fh_get_bc_num_instructions(struct fh_bc *bc);
 struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);

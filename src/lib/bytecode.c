@@ -92,6 +92,20 @@ struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n
   return func;
 }
 
+uint32_t fh_get_bc_instruction(struct fh_bc *bc, uint32_t addr)
+{
+  if (addr >= bc->num_instr)
+    return 0;
+  return bc->instr[addr];
+}
+
+void fh_set_bc_instruction(struct fh_bc *bc, uint32_t addr, uint32_t instr)
+{
+  if (addr >= bc->num_instr)
+    return;
+  bc->instr[addr] = instr;
+}
+
 uint32_t fh_get_bc_num_instructions(struct fh_bc *bc)
 {
   return bc->num_instr;
@@ -152,7 +166,7 @@ int fh_add_bc_const_string(struct fh_bc_func *func, const char *str)
 {
   int k = 0;
   stack_foreach(struct fh_bc_const *, c, &func->consts) {
-    if (c->type == FH_BC_CONST_STRING && strcmp((char *) c->data.str, (char *) str) == 0)
+    if (c->type == FH_BC_CONST_STRING && strcmp(c->data.str, str) == 0)
       return k;
     k++;
   }
@@ -160,11 +174,12 @@ int fh_add_bc_const_string(struct fh_bc_func *func, const char *str)
   struct fh_bc_const *c = add_const(func, &k);
   if (! c)
     return -1;
-  char *dup = malloc(strlen((char *) str));
+  char *dup = malloc(strlen(str)+1);
   if (! dup) {
     fh_pop(&func->consts, NULL);
     return -1;
   }
+  strcpy(dup, str);
   c->type = FH_BC_CONST_STRING;
   c->data.str = dup;
   return k;
