@@ -21,6 +21,7 @@ struct fh_vm {
   uint32_t *pc;
   uint32_t *code;
   struct fh_bc *bc;
+  char last_err_msg[256];
 };
 
 struct fh_vm *fh_new_vm(struct fh_bc *bc)
@@ -33,7 +34,7 @@ struct fh_vm *fh_new_vm(struct fh_bc *bc)
   vm->stack = NULL;
   vm->stack_size = 0;
   fh_init_stack(&vm->call_stack, sizeof(struct fh_vm_call_frame));
-  vm->code = fh_get_bc_instructions(bc, NULL);
+  vm->code = fh_get_bc_code(bc, NULL);
   return vm;
 }
 
@@ -45,6 +46,20 @@ void fh_free_vm(struct fh_vm *vm)
   free(vm);
 }
 
+int fh_vm_error(struct fh_vm *vm, char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(vm->last_err_msg, sizeof(vm->last_err_msg), fmt, ap);
+  va_end(ap);
+  return -1;
+}
+
+const char *fh_get_vm_error(struct fh_vm *vm)
+{
+  return vm->last_err_msg;
+}
+
 static int ensure_stack_size(struct fh_vm *vm, int size)
 {
   if (vm->stack_size >= size)
@@ -53,7 +68,7 @@ static int ensure_stack_size(struct fh_vm *vm, int size)
   //int new_size = (size + 4 + 1) / 4 * 4;
   void *new_stack = realloc(vm->stack, new_size * sizeof(struct fh_value));
   if (! new_stack)
-    return -1;
+    return fh_vm_error(vm, "out of memory");
 #if 0
   if (new_stack != vm->stack) {
     printf("**********************************************************\n");
@@ -74,8 +89,10 @@ struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_bc_func *func,
     memset(vm->stack + ret_reg + 1 + n_args, 0, (func->n_params - n_args) * sizeof(struct fh_value));
   
   struct fh_vm_call_frame *frame = fh_push(&vm->call_stack, NULL);
-  if (! frame)
+  if (! frame) {
+    fh_vm_error(vm, "out of memory");
     return NULL;
+  }
   frame->func = func;
   frame->base = ret_reg + 1;
   frame->ret_addr = (uint32_t) -1;
@@ -88,8 +105,10 @@ struct fh_vm_call_frame *prepare_c_call(struct fh_vm *vm, int ret_reg, int n_arg
     return NULL;
   
   struct fh_vm_call_frame *frame = fh_push(&vm->call_stack, NULL);
-  if (! frame)
+  if (! frame) {
+    fh_vm_error(vm, "out of memory");
     return NULL;
+  }
   frame->func = NULL;
   frame->base = ret_reg + 1;
   frame->ret_addr = (uint32_t) -1;
@@ -115,8 +134,12 @@ static void dump_regs(struct fh_vm *vm)
   printf("---\n");
 }
 
-int fh_run_vm_func(struct fh_vm *vm, struct fh_bc_func *func, struct fh_value *args, int n_args, struct fh_value *ret)
+int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
+  struct fh_bc_func *func = fh_get_bc_func_by_name(vm->bc, name);
+  if (! func)
+    return fh_vm_error(vm, "function '%s' doesn't exist", name);
+  
   if (n_args > func->n_params)
     n_args = func->n_params;
   
@@ -191,7 +214,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
-          fprintf(stderr, "arithmetic on non-numeric values\n");
+          fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
@@ -203,7 +226,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
-          fprintf(stderr, "arithmetic on non-numeric values\n");
+          fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
@@ -215,7 +238,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
-          fprintf(stderr, "arithmetic on non-numeric values\n");
+          fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
@@ -227,7 +250,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
-          fprintf(stderr, "arithmetic on non-numeric values\n");
+          fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
@@ -266,19 +289,19 @@ int fh_run_vm(struct fh_vm *vm)
           fh_pop(&vm->call_stack, NULL);
           goto changed_stack_frame;
         }
-        fprintf(stderr, "call to non-function object\n");
+        fh_vm_error(vm, "call to non-function value");
         goto err;
       }
       
     default:
-      fprintf(stderr, "ERROR: unhandled opcode\n");
+      fh_vm_error(vm, "ERROR: unhandled opcode");
       goto err;
     }
   }
 
  err:
-  dump_regs(vm);
   pc--;
+  dump_regs(vm);
   fh_dump_bc_instr(vm->bc, NULL, pc - vm->code, *pc);
   vm->pc = pc;
   return -1;

@@ -122,14 +122,14 @@ void fh_make_c_func(struct fh_value *val, fh_c_func func);
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_free_buffer(struct fh_buffer *buf);
 int fh_buf_grow(struct fh_buffer *buf, size_t add_size);
-ssize_t fh_buf_add_string(struct fh_buffer *buf, char *str, size_t str_size);
+ssize_t fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size);
 ssize_t fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
 
-struct fh_symtab *fh_symtab_new(void);
-void fh_symtab_free(struct fh_symtab *s);
-fh_symbol_id fh_symtab_add(struct fh_symtab *s, char *symbol);
-fh_symbol_id fh_symtab_get_id(struct fh_symtab *s, char *symbol);
-const char *fh_symtab_get_symbol(struct fh_symtab *s, fh_symbol_id id);
+struct fh_symtab *fh_new_symtab(void);
+void fh_free_symtab(struct fh_symtab *s);
+fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol);
+fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const char *symbol);
+const char *fh_get_symbol_name(struct fh_symtab *s, fh_symbol_id id);
 
 void fh_init_op_table(struct fh_op_table *ops);
 void fh_free_op_table(struct fh_op_table *ops);
@@ -163,13 +163,16 @@ void fh_free_compiler(struct fh_compiler *c);
 int fh_compile(struct fh_compiler *c);
 const char *fh_get_compiler_error(struct fh_compiler *p);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
+int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func);
 uint32_t *fh_get_compiler_instructions(struct fh_compiler *c, int32_t *len);
 void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
 void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
 
 struct fh_vm *fh_new_vm(struct fh_bc *bc);
 void fh_free_vm(struct fh_vm *vm);
+int fh_vm_error(struct fh_vm *vm, char *fmt, ...);
+const char *fh_get_vm_error(struct fh_vm *vm);
+int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret);
 int fh_run_vm(struct fh_vm *vm);
-int fh_run_vm_func(struct fh_vm *vm, struct fh_bc_func *func, struct fh_value *args, int n_args, struct fh_value *ret);
 
 #endif /* FH_I_H_FILE */

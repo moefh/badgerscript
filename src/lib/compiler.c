@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <stdio.h>
 
 #include "fh_i.h"
@@ -13,6 +14,11 @@
 struct reg_info {
   fh_symbol_id var;
   bool alloc;
+};
+
+struct c_func_entry {
+  const char *name;
+  fh_c_func func;
 };
 
 struct func_info {
@@ -29,6 +35,7 @@ struct fh_compiler {
   struct fh_bc *bc;
   char last_err_msg[256];
   struct fh_stack funcs;
+  struct fh_stack c_funcs;
 };
 
 static void pop_func_info(struct fh_compiler *c);
@@ -45,6 +52,7 @@ struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc)
   c->bc = bc;
   c->last_err_msg[0] = '\0';
   fh_init_stack(&c->funcs, sizeof(struct func_info));
+  fh_init_stack(&c->c_funcs, sizeof(struct c_func_entry));
   return c;
 }
 
@@ -53,7 +61,18 @@ void fh_free_compiler(struct fh_compiler *c)
   while (c->funcs.num > 0)
     pop_func_info(c);
   fh_free_stack(&c->funcs);
+  fh_free_stack(&c->c_funcs);
   free(c);
+}
+
+int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func)
+{
+  struct c_func_entry *fe = fh_push(&c->c_funcs, NULL);
+  if (! fe)
+    return -1;
+  fe->name = name;
+  fe->func = func;
+  return 0;
 }
 
 static struct func_info *new_func_info(struct fh_compiler *c, struct fh_bc_func *bc_func)
@@ -72,7 +91,9 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_bc_func 
 
 static uint32_t get_cur_pc(struct fh_compiler *c)
 {
-  return fh_get_bc_num_instructions(c->bc);
+  uint32_t size;
+  fh_get_bc_code(c->bc, &size);
+  return size;
 }
 
 static struct func_info *get_cur_func_info(struct fh_compiler *c, struct fh_src_loc loc)
@@ -113,7 +134,7 @@ int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, .
   vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
-  snprintf((char *) c->last_err_msg, sizeof(c->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
+  snprintf(c->last_err_msg, sizeof(c->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
   return -1;
 }
 
@@ -129,10 +150,10 @@ static int set_jmp_target(struct fh_compiler *c, struct fh_src_loc loc, uint32_t
   int64_t diff = (int64_t) target_addr - (int64_t) instr_addr - 1;
   if (diff < -(1<<17) || diff > (1<<17))
     return fh_compiler_error(c, loc, "too far to jump (%u to %u)", instr_addr, target_addr);
-  uint32_t num_instr = fh_get_bc_num_instructions(c->bc);
-  if (instr_addr >= num_instr)
+  uint32_t cur_pc = get_cur_pc(c);
+  if (instr_addr >= cur_pc)
     return fh_compiler_error(c, loc, "invalid instruction location (%u)", instr_addr);
-  if (target_addr > num_instr)
+  if (target_addr > cur_pc)
     return fh_compiler_error(c, loc, "invalid jump target location (%u)", target_addr);
 
   //printf("diff = %u - %u - 1 = %ld\n", target_addr, instr_addr, diff);
@@ -177,22 +198,28 @@ static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbo
   if (! fi)
     return -1;
 
-  struct fh_bc_func *bc_func = NULL;
-  int i = 0;
-  stack_foreach(struct fh_p_named_func *, ast_f, &c->ast->funcs) {
-    if (ast_f->name == func) {
-      bc_func = fh_get_bc_func(c->bc, i);
-      break;
-    }
-    i++;
+  const char *name = fh_get_ast_symbol(c->ast, func);
+  
+  // bytecode function
+  struct fh_bc_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
+  if (bc_func) {
+    int k = fh_add_bc_const_func(fi->bc_func, bc_func);
+    if (k < 0)
+      return fh_compiler_error(c, loc, "out of memory for function constant");
+    return k;
   }
-  if (! bc_func)
-    return fh_compiler_error(c, loc, "undefined function '%s'\n", get_ast_symbol_name(c, func));
 
-  int k = fh_add_bc_const_func(fi->bc_func, bc_func);
-  if (k < 0)
-    return fh_compiler_error(c, loc, "out of memory for function");
-  return k;
+  // C function
+  stack_foreach(struct c_func_entry *, fe, &c->c_funcs) {
+    if (strcmp(name, fe->name) == 0) {
+      int k = fh_add_bc_const_c_func(fi->bc_func, fe->func);
+      if (k < 0)
+        return fh_compiler_error(c, loc, "out of memory for C function constant");
+      return k;
+    }
+  }
+  
+  return fh_compiler_error(c, loc, "undefined function '%s'", get_ast_symbol_name(c, func));
 }
 
 static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
@@ -441,7 +468,7 @@ static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 {
   UNUSED(expr);
   UNUSED(req_dest_reg);
-  return fh_compiler_error(c, loc, "un op not implemented");
+  return fh_compiler_error(c, loc, "unary operators not implemented");
 }
 
 static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr, int req_dest_reg)
@@ -803,7 +830,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
     return -1;
   }
 
-  bc_func->addr = fh_get_bc_num_instructions(c->bc);
+  bc_func->addr = get_cur_pc(c);
  
   for (int i = 0; i < func->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
@@ -818,7 +845,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
       return -1;
   }
   
-  bc_func->n_opc = fh_get_bc_num_instructions(c->bc) - bc_func->addr;
+  bc_func->n_opc = get_cur_pc(c) - bc_func->addr;
   bc_func->n_regs = fi->num_regs;
   pop_func_info(c);
   return 0;
@@ -838,7 +865,10 @@ static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *fun
 int fh_compile(struct fh_compiler *c)
 {
   stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
-    if (! fh_add_bc_func(c->bc, f->loc, f->func.n_params))
+    const char *name = fh_get_symbol_name(c->ast->symtab, f->name);
+    if (! name)
+      return fh_compiler_error(c, f->loc, "INTERNAL COMPILER ERROR: can't find function name");
+    if (! fh_add_bc_func(c->bc, f->loc, name, f->func.n_params))
       return -1;
   }
 

@@ -4,8 +4,8 @@ function f(a, b)
   return 1+a*b;
 }
 
-function main(print, x,y)
+function main(x,y)
 {
-  return print(x);
+  printf("%f\n", x);
   return 2*y + f(x, 3);
 }

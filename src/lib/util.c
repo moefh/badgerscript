@@ -10,11 +10,29 @@ struct fh_output {
   FILE *f;
 };
 
+void fh_dump_string(const char *str)
+{
+  printf("\"");
+  for (const char *p = str; *p != '\0'; p++) {
+    switch (*p) {
+    case '\n': printf("\\n"); break;
+    case '\r': printf("\\r"); break;
+    case '\t': printf("\\t"); break;
+    case '\\': printf("\\\\"); break;
+    case '"': printf("\\\""); break;
+    default:
+      printf("%c", *p);
+      break;
+    }
+  }
+  printf("\"");
+}
+
 void fh_dump_value(const struct fh_value *val)
 {
   switch (val->type) {
   case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
-  case FH_VAL_STRING: printf("STRING(%s)", val->data.str); return;
+  case FH_VAL_STRING: printf("STRING("); fh_dump_string(val->data.str); printf(")"); return;
   case FH_VAL_FUNC: printf("FUNC(addr=%u)", val->data.func->addr); return;
   case FH_VAL_C_FUNC: printf("C_FUNC(%p)", val->data.c_func); return;
   }

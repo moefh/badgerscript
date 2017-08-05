@@ -53,7 +53,7 @@ struct fh_ast *fh_new_ast(void)
       goto err;
   }
   
-  ast->symtab = fh_symtab_new();
+  ast->symtab = fh_new_symtab();
   if (! ast->symtab)
     goto err;
   
@@ -74,13 +74,13 @@ void fh_free_ast(struct fh_ast *ast)
   fh_free_op_table(&ast->op_table);
   fh_free_buffer(&ast->string_pool);
   if (ast->symtab)
-    fh_symtab_free(ast->symtab);
+    fh_free_symtab(ast->symtab);
   free(ast);
 }
 
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
 {
-  return fh_symtab_get_symbol(ast->symtab, id);
+  return fh_get_symbol_name(ast->symtab, id);
 }
 
 const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)

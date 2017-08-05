@@ -156,18 +156,19 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
 
 void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
 {
-  uint32_t n_instr;
-  uint32_t *instr = fh_get_bc_instructions(bc, &n_instr);
+  uint32_t code_size;
+  uint32_t *code = fh_get_bc_code(bc, &code_size);
   int n_funcs = fh_get_bc_num_funcs(bc);
 
   for (int i = 0; i < n_funcs; i++) {
     struct fh_bc_func *func = fh_get_bc_func(bc, i);
+    const char *func_name = fh_get_bc_func_name(bc, i);
 
     fh_output(out, "; ===================================================\n");
-    fh_output(out, "; function with %u parameters, %d regs\n", func->n_params, func->n_regs);
+    fh_output(out, "; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
     
     for (int i = 0; i < func->n_opc; i++)
-      fh_dump_bc_instr(bc, out, func->addr+i, instr[func->addr+i]);
+      fh_dump_bc_instr(bc, out, func->addr+i, code[func->addr+i]);
 
     int n_consts = fh_get_bc_func_num_consts(func);
     fh_output(out, "\n; %d constants\n", n_consts);

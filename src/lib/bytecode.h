@@ -62,18 +62,22 @@ struct fh_bc_func {
 
 struct fh_bc *fh_new_bc(void);
 void fh_free_bc(struct fh_bc *bc);
-struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params);
+struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
 uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t instr);
 int fh_add_bc_const_number(struct fh_bc_func *func, double num);
 int fh_add_bc_const_string(struct fh_bc_func *func, const char *str);
 int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f);
+int fh_add_bc_const_c_func(struct fh_bc_func *func, fh_c_func f);
 
 uint32_t fh_get_bc_instruction(struct fh_bc *c, uint32_t addr);
 void fh_set_bc_instruction(struct fh_bc *c, uint32_t addr, uint32_t instr);
-uint32_t *fh_get_bc_instructions(struct fh_bc *c, uint32_t *num);
-uint32_t fh_get_bc_num_instructions(struct fh_bc *bc);
-struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
+uint32_t *fh_get_bc_code(struct fh_bc *c, uint32_t *size);
+
 int fh_get_bc_num_funcs(struct fh_bc *bc);
+struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
+struct fh_bc_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name);
+const char *fh_get_bc_func_name(struct fh_bc *bc, int num);
+
 struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func);
 struct fh_value *fh_get_bc_func_const(struct fh_bc_func *func, int num);
 int fh_get_bc_func_num_consts(struct fh_bc_func *func);

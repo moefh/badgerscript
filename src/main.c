@@ -10,7 +10,12 @@ static int my_printf(struct fh_vm *vm, struct fh_value *ret, struct fh_value *ar
 {
   UNUSED(vm);
   UNUSED(args);
-  printf("called C function with %d args\n", n_args);
+  printf("Called C function with %d args:\n", n_args);
+  for (int i = 0; i < n_args; i++) {
+    printf("- ");
+    fh_dump_value(&args[i]);
+    printf("\n");
+  }
   fh_make_number(ret, 42);
   return 0;
 }
@@ -42,7 +47,6 @@ static int run_file(const char *filename)
     printf("ERROR: out of memory for parser\n");
     goto err;
   }
-
   printf("-> parsing...\n");
   if (fh_parse(p) < 0) {
     printf("%s:%s\n", filename, fh_get_parser_error(p));
@@ -61,38 +65,33 @@ static int run_file(const char *filename)
     printf("ERROR: out of memory for compiler\n");
     goto err;
   }
+  fh_compiler_add_c_func(c, "printf", my_printf);
   printf("-> compiling...\n");
   if (fh_compile(c) < 0) {
     printf("%s:%s\n", filename, fh_get_compiler_error(c));
     goto err;
   }
   fh_dump_bc(bc, NULL);
-  if (fh_get_bc_num_funcs(bc) == 0) {
-    printf("ERROR: no functions!\n");
-    goto err;
-  }
 
   // run
-  printf("-> running...\n");
+  printf("-> calling function 'main'...\n");
   vm = fh_new_vm(bc);
   if (! vm)
     goto err;
-  struct fh_bc_func *f = fh_get_bc_func(bc, fh_get_bc_num_funcs(bc)-1);
-  struct fh_value args[8];
-  fh_make_c_func(&args[0], my_printf);
+  struct fh_value args[7];
+  fh_make_number(&args[0], -2);
   fh_make_number(&args[1], -2);
-  fh_make_number(&args[2], -2);
+  fh_make_number(&args[2], 2);
   fh_make_number(&args[3], 2);
-  fh_make_number(&args[4], 2);
-  fh_make_number(&args[5], 80);
-  fh_make_number(&args[6], 40);
-  fh_make_number(&args[7], 10);
+  fh_make_number(&args[4], 80);
+  fh_make_number(&args[5], 40);
+  fh_make_number(&args[6], 10);
   struct fh_value ret;
-  if (fh_run_vm_func(vm, f, args, 7, &ret) < 0) {
-    printf("ERROR running VM\n");
+  if (fh_call_vm_func(vm, "main", args, 7, &ret) < 0) {
+    printf("ERROR: %s\n", fh_get_vm_error(vm));
     goto err;
   }
-  printf("-> vm returned value ");
+  printf("-> returned value ");
   fh_dump_value(&ret);
   printf("\n");
 

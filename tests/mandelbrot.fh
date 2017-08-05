@@ -1,6 +1,4 @@
 
-function printf() {}
-
 function calc_point(cx, cy, max_iter) {
     var i = 0;
     var x = 0;

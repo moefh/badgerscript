@@ -36,7 +36,7 @@ int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
   return 0;
 }
 
-ssize_t fh_buf_add_string(struct fh_buffer *buf, char *str, size_t str_size)
+ssize_t fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size)
 {
   ssize_t pos = buf->size;
   if (fh_buf_grow(buf, str_size + 1) < 0)

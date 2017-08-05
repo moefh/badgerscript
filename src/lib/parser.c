@@ -61,7 +61,7 @@ void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
   vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
-  snprintf((char *) p->last_err_msg, sizeof(p->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
+  snprintf(p->last_err_msg, sizeof(p->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
   return NULL;
 }
 

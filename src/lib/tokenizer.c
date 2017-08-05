@@ -106,7 +106,7 @@ const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
 
 const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
 {
-  return fh_symtab_get_symbol(t->ast->symtab, tok->data.symbol_id);
+  return fh_get_symbol_name(t->ast->symtab, tok->data.symbol_id);
 }
 
 const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok)
@@ -319,7 +319,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
         set_error(t, tok->loc, "out of memory");
         return -1;
       }
-      fh_symbol_id symbol_id = fh_symtab_add(t->ast->symtab, t->tmp.p);
+      fh_symbol_id symbol_id = fh_add_symbol(t->ast->symtab, t->tmp.p);
       if (symbol_id < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;

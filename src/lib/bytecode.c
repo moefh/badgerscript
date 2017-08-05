@@ -6,10 +6,16 @@
 
 #include "bytecode.h"
 
+struct fh_bc_func_info {
+  fh_symbol_id name;
+  struct fh_bc_func func;
+};
+
 struct fh_bc {
   uint32_t *instr;
   uint32_t num_instr;
   uint32_t cap_instr;
+  struct fh_symtab *symtab;
   struct fh_stack funcs;
 };
 
@@ -22,9 +28,18 @@ struct fh_bc *fh_new_bc(void)
   bc->instr = NULL;
   bc->num_instr = 0;
   bc->cap_instr = 0;
+  bc->symtab = NULL;
+  fh_init_stack(&bc->funcs, sizeof(struct fh_bc_func_info));
 
-  fh_init_stack(&bc->funcs, sizeof(struct fh_bc_func));
+  bc->symtab = fh_new_symtab();
+  if (! bc->symtab)
+    goto err;
+  
   return bc;
+
+ err:
+  fh_free_bc(bc);
+  return NULL;
 }
 
 static void free_bc_const(struct fh_value *c)
@@ -53,12 +68,12 @@ static void free_bc_func(struct fh_bc_func *func)
 
 void fh_free_bc(struct fh_bc *bc)
 {
-  if (bc->instr)
-    free(bc->instr);
-  stack_foreach(struct fh_bc_func *, f, &bc->funcs) {
-    free_bc_func(f);
+  stack_foreach(struct fh_bc_func_info *, f, &bc->funcs) {
+    free_bc_func(&f->func);
   }
   fh_free_stack(&bc->funcs);
+  if (bc->instr)
+    free(bc->instr);
   free(bc);
 }
 
@@ -78,18 +93,24 @@ uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t inst
   return bc->instr + pc;
 }
 
-struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params)
+struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params)
 {
   UNUSED(loc); // TODO: record source location
-  if (! fh_push(&bc->funcs, NULL))
+
+  fh_symbol_id name_id = fh_add_symbol(bc->symtab, name);
+  if (name_id < 0)
     return NULL;
-  struct fh_bc_func *func = fh_stack_top(&bc->funcs);
-  func->n_params = n_params;
-  func->addr = 0;
-  func->n_opc = 0;
-  func->n_regs = 0;
-  fh_init_stack(&func->consts, sizeof(struct fh_value));
-  return func;
+  
+  struct fh_bc_func_info *fi = fh_push(&bc->funcs, NULL);
+  if (! fi)
+    return NULL;
+  fi->name = name_id;
+  fi->func.n_params = n_params;
+  fi->func.addr = 0;
+  fi->func.n_opc = 0;
+  fi->func.n_regs = 0;
+  fh_init_stack(&fi->func.consts, sizeof(struct fh_value));
+  return &fi->func;
 }
 
 uint32_t fh_get_bc_instruction(struct fh_bc *bc, uint32_t addr)
@@ -106,26 +127,45 @@ void fh_set_bc_instruction(struct fh_bc *bc, uint32_t addr, uint32_t instr)
   bc->instr[addr] = instr;
 }
 
-uint32_t fh_get_bc_num_instructions(struct fh_bc *bc)
+uint32_t *fh_get_bc_code(struct fh_bc *bc, uint32_t *size)
 {
-  return bc->num_instr;
-}
-
-uint32_t *fh_get_bc_instructions(struct fh_bc *bc, uint32_t *num)
-{
-  if (num)
-    *num = bc->num_instr;
+  if (size)
+    *size = bc->num_instr;
   return bc->instr;
-}
-
-struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num)
-{
-  return fh_stack_item(&bc->funcs, num);
 }
 
 int fh_get_bc_num_funcs(struct fh_bc *bc)
 {
   return bc->funcs.num;
+}
+
+struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num)
+{
+  struct fh_bc_func_info *fi = fh_stack_item(&bc->funcs, num);
+  if (! fi)
+    return NULL;
+  return &fi->func;
+}
+
+struct fh_bc_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name)
+{
+  fh_symbol_id name_id = fh_get_symbol_id(bc->symtab, name);
+  if (name_id < 0)
+    return NULL;
+  
+  stack_foreach(struct fh_bc_func_info *, fi, &bc->funcs) {
+    if (fi->name == name_id)
+      return &fi->func;
+  }
+  return NULL;
+}
+
+const char *fh_get_bc_func_name(struct fh_bc *bc, int num)
+{
+  struct fh_bc_func_info *fi = fh_stack_item(&bc->funcs, num);
+  if (! fi)
+    return NULL;
+  return fh_get_symbol_name(bc->symtab, fi->name);
 }
 
 struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func)
@@ -205,5 +245,22 @@ int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f)
     return -1;
   c->type = FH_VAL_FUNC;
   c->data.func = f;
+  return k;
+}
+
+int fh_add_bc_const_c_func(struct fh_bc_func *func, fh_c_func f)
+{
+  int k = 0;
+  stack_foreach(struct fh_value *, c, &func->consts) {
+    if (c->type == FH_VAL_C_FUNC && c->data.c_func == f)
+      return k;
+    k++;
+  }
+
+  struct fh_value *c = add_const(func, &k);
+  if (! c)
+    return -1;
+  c->type = FH_VAL_C_FUNC;
+  c->data.c_func = f;
   return k;
 }
