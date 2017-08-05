@@ -62,6 +62,7 @@ void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
   va_end(ap);
 
   snprintf(p->last_err_msg, sizeof(p->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
+  printf("%s\n", p->last_err_msg);
   return NULL;
 }
 
@@ -326,10 +327,10 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         if (! consume_stop)
           unget_token(p, &tok);
 
-        //printf("BEFORE:\n"); dump_opn_stack(p, &opns);
+        //printf("BEFORE:\n"); dump_opn_stack(p, &opns); dump_opr_stack(p, &oprs);
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, INT32_MIN) < 0)
           goto err;
-        //printf("AFTER:\n"); dump_opn_stack(p, &opns);
+        //printf("AFTER:\n"); dump_opn_stack(p, &opns); dump_opr_stack(p, &oprs);
 
         if (fh_stack_count(&opns) > 1) {
           dump_opn_stack(p, &opns);
@@ -439,8 +440,11 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
   }
 
  err:
+  printf("FREEING:\n"); dump_opn_stack(p, &opns);
   stack_foreach(struct fh_p_expr **, pe, &opns) {
+    printf("FREEING EXPR %p\n", *pe);
     fh_free_expr(*pe);
+    printf("DONE\n");
   }
   fh_free_stack(&opns);
   fh_free_stack(&oprs);

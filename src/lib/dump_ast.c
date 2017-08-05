@@ -72,7 +72,7 @@ static void dump_expr(struct fh_ast *ast, struct fh_output *out, int indent, str
     return;
 
   case EXPR_UN_OP:
-    fh_output(out, "%s ", fh_get_ast_op(ast, expr->data.un_op.op));
+    fh_output(out, "%s", fh_get_ast_op(ast, expr->data.un_op.op));
     if (expr_needs_paren(expr->data.un_op.arg)) fh_output(out, "(");
     dump_expr(ast, out, indent, expr->data.un_op.arg);
     if (expr_needs_paren(expr->data.un_op.arg)) fh_output(out, ")");
@@ -214,6 +214,8 @@ void fh_dump_expr(struct fh_ast *ast, struct fh_output *out, struct fh_p_expr *e
   dump_expr(ast, out, 0, expr);
 }
 
+void fh_dump_block(struct fh_ast *ast, struct fh_p_stmt_block block) { dump_block(ast, NULL, 0, block); }
+
 void fh_dump_named_func(struct fh_ast *ast, struct fh_output *out, struct fh_p_named_func *func)
 {
   fh_output(out, "function %s(", fh_get_ast_symbol(ast, func->name));
@@ -224,6 +226,5 @@ void fh_dump_named_func(struct fh_ast *ast, struct fh_output *out, struct fh_p_n
   }
   fh_output(out, ") ");
   dump_block(ast, out, 0, func->func.body);
-  fh_output(out, "\n");
   fh_output(out, "\n");
 }

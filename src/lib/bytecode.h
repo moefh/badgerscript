@@ -28,6 +28,7 @@ enum fh_bc_opcode {
   OPC_MUL,
   OPC_DIV,
   OPC_MOD,
+  OPC_NEG,
 };
 
 #define GET_INSTR_OP(instr)    (((uint32_t)(instr))&0x3f)

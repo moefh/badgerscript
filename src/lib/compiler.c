@@ -466,9 +466,19 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
 
 static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int req_dest_reg)
 {
-  UNUSED(expr);
-  UNUSED(req_dest_reg);
-  return fh_compiler_error(c, loc, "unary operators not implemented");
+  switch (expr->op) {
+  case AST_OP_UNM: {
+    int reg = compile_expr(c, expr->arg, req_dest_reg);
+    if (reg < 0)
+      return -1;
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_NEG, reg, reg)) < 0)
+      return -1;
+    return reg;
+  }
+
+  default:
+    return fh_compiler_error(c, loc, "operator '%s' not implemented", fh_get_ast_op(c->ast, expr->op));
+  }
 }
 
 static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr, int req_dest_reg)
@@ -660,7 +670,6 @@ static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_
 
   if (compile_stmt(c, stmt_if->true_stmt) < 0)
     return -1;
-  free_tmp_regs(c, loc);
 
   // jmp to_end
   uint32_t addr_jmp_to_end = get_cur_pc(c);
@@ -674,7 +683,6 @@ static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_
   if (stmt_if->false_stmt) {
     if (compile_stmt(c, stmt_if->false_stmt) < 0)
       return -1;
-    free_tmp_regs(c, loc);
     // to_end:
     if (set_jmp_target(c, loc, addr_jmp_to_end, get_cur_pc(c)) < 0)
       return -1;
@@ -811,14 +819,19 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return -1;
-  int max_reg = fi->regs.num;
+
+  struct fh_stack save_regs;
+  fh_init_stack(&save_regs, fi->regs.item_size);
+  if (fh_copy_stack(&save_regs, &fi->regs) < 0)
+    return fh_compiler_error(c, loc, "out of memory for block regs");
   
   for (int i = 0; i < block->n_stmts; i++)
     if (compile_stmt(c, block->stmts[i]) < 0)
       return -1;
-  
-  for (int i = max_reg; i < fi->regs.num; i++)
-    free_reg(c, loc, i);
+
+  if (fh_copy_stack(&fi->regs, &save_regs) < 0)
+    return fh_compiler_error(c, loc, "out of memory for block regs");
+  fh_free_stack(&save_regs);
   return 0;
 }
 
@@ -862,19 +875,31 @@ static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *fun
   return 0;
 }
 
+static const char *get_func_name(struct fh_compiler *c, struct fh_p_named_func *f)
+{
+  const char *name = fh_get_ast_symbol(c->ast, f->name);
+  if (! name) {
+    fh_compiler_error(c, f->loc, "INTERNAL COMPILER ERROR: can't find function name");
+    return NULL;
+  }
+  return name;
+}
+
 int fh_compile(struct fh_compiler *c)
 {
   stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
-    const char *name = fh_get_symbol_name(c->ast->symtab, f->name);
+    const char *name = get_func_name(c, f);
     if (! name)
-      return fh_compiler_error(c, f->loc, "INTERNAL COMPILER ERROR: can't find function name");
+      return -1;
     if (! fh_add_bc_func(c->bc, f->loc, name, f->func.n_params))
       return -1;
   }
 
-  int i = 0;
   stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
-    struct fh_bc_func *bc_func = fh_get_bc_func(c->bc, i++);
+    const char *name = get_func_name(c, f);
+    if (! name)
+      return -1;
+    struct fh_bc_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
     if (compile_named_func(c, f, bc_func) < 0)
       return -1;
   }

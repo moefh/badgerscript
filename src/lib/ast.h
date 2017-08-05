@@ -8,7 +8,7 @@
 #define FUNC_CALL_PREC 1000
 
 enum {
-  AST_OP_UNM,
+  AST_OP_UNM = 256,
   AST_OP_EQ,
   AST_OP_NEQ,
   AST_OP_GT,

@@ -1,0 +1,10 @@
+
+function f()
+{
+  var x = 0;
+  {
+    var k = 0;
+  }
+  print(k);  # error: unknown variable 'k'
+  print(x);
+}

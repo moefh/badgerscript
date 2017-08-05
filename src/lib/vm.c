@@ -87,6 +87,11 @@ struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_bc_func *func,
     return NULL;
   if (n_args < func->n_params)
     memset(vm->stack + ret_reg + 1 + n_args, 0, (func->n_params - n_args) * sizeof(struct fh_value));
+
+  /*
+   * Clear uninitialized registers. See comment [XXX]
+   */
+  memset(vm->stack + ret_reg + 1 + func->n_params, 0, (func->n_regs - func->n_params) * sizeof(struct fh_value));
   
   struct fh_vm_call_frame *frame = fh_push(&vm->call_stack, NULL);
   if (! frame) {
@@ -126,7 +131,7 @@ static void dump_regs(struct fh_vm *vm)
 {
   struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
   struct fh_value *reg_base = vm->stack + frame->base;
-  printf("\n\n--- base=%d, n_regs=%d\n", frame->base, frame->func->n_regs);
+  printf("--- base=%d, n_regs=%d\n", frame->base, frame->func->n_regs);
   for (int i = 0; i < frame->func->n_regs; i++) {
     printf("[%-3d] r%-2d = ", i+frame->base, i);
     dump_val("", &reg_base[i]);
@@ -148,7 +153,19 @@ int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, i
   if (ensure_stack_size(vm, ret_reg + n_args + 1) < 0)
     return -1;
   memset(&vm->stack[ret_reg], 0, sizeof(struct fh_value));
-  memcpy(&vm->stack[ret_reg+1], args, n_args*sizeof(struct fh_value));
+  if (args)
+    memcpy(&vm->stack[ret_reg+1], args, n_args*sizeof(struct fh_value));
+
+  /*
+   * [XXX] Clear uninitialized registers.
+   *
+   * This is not strictly necessary (since well-behaved bytecode will
+   * never use a register before writing to it), but when debugging
+   * with dump_regs() we get complaints from valgrind if we don't do
+   * it:
+   */
+  if (n_args < func->n_regs)
+    memset(&vm->stack[ret_reg+1+n_args], 0, (func->n_regs-n_args)*sizeof(struct fh_value));
 
   if (! prepare_call(vm, func, ret_reg, n_args))
     return -1;
@@ -257,6 +274,17 @@ int fh_run_vm(struct fh_vm *vm)
         ra->data.num = vb->data.num / vc->data.num;
         break;
       }
+
+      handle_op(OPC_NEG) {
+        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        if (vb->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "arithmetic on non-numeric value");
+          goto err;
+        }
+        ra->type = FH_VAL_NUMBER;
+        ra->data.num = -vb->data.num;
+        break;
+      }
       
       handle_op(OPC_CALL) {
         struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
@@ -301,6 +329,10 @@ int fh_run_vm(struct fh_vm *vm)
 
  err:
   pc--;
+  printf("\n");
+  printf("****************************\n");
+  printf("***** HALTING ON ERROR *****\n");
+  printf("****************************\n");
   dump_regs(vm);
   fh_dump_bc_instr(vm->bc, NULL, pc - vm->code, *pc);
   vm->pc = pc;

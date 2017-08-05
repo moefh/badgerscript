@@ -1,28 +1,13 @@
-
-function print() {}
-
-function f(x, y) {
-  # expressions
-  var z = x + y;
-  y = 2 * x + 0.5;
-
-  # function call
-  x = print(x, 5) + print(print(1,2), 0);
-
-  # if
+function test_if(x)
+{
   if (x == 42)
     print("jackpot\n");
   else
     print("no luck\n");
-  print("hello, world!\n");
+}
 
-  # block
-  {
-    x = 1;
-    f(0,1);
-  }
-
-  # loop
+function test_loop()
+{
   var i = 0;
   while (1) {
     if (i == 5)
@@ -31,6 +16,22 @@ function f(x, y) {
       break;
     print(i);
     i = i + 1;
+  }
+}
+
+function f(x, y) {
+  # expressions
+  var z = x + y;
+  y = 2 * x + 0.5;
+
+  # function call
+  print("hello, world!\n");
+  x = print(x, 5) + print(print(1,2), 0);
+
+  # gratuitous block
+  {
+    var k = 123;
+    print(x, k);
   }
 
   return x + 1;

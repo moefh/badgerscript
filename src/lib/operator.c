@@ -54,7 +54,7 @@ struct fh_operator *fh_get_binary_op(struct fh_op_table *ops, char *name)
 
 struct fh_operator *fh_get_prefix_op(struct fh_op_table *ops, char *name)
 {
-  return find_op(&ops->binary, name);
+  return find_op(&ops->prefix, name);
 }
 
 struct fh_operator *fh_get_op(struct fh_op_table *ops, char *name)

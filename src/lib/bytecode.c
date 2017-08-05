@@ -72,6 +72,8 @@ void fh_free_bc(struct fh_bc *bc)
     free_bc_func(&f->func);
   }
   fh_free_stack(&bc->funcs);
+  if (bc->symtab)
+    fh_free_symtab(bc->symtab);
   if (bc->instr)
     free(bc->instr);
   free(bc);

@@ -18,6 +18,7 @@ void fh_free_stack(struct fh_stack *s);
 int fh_stack_ensure_size(struct fh_stack *s, int n_items);
 int fh_stack_grow(struct fh_stack *s, int n_items);
 int fh_stack_shrink_to_fit(struct fh_stack *s);
+int fh_copy_stack(struct fh_stack *dst, const struct fh_stack *src);
 int fh_stack_is_empty(struct fh_stack *s);
 int fh_stack_count(struct fh_stack *s);
 void *fh_push(struct fh_stack *s, void *item);

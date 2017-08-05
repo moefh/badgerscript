@@ -115,6 +115,7 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
   case OPC_MUL:     fh_output(out, "mul     "); dump_instr_ra_rkb_rkc(out, instr); return;
   case OPC_DIV:     fh_output(out, "div     "); dump_instr_ra_rkb_rkc(out, instr); return;
   case OPC_MOD:     fh_output(out, "mod     "); dump_instr_ra_rkb_rkc(out, instr); return;
+  case OPC_NEG:     fh_output(out, "neg     "); dump_instr_ra_rkb(out, instr); return;
   case OPC_MOV:     fh_output(out, "mov     "); dump_instr_ra_rkb(out, instr); return;
 
   case OPC_CMP_EQ:  fh_output(out, "cmp.eq  "); dump_instr_a_rkb_rkc(out, instr); return;
