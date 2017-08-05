@@ -65,7 +65,7 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_bc_func 
   fi.continue_target_addr = (uint32_t) -1;
   fh_init_stack(&fi.fix_break_addrs, sizeof(uint32_t));
 
-  if (fh_push(&c->funcs, &fi) < 0)
+  if (! fh_push(&c->funcs, &fi))
     return NULL;
   return fh_stack_top(&c->funcs);
 }
@@ -217,7 +217,7 @@ static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id 
       fh_compiler_error(c, loc, "too many registers used");
       return -1;
     }
-    if (fh_push(&fi->regs, NULL) < 0) {
+    if (! fh_push(&fi->regs, NULL)) {
       fh_compiler_error(c, loc, "out of memory");
       return -1;
     }
@@ -272,7 +272,7 @@ static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
   for (int i = 0; i < n; i++) {
     int reg = first_reg + i;
     if (fi->regs.num <= reg) {
-      if (fh_push(&fi->regs, NULL) < 0) {
+      if (! fh_push(&fi->regs, NULL)) {
         fh_compiler_error(c, loc, "out of memory");
         return -1;
       }
@@ -446,30 +446,31 @@ static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr, int req_dest_reg)
 {
-  int dest_reg = req_dest_reg;
-  if (dest_reg < 0) {
-    dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-    if (dest_reg < 0)
-      return -1;
-  }
-
-  int first_reg = alloc_n_regs(c, loc, expr->n_args+1);
-  if (first_reg < 0)
+  int func_reg = alloc_n_regs(c, loc, expr->n_args+1);
+  if (func_reg < 0)
     return -1;
-  if (compile_expr(c, expr->func, first_reg) < 0)
+  if (compile_expr(c, expr->func, func_reg) < 0)
     return -1;
   for (int i = 0; i < expr->n_args; i++) {
-    if (compile_expr(c, &expr->args[i], first_reg+i+1) < 0)
+    if (compile_expr(c, &expr->args[i], func_reg+i+1) < 0)
       return -1;
   }
 
-  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_CALL, dest_reg, first_reg, expr->n_args)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_CALL, func_reg, expr->n_args)) < 0)
     return -1;
-  
-  for (int i = 0; i < expr->n_args+1; i++)
-    free_reg(c, loc, first_reg+i);
 
-  return dest_reg;
+  for (int i = 1; i < expr->n_args+1; i++)
+    free_reg(c, loc, func_reg+i);
+
+  if (req_dest_reg < 0)
+    return func_reg;
+  
+  if (func_reg != req_dest_reg) {
+    free_reg(c, loc, func_reg);
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, req_dest_reg, func_reg)) < 0)
+      return -1;
+  }
+  return req_dest_reg;
 }
 
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg)
@@ -701,7 +702,7 @@ static int compile_break(struct fh_compiler *c, struct fh_src_loc loc)
     return -1;
 
   uint32_t break_addr = get_cur_pc(c);
-  if (fh_push(&fi->fix_break_addrs, &break_addr) < 0)
+  if (! fh_push(&fi->fix_break_addrs, &break_addr))
     return fh_compiler_error(c, loc, "out of memory");
   if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
     return -1;

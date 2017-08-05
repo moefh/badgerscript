@@ -7,7 +7,7 @@ function f(x, y) {
   y = 2 * x + 0.5;
 
   # function call
-  x = f(x, 5) + f(f(1,2), 0);
+  x = print(x, 5) + print(print(1,2), 0);
 
   # if
   if (x == 42)

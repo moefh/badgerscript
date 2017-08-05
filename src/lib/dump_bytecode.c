@@ -108,7 +108,7 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
       fh_output(out, "ret\n");
     return;
     
-  case OPC_CALL:    fh_output(out, "call    r%d, r%d, %d\n", GET_INSTR_RA(instr), GET_INSTR_RB(instr), GET_INSTR_RC(instr)); return;
+  case OPC_CALL:    fh_output(out, "call    r%d, %d\n", GET_INSTR_RA(instr), GET_INSTR_RB(instr)); return;
 
   case OPC_ADD:     fh_output(out, "add     "); dump_instr_ra_rkb_rkc(out, instr); return;
   case OPC_SUB:     fh_output(out, "sub     "); dump_instr_ra_rkb_rkc(out, instr); return;
@@ -130,23 +130,23 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
   fh_output(out, "??      "); dump_instr_abc(out, instr); return;
 }
 
-static void dump_const(struct fh_bc_const *c, struct fh_output *out)
+static void dump_const(struct fh_value *c, struct fh_output *out)
 {
   switch (c->type) {
-  case FH_BC_CONST_NUMBER:
+  case FH_VAL_NUMBER:
     fh_output(out, "%f\n", c->data.num);
     return;
     
-  case FH_BC_CONST_STRING:
+  case FH_VAL_STRING:
     dump_string(out, c->data.str);
     fh_output(out, "\n");
     return;
 
-  case FH_BC_CONST_FUNC:
+  case FH_VAL_FUNC:
     fh_output(out, "<function at %d>\n", c->data.func->addr);
     return;
 
-  case FH_BC_CONST_C_FUNC:
+  case FH_VAL_C_FUNC:
     fh_output(out, "<C function at %p>\n", c->data.c_func);
     return;
   }
@@ -166,13 +166,13 @@ void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
     fh_output(out, "; ===================================================\n");
     fh_output(out, "; function with %u parameters, %d regs\n", func->n_params, func->n_regs);
     
-    for (uint32_t i = 0; i < func->n_opc; i++)
+    for (int i = 0; i < func->n_opc; i++)
       fh_dump_bc_instr(bc, out, func->addr+i, instr[func->addr+i]);
 
     int n_consts = fh_get_bc_func_num_consts(func);
     fh_output(out, "\n; %d constants\n", n_consts);
     for (int j = 0; j < n_consts; j++) {
-      struct fh_bc_const *c = fh_get_bc_func_const(func, j);
+      struct fh_value *c = fh_get_bc_func_const(func, j);
       fh_output(out, "c[%d] = ", j);
       dump_const(c, out);
     }

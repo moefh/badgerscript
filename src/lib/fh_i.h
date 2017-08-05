@@ -12,6 +12,12 @@
 #define ARRAY_SIZE(arr)  ((int)(sizeof(arr)/sizeof(arr[0])))
 #define UNUSED(x) ((void)(x))
 
+enum fh_op_assoc {
+  FH_ASSOC_PREFIX,
+  FH_ASSOC_LEFT,
+  FH_ASSOC_RIGHT,
+};
+
 enum fh_token_type {
   TOK_EOF,
   TOK_KEYWORD,
@@ -67,8 +73,10 @@ struct fh_token {
   } data;
 };
 
-struct fh_bc;
+struct fh_value;
+struct fh_vm;
 struct fh_bc_func;
+struct fh_bc;
 struct fh_output;
 struct fh_symtab;
 struct fh_tokenizer;
@@ -82,11 +90,34 @@ struct fh_ast {
   struct fh_stack funcs;
 };
 
+enum fh_value_type {
+  FH_VAL_NUMBER,
+  FH_VAL_STRING,
+  FH_VAL_FUNC,
+  FH_VAL_C_FUNC,
+};
+
+typedef int (*fh_c_func)(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args);
+
+struct fh_value {
+  union {
+    double num;
+    char *str;
+    struct fh_bc_func *func;
+    fh_c_func c_func;
+  } data;
+  enum fh_value_type type;
+};
+
+
 ssize_t fh_utf8_len(char *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok);
-void fh_dump_mem(const char *label, const void *data, size_t len);
 void fh_output(struct fh_output *out, char *fmt, ...) __attribute__((format (printf, 2, 3)));
+void fh_dump_mem(const char *label, const void *data, size_t len);
+void fh_dump_value(const struct fh_value *val);
+void fh_make_number(struct fh_value *val, double num);
+void fh_make_c_func(struct fh_value *val, fh_c_func func);
 
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_free_buffer(struct fh_buffer *buf);
@@ -139,6 +170,6 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
 struct fh_vm *fh_new_vm(struct fh_bc *bc);
 void fh_free_vm(struct fh_vm *vm);
 int fh_run_vm(struct fh_vm *vm);
-int fh_run_vm_func(struct fh_vm *vm, struct fh_bc_func *func);
+int fh_run_vm_func(struct fh_vm *vm, struct fh_bc_func *func, struct fh_value *args, int n_args, struct fh_value *ret);
 
 #endif /* FH_I_H_FILE */

@@ -4,10 +4,34 @@
 #include <stdio.h>
 
 #include "fh_i.h"
+#include "bytecode.h"
 
 struct fh_output {
   FILE *f;
 };
+
+void fh_dump_value(const struct fh_value *val)
+{
+  switch (val->type) {
+  case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
+  case FH_VAL_STRING: printf("STRING(%s)", val->data.str); return;
+  case FH_VAL_FUNC: printf("FUNC(addr=%u)", val->data.func->addr); return;
+  case FH_VAL_C_FUNC: printf("C_FUNC(%p)", val->data.c_func); return;
+  }
+  printf("INVALID_VALUE(type=%d)", val->type);
+}
+
+void fh_make_number(struct fh_value *val, double num)
+{
+  val->type = FH_VAL_NUMBER;
+  val->data.num = num;
+}
+
+void fh_make_c_func(struct fh_value *val, fh_c_func func)
+{
+  val->type = FH_VAL_C_FUNC;
+  val->data.c_func = func;
+}
 
 const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
 {

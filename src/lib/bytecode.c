@@ -27,15 +27,15 @@ struct fh_bc *fh_new_bc(void)
   return bc;
 }
 
-static void free_bc_const(struct fh_bc_const *c)
+static void free_bc_const(struct fh_value *c)
 {
   switch (c->type) {
-  case FH_BC_CONST_NUMBER:
-  case FH_BC_CONST_FUNC:
-  case FH_BC_CONST_C_FUNC:
+  case FH_VAL_NUMBER:
+  case FH_VAL_FUNC:
+  case FH_VAL_C_FUNC:
     return;
 
-  case FH_BC_CONST_STRING:
+  case FH_VAL_STRING:
     free(c->data.str);
     return;
   }
@@ -45,7 +45,7 @@ static void free_bc_const(struct fh_bc_const *c)
 
 static void free_bc_func(struct fh_bc_func *func)
 {
-  stack_foreach(struct fh_bc_const *, c, &func->consts) {
+  stack_foreach(struct fh_value *, c, &func->consts) {
     free_bc_const(c);
   }
   fh_free_stack(&func->consts);
@@ -81,14 +81,14 @@ uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t inst
 struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, int n_params)
 {
   UNUSED(loc); // TODO: record source location
-  if (fh_push(&bc->funcs, NULL) < 0)
+  if (! fh_push(&bc->funcs, NULL))
     return NULL;
   struct fh_bc_func *func = fh_stack_top(&bc->funcs);
   func->n_params = n_params;
   func->addr = 0;
   func->n_opc = 0;
   func->n_regs = 0;
-  fh_init_stack(&func->consts, sizeof(struct fh_bc_const));
+  fh_init_stack(&func->consts, sizeof(struct fh_value));
   return func;
 }
 
@@ -128,12 +128,12 @@ int fh_get_bc_num_funcs(struct fh_bc *bc)
   return bc->funcs.num;
 }
 
-struct fh_bc_const *fh_get_bc_func_consts(struct fh_bc_func *func)
+struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func)
 {
   return fh_stack_item(&func->consts, 0);
 }
 
-struct fh_bc_const *fh_get_bc_func_const(struct fh_bc_func *func, int num)
+struct fh_value *fh_get_bc_func_const(struct fh_bc_func *func, int num)
 {
   return fh_stack_item(&func->consts, num);
 }
@@ -143,9 +143,9 @@ int fh_get_bc_func_num_consts(struct fh_bc_func *func)
   return func->consts.num;
 }
 
-static struct fh_bc_const *add_const(struct fh_bc_func *func, int *k)
+static struct fh_value *add_const(struct fh_bc_func *func, int *k)
 {
-  if (fh_push(&func->consts, NULL) < 0)
+  if (! fh_push(&func->consts, NULL))
     return NULL;
   *k = func->consts.num - 1;
   return fh_stack_top(&func->consts);
@@ -154,16 +154,16 @@ static struct fh_bc_const *add_const(struct fh_bc_func *func, int *k)
 int fh_add_bc_const_number(struct fh_bc_func *func, double num)
 {
   int k = 0;
-  stack_foreach(struct fh_bc_const *, c, &func->consts) {
-    if (c->type == FH_BC_CONST_NUMBER && c->data.num == num)
+  stack_foreach(struct fh_value *, c, &func->consts) {
+    if (c->type == FH_VAL_NUMBER && c->data.num == num)
       return k;
     k++;
   }
   
-  struct fh_bc_const *c = add_const(func, &k);
+  struct fh_value *c = add_const(func, &k);
   if (! c)
     return -1;
-  c->type = FH_BC_CONST_NUMBER;
+  c->type = FH_VAL_NUMBER;
   c->data.num = num;
   return k;
 }
@@ -171,13 +171,13 @@ int fh_add_bc_const_number(struct fh_bc_func *func, double num)
 int fh_add_bc_const_string(struct fh_bc_func *func, const char *str)
 {
   int k = 0;
-  stack_foreach(struct fh_bc_const *, c, &func->consts) {
-    if (c->type == FH_BC_CONST_STRING && strcmp(c->data.str, str) == 0)
+  stack_foreach(struct fh_value *, c, &func->consts) {
+    if (c->type == FH_VAL_STRING && strcmp(c->data.str, str) == 0)
       return k;
     k++;
   }
 
-  struct fh_bc_const *c = add_const(func, &k);
+  struct fh_value *c = add_const(func, &k);
   if (! c)
     return -1;
   char *dup = malloc(strlen(str)+1);
@@ -186,7 +186,7 @@ int fh_add_bc_const_string(struct fh_bc_func *func, const char *str)
     return -1;
   }
   strcpy(dup, str);
-  c->type = FH_BC_CONST_STRING;
+  c->type = FH_VAL_STRING;
   c->data.str = dup;
   return k;
 }
@@ -194,16 +194,16 @@ int fh_add_bc_const_string(struct fh_bc_func *func, const char *str)
 int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f)
 {
   int k = 0;
-  stack_foreach(struct fh_bc_const *, c, &func->consts) {
-    if (c->type == FH_BC_CONST_FUNC && c->data.func == f)
+  stack_foreach(struct fh_value *, c, &func->consts) {
+    if (c->type == FH_VAL_FUNC && c->data.func == f)
       return k;
     k++;
   }
 
-  struct fh_bc_const *c = add_const(func, &k);
+  struct fh_value *c = add_const(func, &k);
   if (! c)
     return -1;
-  c->type = FH_BC_CONST_FUNC;
+  c->type = FH_VAL_FUNC;
   c->data.func = f;
   return k;
 }

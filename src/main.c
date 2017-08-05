@@ -6,6 +6,15 @@
 #include "lib/ast.h"
 #include "lib/bytecode.h"
 
+static int my_printf(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  UNUSED(vm);
+  UNUSED(args);
+  printf("called C function with %d args\n", n_args);
+  fh_make_number(ret, 42);
+  return 0;
+}
+
 static int run_file(const char *filename)
 {
   struct fh_input *in;
@@ -69,10 +78,23 @@ static int run_file(const char *filename)
   if (! vm)
     goto err;
   struct fh_bc_func *f = fh_get_bc_func(bc, fh_get_bc_num_funcs(bc)-1);
-  if (fh_run_vm_func(vm, f) < 0) {
-    printf("ERROR running bytecode\n");
+  struct fh_value args[8];
+  fh_make_c_func(&args[0], my_printf);
+  fh_make_number(&args[1], -2);
+  fh_make_number(&args[2], -2);
+  fh_make_number(&args[3], 2);
+  fh_make_number(&args[4], 2);
+  fh_make_number(&args[5], 80);
+  fh_make_number(&args[6], 40);
+  fh_make_number(&args[7], 10);
+  struct fh_value ret;
+  if (fh_run_vm_func(vm, f, args, 7, &ret) < 0) {
+    printf("ERROR running VM\n");
     goto err;
   }
+  printf("-> vm returned value ");
+  fh_dump_value(&ret);
+  printf("\n");
 
   fh_free_vm(vm);
   fh_free_compiler(c);

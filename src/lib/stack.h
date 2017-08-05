@@ -20,7 +20,7 @@ int fh_stack_grow(struct fh_stack *s, int n_items);
 int fh_stack_shrink_to_fit(struct fh_stack *s);
 int fh_stack_is_empty(struct fh_stack *s);
 int fh_stack_count(struct fh_stack *s);
-int fh_push(struct fh_stack *s, void *item);
+void *fh_push(struct fh_stack *s, void *item);
 int fh_pop(struct fh_stack *s, void *item);
 void *fh_stack_item(struct fh_stack *s, int index);
 void *fh_stack_top(struct fh_stack *s);

@@ -40,7 +40,7 @@ void *fh_stack_top(struct fh_stack *s)
 
 void *fh_stack_item(struct fh_stack *s, int index)
 {
-  if (index >= s->num)
+  if (index < 0 || index >= s->num)
     return NULL;
   return (char *) s->data + index*s->item_size;
 }
@@ -85,17 +85,16 @@ int fh_stack_grow(struct fh_stack *s, int n_items)
   return 0;
 }
 
-int fh_push(struct fh_stack *s, void *item)
+void *fh_push(struct fh_stack *s, void *item)
 {
   if (fh_stack_ensure_size(s, 1) < 0)
-    return -1;
+    return NULL;
 
   if (item)
     memcpy((char *) s->data + s->num*s->item_size, item, s->item_size);
   else
     memset((char *) s->data + s->num*s->item_size, 0, s->item_size);
-  s->num++;
-  return 0;
+  return (char *) s->data + (s->num++)*s->item_size;
 }
 
 int fh_pop(struct fh_stack *s, void *item)

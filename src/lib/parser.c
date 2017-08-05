@@ -146,7 +146,10 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
       struct fh_p_expr *e = parse_expr(p, false, ",)");
       if (! e)
         goto err;
-      fh_push(&args, e);
+      if (! fh_push(&args, e)) {
+        fh_free_expr(e);
+        goto err;
+      }
       free(e);
       
       if (get_token(p, &tok) < 0)
@@ -249,7 +252,7 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
       return -1;
     }
    
-    if (fh_push(opns, &expr) < 0) {
+    if (! fh_push(opns, &expr)) {
       fh_free_expr(expr);
       fh_parse_error_oom(p, loc);
       return -1;
@@ -302,7 +305,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
       }
 
-      if (fh_push(&opns, &expr) < 0) {
+      if (! fh_push(&opns, &expr)) {
         fh_parse_error_oom(p, tok.loc);
         fh_free_expr(expr);
         goto err;
@@ -353,7 +356,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           fh_parse_error_expected(p, tok.loc, "expression");
           goto err;
         }
-        if (fh_push(&oprs, op) < 0) {
+        if (! fh_push(&oprs, op)) {
           fh_parse_error_oom(p, tok.loc);
           goto err;
         }
@@ -365,7 +368,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, op->prec) < 0)
           goto err;
-        if (fh_push(&oprs, op) < 0) {
+        if (! fh_push(&oprs, op)) {
           fh_parse_error_oom(p, tok.loc);
           goto err;
         }
@@ -384,7 +387,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! num)
         goto err;
       num->data.num = tok.data.num;
-      if (fh_push(&opns, &num) < 0) {
+      if (! fh_push(&opns, &num)) {
         fh_free_expr(num);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -403,7 +406,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! str)
         goto err;
       str->data.str = tok.data.str;
-      if (fh_push(&opns, &str) < 0) {
+      if (! fh_push(&opns, &str)) {
         fh_free_expr(str);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -422,7 +425,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! var)
         goto err;
       var->data.var = tok.data.symbol_id;
-      if (fh_push(&opns, &var) < 0) {
+      if (! fh_push(&opns, &var)) {
         fh_free_expr(var);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -644,7 +647,7 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
     struct fh_p_stmt *stmt = parse_stmt(p);
     if (stmt == NULL)
       goto err;
-    if (fh_push(&stmts, &stmt) < 0) {
+    if (! fh_push(&stmts, &stmt)) {
       fh_parse_error_oom(p, tok.loc);
       goto err;
     }
@@ -745,7 +748,7 @@ int fh_parse(struct fh_parser *p)
       struct fh_p_named_func func;
       if (parse_named_func(p, &func) == NULL)
         goto error;
-      if (fh_push(&funcs, &func) < 0) {
+      if (! fh_push(&funcs, &func)) {
         fh_parse_error_oom(p, tok.loc);
         goto error;
       }

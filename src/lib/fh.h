@@ -18,12 +18,6 @@ struct fh_src_loc {
   uint16_t col;
 };
 
-enum fh_op_assoc {
-  FH_ASSOC_PREFIX,
-  FH_ASSOC_LEFT,
-  FH_ASSOC_RIGHT,
-};
-
 struct fh_input *fh_open_input_file(const char *filename);
 struct fh_input *fh_new_input(void *user_data, struct fh_input_funcs *funcs);
 void *fh_get_input_user_data(struct fh_input *in);

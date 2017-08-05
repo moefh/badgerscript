@@ -50,32 +50,13 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
-enum fh_bc_const_type {
-  FH_BC_CONST_NUMBER,
-  FH_BC_CONST_STRING,
-  FH_BC_CONST_FUNC,
-  FH_BC_CONST_C_FUNC,
-};
-
 struct fh_bc;
 
-typedef int (*fh_c_func)(struct fh_bc *bc, int first_arg, int n_args);
-
-struct fh_bc_const {
-  enum fh_bc_const_type type;
-  union {
-    double num;
-    char *str;
-    struct fh_bc_func *func;
-    fh_c_func *c_func;
-  } data;
-};
-
 struct fh_bc_func {
-  uint32_t n_params;
   uint32_t addr;
-  uint32_t n_opc;
-  uint32_t n_regs;
+  int32_t n_params;
+  int32_t n_opc;
+  int32_t n_regs;
   struct fh_stack consts;
 };
 
@@ -93,8 +74,8 @@ uint32_t *fh_get_bc_instructions(struct fh_bc *c, uint32_t *num);
 uint32_t fh_get_bc_num_instructions(struct fh_bc *bc);
 struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
 int fh_get_bc_num_funcs(struct fh_bc *bc);
-struct fh_bc_const *fh_get_bc_func_consts(struct fh_bc_func *func);
-struct fh_bc_const *fh_get_bc_func_const(struct fh_bc_func *func, int num);
+struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func);
+struct fh_value *fh_get_bc_func_const(struct fh_bc_func *func, int num);
 int fh_get_bc_func_num_consts(struct fh_bc_func *func);
 
 #endif /* BYTECODE_H_FILE */

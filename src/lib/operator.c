@@ -32,9 +32,9 @@ int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, en
   strcpy(opr.name, name);
 
   if (assoc == FH_ASSOC_PREFIX)
-    return fh_push(&ops->prefix, &opr);
+    return fh_push(&ops->prefix, &opr) ? 0 : -1;
   if (assoc == FH_ASSOC_LEFT || assoc == FH_ASSOC_RIGHT)
-    return fh_push(&ops->binary, &opr);
+    return fh_push(&ops->binary, &opr) ? 0 : -1;
   return -1;
 }
 
