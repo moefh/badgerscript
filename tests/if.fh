@@ -1,0 +1,9 @@
+
+function main()
+{
+  var x = 1;
+  if (x == 1)
+    printf("yes!\n");
+  else
+    printf("oops...\n");
+}

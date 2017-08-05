@@ -92,7 +92,8 @@ int fh_copy_stack(struct fh_stack *dst, const struct fh_stack *src)
   if (dst->cap < src->num)
     if (fh_stack_ensure_size(dst, src->num - dst->num) < 0)
       return -1;
-  memcpy(dst->data, src->data, dst->item_size*src->num);
+  if (src->num > 0)
+    memcpy(dst->data, src->data, dst->item_size*src->num);
   dst->num = src->num;
   return 0;
 }

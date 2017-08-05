@@ -232,3 +232,45 @@ void fh_free_block(struct fh_p_stmt_block block)
     free(block.stmts);
   }
 }
+
+int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_expr *expr, void *data), void *data)
+{
+  int ret;
+
+  if ((ret = visit(expr, data)) != 0)
+    return ret;
+  
+  switch (expr->type) {
+  case EXPR_NONE: return 0;
+  case EXPR_VAR: return 0;
+  case EXPR_NUMBER: return 0;
+  case EXPR_STRING: return 0;
+  case EXPR_FUNC: return 0;
+
+  case EXPR_UN_OP:
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.un_op.arg, visit, data)) != 0)
+      return ret;
+    return 0;
+
+  case EXPR_BIN_OP:
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.bin_op.left, visit, data)) != 0)
+      return ret;
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.bin_op.right, visit, data)) != 0)
+      return ret;
+    return 0;
+
+  case EXPR_FUNC_CALL:
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.func_call.func, visit, data)) != 0)
+      return ret;
+    if (expr->data.func_call.args) {
+      for (int i = 0; i < expr->data.func_call.n_args; i++) {
+        if ((ret = fh_ast_visit_expr_nodes(&expr->data.func_call.args[i], visit, data)) != 0)
+          return ret;
+      }
+    }
+    return 0;
+  }
+  
+  fprintf(stderr, "INTERNAL ERROR: unknown expression type '%d'\n", expr->type);
+  return 0;
+}

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "fh_i.h"
 #include "bytecode.h"
@@ -195,7 +196,7 @@ int fh_run_vm(struct fh_vm *vm)
   }
   while (1) {
     //dump_regs(vm);
-    fh_dump_bc_instr(vm->bc, NULL, pc - vm->code, *pc);
+    //fh_dump_bc_instr(vm->bc, NULL, pc - vm->code, *pc);
     
     uint32_t instr = *pc++;
     struct fh_value *ra = &reg_base[GET_INSTR_RA(instr)];
@@ -228,71 +229,84 @@ int fh_run_vm(struct fh_vm *vm)
       }
 
       handle_op(OPC_ADD) {
-        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
-        if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = vb->data.num + vc->data.num;
+        ra->data.num = rb->data.num + rc->data.num;
         break;
       }
       
       handle_op(OPC_SUB) {
-        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
-        if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = vb->data.num - vc->data.num;
+        ra->data.num = rb->data.num - rc->data.num;
         break;
       }
 
       handle_op(OPC_MUL) {
-        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
-        if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = vb->data.num * vc->data.num;
+        ra->data.num = rb->data.num * rc->data.num;
         break;
       }
 
       handle_op(OPC_DIV) {
-        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        struct fh_value *vc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
-        if (vb->type != FH_VAL_NUMBER || vc->type != FH_VAL_NUMBER) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           fh_vm_error(vm, "arithmetic on non-numeric values");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = vb->data.num / vc->data.num;
+        ra->data.num = rb->data.num / rc->data.num;
+        break;
+      }
+
+      handle_op(OPC_MOD) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "arithmetic on non-numeric values");
+          goto err;
+        }
+        ra->type = FH_VAL_NUMBER;
+        ra->data.num = fmod(rb->data.num, rc->data.num);
         break;
       }
 
       handle_op(OPC_NEG) {
-        struct fh_value *vb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        if (vb->type != FH_VAL_NUMBER) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        if (rb->type != FH_VAL_NUMBER) {
           fh_vm_error(vm, "arithmetic on non-numeric value");
           goto err;
         }
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = -vb->data.num;
+        ra->data.num = -rb->data.num;
         break;
       }
       
       handle_op(OPC_CALL) {
+        //dump_regs(vm);
         struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
         if (ra->type == FH_VAL_FUNC) {
           uint32_t func_addr = ra->data.func->addr;
           
           /*
-           * WARNING: prepare_c_call() may move the stack, so don't trust reg_base
+           * WARNING: prepare_call() may move the stack, so don't trust reg_base
            * or ra after calling it -- jumping to changed_stack_frame fixes it.
            */
           struct fh_vm_call_frame *new_frame = prepare_call(vm, ra->data.func, frame->base + GET_INSTR_RA(instr), GET_INSTR_RB(instr));
@@ -306,8 +320,7 @@ int fh_run_vm(struct fh_vm *vm)
           fh_c_func c_func = ra->data.c_func;
           
           /*
-           * WARNING: prepare_c_call() may move the stack, so don't trust reg_base
-           * or ra after calling it -- jumping to changed_stack_frame fixes it.
+           * WARNING: above warning about prepare_call() also applies to prepare_c_call()
            */
           struct fh_vm_call_frame *new_frame = prepare_c_call(vm, frame->base + GET_INSTR_RA(instr), GET_INSTR_RB(instr));
           if (! new_frame)
@@ -321,6 +334,62 @@ int fh_run_vm(struct fh_vm *vm)
         goto err;
       }
       
+      handle_op(OPC_JMP) {
+        pc += GET_INSTR_RS(instr);
+        break;
+      }
+      
+      handle_op(OPC_CMP_EQ) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        int c = GET_INSTR_RC(instr);
+        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "comparing < on non-numeric values");
+          goto err;
+        }
+        int test = (ra->data.num == rb->data.num) ^ c;
+        //printf("(%f == %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
+        if (test) {
+          pc++;
+          break;
+        }
+        pc += GET_INSTR_RS(*pc) + 1;
+        break;
+      }
+
+      handle_op(OPC_CMP_LT) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        int c = GET_INSTR_RC(instr);
+        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "comparing < on non-numeric values");
+          goto err;
+        }
+        int test = (ra->data.num < rb->data.num) ^ c;
+        //printf("(%f < %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
+        if (test) {
+          pc++;
+          break;
+        }
+        pc += GET_INSTR_RS(*pc) + 1;
+        break;
+      }
+
+      handle_op(OPC_CMP_LE) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        int c = GET_INSTR_RC(instr);
+        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "comparing <= on non-numeric values");
+          goto err;
+        }
+        int test = (ra->data.num <= rb->data.num) ^ c;
+        //printf("(%f <= %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
+        if (test) {
+          pc++;
+          break;
+        }
+        pc += GET_INSTR_RS(*pc) + 1;
+        break;
+      }
+
     default:
       fh_vm_error(vm, "ERROR: unhandled opcode");
       goto err;

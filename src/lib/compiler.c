@@ -398,6 +398,30 @@ static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
   return fh_compiler_error(c, loc, "unknown variable or function '%s'", get_ast_symbol_name(c, var));
 }
 
+static int check_is_var(struct fh_p_expr *expr, void *data)
+{
+  fh_symbol_id var = *(fh_symbol_id *)data;
+  return (expr->type == EXPR_VAR && expr->data.var == var);
+}
+
+static int expr_contains_var(struct fh_p_expr *expr, fh_symbol_id var)
+{
+  return fh_ast_visit_expr_nodes(expr, check_is_var, &var);
+}
+
+#define expr_is_simple(e) ((e)->type == EXPR_VAR || (e)->type == EXPR_NUMBER || (e)->type == EXPR_STRING)
+
+static int expr_is_simple_op(struct fh_p_expr *expr)
+{
+  if (expr->type == EXPR_BIN_OP && expr->data.bin_op.op != AST_OP_OR && expr->data.bin_op.op != AST_OP_AND) {
+    return (expr_is_simple(expr->data.bin_op.left) && expr_is_simple(expr->data.bin_op.right));
+  }
+  if (expr->type == EXPR_UN_OP) {
+    return expr_is_simple(expr->data.un_op.arg);
+  }
+  return 0;
+}
+
 static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
 {
   switch (expr->op) {
@@ -406,13 +430,37 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
       int left_reg = get_var_reg(c, loc, expr->left->data.var);
       if (left_reg < 0)
         return -1;
-      if (compile_expr(c, expr->right, left_reg) < 0)
-        return -1;
-      if (dest_reg < 0)
-        return left_reg;
-      if (dest_reg != left_reg) {
-        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, left_reg)) < 0)
+      /* Optimization: if expr->right is simple enough, we can
+       * directly compile it using the assigned variable register as
+       * the destination. Sadly this doesn't work in most cases where
+       * expr->right contains the variable being assigned
+       * (e.g. "y=(2*x)*y+c" fails to compile correctly with that
+       * optimization).
+       */
+      if (expr_is_simple(expr->right)
+          || expr_is_simple_op(expr->right)
+          || ! expr_contains_var(expr->right, expr->left->data.var)) {
+        if (compile_expr(c, expr->right, left_reg) < 0)
           return -1;
+        if (dest_reg < 0)
+          return left_reg;
+        if (dest_reg != left_reg) {
+          if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, left_reg)) < 0)
+            return -1;
+        }
+      } else {
+        //printf("%s <- ", fh_get_ast_symbol(c->ast, expr->left->data.var));
+        //fh_dump_expr(c->ast, NULL, expr->right);
+        //printf("\n");
+        int tmp_reg = compile_expr(c, expr->right, dest_reg);
+        if (tmp_reg < 0)
+          return -1;
+        if (tmp_reg != left_reg) {
+          if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, left_reg, tmp_reg)) < 0)
+            return -1;
+        }
+        if (dest_reg < 0)
+          return left_reg;
       }
       return dest_reg;
     } else {
@@ -633,7 +681,7 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
       int opcode = get_opcode_for_test(c, test->loc, test->data.bin_op.op, &invert);
       if (opcode < 0)
         return -1;
-      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_reg, right_reg)) < 0)
+      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, left_reg, right_reg, invert_test ^ invert)) < 0)
         return -1;
       return 0;
     }
@@ -652,14 +700,14 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
   }
   if (reg < 0)
     return -1;
-  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, invert_test, reg)) < 0)
+  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, reg, invert_test)) < 0)
     return -1;
   return 0;
 }
 
 static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_if *stmt_if)
 {
-  if (compile_test(c, stmt_if->test, 1) < 0)
+  if (compile_test(c, stmt_if->test, 0) < 0)
     return -1;
   free_tmp_regs(c, loc);
 
@@ -754,7 +802,7 @@ static int compile_continue(struct fh_compiler *c, struct fh_src_loc loc)
     return -1;
   }
   
-  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, fi->continue_target_addr)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, fi->continue_target_addr-get_cur_pc(c)-1)) < 0)
     return -1;
   return 0;
 }

@@ -25,7 +25,7 @@ function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter) {
         while (x <= x2) {
             var c = calc_point(x, y, max_iter);
             if (c == max_iter)
-                printf(" ");
+                printf(".");
             else
                 printf("%d", c%10);
             x = x + step_x;

@@ -1,5 +1,5 @@
 
 function main()
 {
-  mandelbrot(-2, -2, 2, 2, 100, 50, 150);
+  mandelbrot(-2, -2, 2, 2, 120, 54, 1500);
 }

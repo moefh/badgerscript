@@ -4,7 +4,7 @@ CFLAGS = -O2 -Wall -Wextra -g
 LDFLAGS =
 
 OBJS = main.o
-LIBS = lib/libfh.a
+LIBS = lib/libfh.a -lm
 
 .PHONY: all lib clean
 

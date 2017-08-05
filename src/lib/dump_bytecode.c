@@ -64,35 +64,26 @@ static void dump_instr_ra_rkb(struct fh_output *out, uint32_t instr)
   fh_output(out, "\n");
 }
 
-static void dump_instr_a_rkb(struct fh_output *out, uint32_t instr)
-{
-  int a = GET_INSTR_RA(instr);
-  int b = GET_INSTR_RB(instr);
-
-  fh_output(out, "%d, ", a);
-  if (b <= MAX_FUNC_REGS)
-    fh_output(out, "r%d", b);
-  else
-    fh_output(out, "c[%d]", b-MAX_FUNC_REGS-1);
-  fh_output(out, "\n");
-}
-
-static void dump_instr_a_rkb_rkc(struct fh_output *out, uint32_t instr)
+static void dump_instr_ra_rkb_c(struct fh_output *out, uint32_t instr)
 {
   int a = GET_INSTR_RA(instr);
   int b = GET_INSTR_RB(instr);
   int c = GET_INSTR_RC(instr);
 
-  fh_output(out, "%d, ", a);
+  fh_output(out, "r%d, ", a);
   if (b <= MAX_FUNC_REGS)
     fh_output(out, "r%d, ", b);
   else
     fh_output(out, "c[%d], ", b-MAX_FUNC_REGS-1);
-  if (c <= MAX_FUNC_REGS)
-    fh_output(out, "r%d", c);
-  else
-    fh_output(out, "c[%d]", c-MAX_FUNC_REGS-1);
-  fh_output(out, "\n");
+  fh_output(out, "%d\n", c);
+}
+
+static void dump_instr_ra_b(struct fh_output *out, uint32_t instr)
+{
+  int a = GET_INSTR_RA(instr);
+  int b = GET_INSTR_RB(instr);
+
+  fh_output(out, "r%d, %d\n", a, b);
 }
 
 void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr)
@@ -118,10 +109,10 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
   case OPC_NEG:     fh_output(out, "neg     "); dump_instr_ra_rkb(out, instr); return;
   case OPC_MOV:     fh_output(out, "mov     "); dump_instr_ra_rkb(out, instr); return;
 
-  case OPC_CMP_EQ:  fh_output(out, "cmp.eq  "); dump_instr_a_rkb_rkc(out, instr); return;
-  case OPC_CMP_LT:  fh_output(out, "cmp.lt  "); dump_instr_a_rkb_rkc(out, instr); return;
-  case OPC_CMP_LE:  fh_output(out, "cmp.le  "); dump_instr_a_rkb_rkc(out, instr); return;
-  case OPC_TEST:    fh_output(out, "test    "); dump_instr_a_rkb(out, instr); return;
+  case OPC_CMP_EQ:  fh_output(out, "cmp.eq  "); dump_instr_ra_rkb_c(out, instr); return;
+  case OPC_CMP_LT:  fh_output(out, "cmp.lt  "); dump_instr_ra_rkb_c(out, instr); return;
+  case OPC_CMP_LE:  fh_output(out, "cmp.le  "); dump_instr_ra_rkb_c(out, instr); return;
+  case OPC_TEST:    fh_output(out, "test    "); dump_instr_ra_b(out, instr); return;
   case OPC_JMP:     fh_output(out, "jmp     %d            ; to %d\n",  GET_INSTR_RS(instr), addr + 1 + GET_INSTR_RS(instr)); return;
     
   case OPC_LD0:     fh_output(out, "ld0     r%d\n",            GET_INSTR_RA(instr)); return;

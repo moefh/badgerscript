@@ -6,11 +6,25 @@
 #include "lib/ast.h"
 #include "lib/bytecode.h"
 
+static void print_val(struct fh_value *val)
+{
+  switch (val->type) {
+  case FH_VAL_NUMBER: printf("%g", val->data.num); return;
+  case FH_VAL_STRING: printf("%s", val->data.str); return;
+  case FH_VAL_FUNC: printf("<func at %d>", val->data.func->addr); return;
+  case FH_VAL_C_FUNC: printf("<C func at %p>", val->data.c_func); return;
+  }
+  printf("<invalid value type: %d>", val->type);
+}
+
 static int my_printf(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   (void)vm;
-  (void)args;
-  (void)n_args;
+  if (n_args == 1 && args[0].type == FH_VAL_STRING) {
+    fputs(args[0].data.str, stdout);
+  } else if (n_args == 2 && args[1].type == FH_VAL_NUMBER) {
+    printf("%d", (int) args[1].data.num);
+  }
   fh_make_number(ret, 0);
   return 0;
 }
@@ -19,13 +33,9 @@ static int my_print(struct fh_vm *vm, struct fh_value *ret, struct fh_value *arg
 {
   (void)vm;
 
-  printf("Called C function with %d args:\n", n_args);
-  for (int i = 0; i < n_args; i++) {
-    printf("- ");
-    fh_dump_value(&args[i]);
-    printf("\n");
-  }
-  fh_make_number(ret, 42);
+  for (int i = 0; i < n_args; i++)
+    print_val(&args[i]);
+  fh_make_number(ret, 0);
   return 0;
 }
 
