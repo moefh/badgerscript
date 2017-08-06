@@ -11,7 +11,7 @@
 
 #define FH_IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
 #define FH_IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
-#define FH_IS_DIGIT(c) ((c) >= '0' && (c) < '9')
+#define FH_IS_DIGIT(c) ((c) >= '0' && (c) <= '9')
 #define FH_IS_ALNUM(c) (FH_IS_ALPHA(c) || FH_IS_DIGIT(c))
 
 static const struct keyword {
