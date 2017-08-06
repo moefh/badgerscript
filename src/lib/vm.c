@@ -140,7 +140,7 @@ static void dump_regs(struct fh_vm *vm)
   printf("---\n");
 }
 
-int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
+int fh_call_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
   struct fh_bc_func *func = fh_get_bc_func_by_name(vm->bc, name);
   if (! func)
@@ -175,6 +175,30 @@ int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, i
     return -1;
   if (ret)
     *ret = vm->stack[ret_reg];
+  return 0;
+}
+
+static int is_true(struct fh_value *val)
+{
+  switch (val->type) {
+  case FH_VAL_NUMBER: return val->data.num != 0.0;
+  case FH_VAL_STRING: return val->data.str[0] != '\0';
+  case FH_VAL_FUNC:   return 1;
+  case FH_VAL_C_FUNC: return 1;
+  }
+  return 0;
+}
+
+static int vals_equal(struct fh_value *v1, struct fh_value *v2)
+{
+  if (v1->type != v2->type)
+    return 0;
+  switch (v1->type) {
+  case FH_VAL_NUMBER: return v1->data.num == v2->data.num;
+  case FH_VAL_STRING: return strcmp(v1->data.str, v2->data.str) == 0;
+  case FH_VAL_FUNC:   return v1->data.func == v2->data.func;
+  case FH_VAL_C_FUNC: return v1->data.c_func == v2->data.c_func;
+  }
   return 0;
 }
 
@@ -298,6 +322,13 @@ int fh_run_vm(struct fh_vm *vm)
         ra->data.num = -rb->data.num;
         break;
       }
+
+      handle_op(OPC_NOT) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        ra->type = FH_VAL_NUMBER;
+        ra->data.num = (is_true(rb)) ? 0.0 : 1.0;
+        break;
+      }
       
       handle_op(OPC_CALL) {
         //dump_regs(vm);
@@ -339,15 +370,22 @@ int fh_run_vm(struct fh_vm *vm)
         break;
       }
       
-      handle_op(OPC_CMP_EQ) {
-        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        int c = GET_INSTR_RC(instr);
-        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
-          fh_vm_error(vm, "comparing < on non-numeric values");
-          goto err;
+      handle_op(OPC_TEST) {
+        int b = GET_INSTR_RB(instr);
+        int test = is_true(ra) ^ b;
+        if (test) {
+          pc++;
+          break;
         }
-        int test = (ra->data.num == rb->data.num) ^ c;
-        //printf("(%f == %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
+        pc += GET_INSTR_RS(*pc) + 1;
+        break;
+      }
+
+      handle_op(OPC_CMP_EQ) {
+        int inv = GET_INSTR_RA(instr);
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        int test = vals_equal(rb, rc) ^ inv;
         if (test) {
           pc++;
           break;
@@ -357,13 +395,14 @@ int fh_run_vm(struct fh_vm *vm)
       }
 
       handle_op(OPC_CMP_LT) {
+        int inv = GET_INSTR_RA(instr);
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        int c = GET_INSTR_RC(instr);
-        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
-          fh_vm_error(vm, "comparing < on non-numeric values");
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "using < with non-numeric values");
           goto err;
         }
-        int test = (ra->data.num < rb->data.num) ^ c;
+        int test = (rb->data.num < rc->data.num) ^ inv;
         //printf("(%f < %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
         if (test) {
           pc++;
@@ -374,13 +413,14 @@ int fh_run_vm(struct fh_vm *vm)
       }
 
       handle_op(OPC_CMP_LE) {
+        int inv = GET_INSTR_RA(instr);
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        int c = GET_INSTR_RC(instr);
-        if (ra->type != FH_VAL_NUMBER || rb->type != FH_VAL_NUMBER) {
-          fh_vm_error(vm, "comparing <= on non-numeric values");
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
+          fh_vm_error(vm, "using < with non-numeric values");
           goto err;
         }
-        int test = (ra->data.num <= rb->data.num) ^ c;
+        int test = (rb->data.num <= rc->data.num) ^ inv;
         //printf("(%f <= %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
         if (test) {
           pc++;

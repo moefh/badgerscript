@@ -34,3 +34,8 @@ function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter) {
         printf("\n");
     }
 }
+
+function main()
+{
+  mandelbrot(-2, -2, 2, 2, 200, 54, 1500);
+}

@@ -363,8 +363,11 @@ static int get_opcode_for_op(struct fh_compiler *c, struct fh_src_loc loc, uint3
   case '/': return OPC_DIV;
   case '%': return OPC_MOD;
 
+  case AST_OP_UNM: return OPC_NEG;
+  case '!':        return OPC_NOT;
+
   default:
-    return fh_compiler_error(c, loc, "operator not implemented: '%s'", fh_get_ast_op(c->ast, op));
+    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, op));
   }
 }
 
@@ -508,24 +511,43 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
   }
 
   default:
-    return fh_compiler_error(c, loc, "operator '%s' not implemented", fh_get_ast_op(c->ast, expr->op));
+    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
   }
 }
 
-static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int req_dest_reg)
+static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int dest_reg)
 {
   switch (expr->op) {
+  case '!':
   case AST_OP_UNM: {
-    int reg = compile_expr(c, expr->arg, req_dest_reg);
+    int reg;
+    if (expr->arg->type == EXPR_VAR) {
+      reg = get_var_reg(c, expr->arg->loc, expr->arg->data.var);
+    } else if (expr->arg->type == EXPR_NUMBER) {
+      reg = add_const_number(c, loc, expr->arg->data.num);
+      if (reg >= 0) reg += MAX_FUNC_REGS+1;
+      if (dest_reg < 0)
+        dest_reg = reg;
+    } else {
+      reg = compile_expr(c, expr->arg, dest_reg);
+    }
     if (reg < 0)
       return -1;
-    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_NEG, reg, reg)) < 0)
+    int opcode = get_opcode_for_op(c, loc, expr->op);
+    if (opcode < 0)
       return -1;
-    return reg;
+    if (dest_reg < 0) {
+      dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+      if (dest_reg < 0)
+        return -1;
+    }
+    if (add_instr(c, loc, MAKE_INSTR_AB(opcode, dest_reg, reg)) < 0)
+      return -1;
+    return dest_reg;
   }
 
   default:
-    return fh_compiler_error(c, loc, "operator '%s' not implemented", fh_get_ast_op(c->ast, expr->op));
+    return fh_compiler_error(c, loc, "compilation for operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
   }
 }
 
@@ -681,7 +703,7 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
       int opcode = get_opcode_for_test(c, test->loc, test->data.bin_op.op, &invert);
       if (opcode < 0)
         return -1;
-      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, left_reg, right_reg, invert_test ^ invert)) < 0)
+      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_reg, right_reg)) < 0)
         return -1;
       return 0;
     }

@@ -39,6 +39,11 @@ enum fh_keyword_type {
   KW_CONTINUE,
 };
 
+struct fh_src_loc {
+  uint16_t line;
+  uint16_t col;
+};
+
 struct fh_buffer {
   char *p;
   size_t size;
@@ -89,26 +94,6 @@ struct fh_ast {
   struct fh_op_table op_table;
   struct fh_stack funcs;
 };
-
-enum fh_value_type {
-  FH_VAL_NUMBER,
-  FH_VAL_STRING,
-  FH_VAL_FUNC,
-  FH_VAL_C_FUNC,
-};
-
-typedef int (*fh_c_func)(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args);
-
-struct fh_value {
-  union {
-    double num;
-    char *str;
-    struct fh_bc_func *func;
-    fh_c_func c_func;
-  } data;
-  enum fh_value_type type;
-};
-
 
 ssize_t fh_utf8_len(char *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
@@ -165,14 +150,7 @@ const char *fh_get_compiler_error(struct fh_compiler *p);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func);
 uint32_t *fh_get_compiler_instructions(struct fh_compiler *c, int32_t *len);
-void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
-void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
 
-struct fh_vm *fh_new_vm(struct fh_bc *bc);
-void fh_free_vm(struct fh_vm *vm);
-int fh_vm_error(struct fh_vm *vm, char *fmt, ...);
-const char *fh_get_vm_error(struct fh_vm *vm);
-int fh_call_vm_func(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret);
 int fh_run_vm(struct fh_vm *vm);
 
 #endif /* FH_I_H_FILE */

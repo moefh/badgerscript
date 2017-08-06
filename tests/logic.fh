@@ -1,0 +1,11 @@
+
+function main()
+{
+  var x = 1;
+  x = !!x;
+  if (0 < x) {
+    print("yes\n");
+  } else {
+    print("no\n");
+  }
+}

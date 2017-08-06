@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "fh_i.h"
+#include "ast.h"
 #include "bytecode.h"
 
 struct fh_output {

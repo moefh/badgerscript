@@ -1,44 +1,23 @@
-function test_if(x)
+
+function test(x)
 {
-  if (x == 42)
-    print("jackpot\n");
-  else
-    print("no luck\n");
+  printf("In function test(), x=%d\n", x);
 }
 
-function test_loop()
-{
+function main() {
+  print("Hello, World!\n");
+
   var i = 0;
-  while (1) {
-    if (i == 5)
+  while (i < 10) {
+    if (i == 5) {
+      printf("skipping 5\n");
+      i = i + 1;
       continue;
-    if (i > 10)
-      break;
-    print(i);
+    }
+    printf("i=%d\n", i);
     i = i + 1;
   }
-}
 
-function f(x, y) {
-  # expressions
-  var z = x + y;
-  y = 2 * x + 0.5;
-
-  # function call
-  print("hello, world!\n");
-  x = print(x, 5) + print(print(1,2), 0);
-
-  # gratuitous block
-  {
-    var k = 123;
-    print(x, k);
-  }
-
-  return x + 1;
-}
-
-function main(args) {
-  var x = 1;
-  print("hello, world", f(x, 0) + 1.5, "\n");
-  return 0;
+  test(42);
+  return 1;
 }

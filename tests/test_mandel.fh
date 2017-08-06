@@ -1,5 +1,0 @@
-
-function main()
-{
-  mandelbrot(-2, -2, 2, 2, 120, 54, 1500);
-}

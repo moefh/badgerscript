@@ -29,6 +29,7 @@ enum fh_bc_opcode {
   OPC_DIV,
   OPC_MOD,
   OPC_NEG,
+  OPC_NOT,
 };
 
 #define GET_INSTR_OP(instr)    (((uint32_t)(instr))&0x3f)
@@ -61,8 +62,6 @@ struct fh_bc_func {
   struct fh_stack consts;
 };
 
-struct fh_bc *fh_new_bc(void);
-void fh_free_bc(struct fh_bc *bc);
 struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
 uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t instr);
 int fh_add_bc_const_number(struct fh_bc_func *func, double num);
@@ -82,5 +81,8 @@ const char *fh_get_bc_func_name(struct fh_bc *bc, int num);
 struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func);
 struct fh_value *fh_get_bc_func_const(struct fh_bc_func *func, int num);
 int fh_get_bc_func_num_consts(struct fh_bc_func *func);
+
+void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
+void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
 
 #endif /* BYTECODE_H_FILE */

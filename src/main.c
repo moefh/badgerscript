@@ -6,25 +6,70 @@
 #include "lib/ast.h"
 #include "lib/bytecode.h"
 
-static void print_val(struct fh_value *val)
+static void print_val(const struct fh_value *val)
 {
   switch (val->type) {
   case FH_VAL_NUMBER: printf("%g", val->data.num); return;
-  case FH_VAL_STRING: printf("%s", val->data.str); return;
-  case FH_VAL_FUNC: printf("<func at %d>", val->data.func->addr); return;
-  case FH_VAL_C_FUNC: printf("<C func at %p>", val->data.c_func); return;
+  case FH_VAL_STRING: printf("%s", val->data.str);  return;
+  case FH_VAL_FUNC: printf("<func %p>", val->data.func); return;
+  case FH_VAL_C_FUNC: printf("<C func %p>", val->data.c_func); return;
   }
-  printf("<invalid value type: %d>", val->type);
+  printf("<invalid value %d>", val->type);
 }
 
 static int my_printf(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args)
 {
-  (void)vm;
-  if (n_args == 1 && args[0].type == FH_VAL_STRING) {
-    fputs(args[0].data.str, stdout);
-  } else if (n_args == 2 && args[1].type == FH_VAL_NUMBER) {
-    printf("%d", (int) args[1].data.num);
+  if (n_args == 0 || args[0].type != FH_VAL_STRING)
+    goto end;
+
+  int next_arg = 1;
+  for (char *c = args[0].data.str; *c != '\0'; c++) {
+    if (*c != '%') {
+      putchar_unlocked(*c);
+      continue;
+    }
+    c++;
+    if (*c == '%') {
+      putchar_unlocked('%');
+      continue;
+    }
+    if (next_arg >= n_args)
+      return fh_vm_error(vm, "argument not supplied for '%%%c'", *c);
+    
+    switch (*c) {
+    case 'd':
+      if (args[next_arg].type != FH_VAL_NUMBER)
+        return fh_vm_error(vm, "invalid argument type for '%%%c'", *c);
+      printf("%lld", (long long) (int64_t) args[next_arg].data.num);
+      break;
+      
+    case 'u':
+    case 'x':
+      if (args[next_arg].type != FH_VAL_NUMBER)
+        return fh_vm_error(vm, "invalid argument type for '%%%c'", *c);
+      printf((*c == 'u') ? "%llu" : "%llx", (unsigned long long) (int64_t) args[next_arg].data.num);
+      break;
+      
+    case 'f':
+    case 'g':
+      if (args[next_arg].type != FH_VAL_NUMBER)
+        return fh_vm_error(vm, "invalid argument type for '%%%c'", *c);
+      printf((*c == 'f') ? "%f" : "%g", args[next_arg].data.num);
+      break;
+      
+    case 's':
+      if (args[next_arg].type != FH_VAL_STRING)
+        return fh_vm_error(vm, "invalid argument type for '%%%c'", *c);
+      printf("%s", args[next_arg].data.str);
+      break;
+      
+    default:
+      return fh_vm_error(vm, "invalid format specifier: '%%%c'", *c);
+    }
+    next_arg++;
   }
+  
+ end:
   fh_make_number(ret, 0);
   return 0;
 }
@@ -111,24 +156,14 @@ static int compile_file(struct fh_bc *bc, const char *filename)
 /*
  * Call a function in the given bytecode
  */
-static int call_bytecode_function(struct fh_bc *bc, const char *func_name)
+static int run_function(struct fh_bc *bc, const char *func_name)
 {
   printf("-> calling function '%s'...\n", func_name);
   struct fh_vm *vm = fh_new_vm(bc);
   if (! vm)
     goto err;
-#if 0
-  struct fh_value args[7];
-  fh_make_number(&args[0], -2);
-  fh_make_number(&args[1], -2);
-  fh_make_number(&args[2], 2);
-  fh_make_number(&args[3], 2);
-  fh_make_number(&args[4], 80);
-  fh_make_number(&args[5], 40);
-  fh_make_number(&args[6], 10);
-#endif
   struct fh_value ret;
-  if (fh_call_vm_func(vm, func_name, NULL, 0, &ret) < 0) {
+  if (fh_call_function(vm, func_name, NULL, 0, &ret) < 0) {
     printf("ERROR: %s\n", fh_get_vm_error(vm));
     goto err;
   }
@@ -164,7 +199,7 @@ int main(int argc, char **argv)
   
   printf("\nCOMPILED BYTECODE:\n");
   fh_dump_bc(bc, NULL);
-  if (call_bytecode_function(bc, "main") < 0)
+  if (run_function(bc, "main") < 0)
     goto err;
   fh_free_bc(bc);
   return 0;
