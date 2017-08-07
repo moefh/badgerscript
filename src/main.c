@@ -108,20 +108,20 @@ static int compile_file(struct fh_bc *bc, const char *filename)
     printf("ERROR: out of memory for AST\n");
     goto err;
   }
-  p = fh_new_parser(in, ast);
+  p = fh_new_parser();
   if (! p) {
     printf("ERROR: out of memory for parser\n");
     goto err;
   }
   printf("-> parsing...\n");
-  if (fh_parse(p) < 0) {
+  if (fh_parse(p, ast, in) < 0) {
     printf("%s:%s\n", filename, fh_get_parser_error(p));
     goto err;
   }
-  fh_parser_dump(p);
+  fh_dump_ast(ast);
 
   // compile
-  c = fh_new_compiler(ast, bc);
+  c = fh_new_compiler();
   if (! c) {
     printf("ERROR: out of memory for compiler\n");
     goto err;
@@ -129,7 +129,7 @@ static int compile_file(struct fh_bc *bc, const char *filename)
   fh_compiler_add_c_func(c, "print", my_print);
   fh_compiler_add_c_func(c, "printf", my_printf);
   printf("-> compiling...\n");
-  if (fh_compile(c) < 0) {
+  if (fh_compile(c, bc, ast) < 0) {
     printf("%s:%s\n", filename, fh_get_compiler_error(c));
     goto err;
   }

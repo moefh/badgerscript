@@ -228,3 +228,10 @@ void fh_dump_named_func(struct fh_ast *ast, struct fh_output *out, struct fh_p_n
   dump_block(ast, out, 0, func->func.body);
   fh_output(out, "\n");
 }
+
+void fh_dump_ast(struct fh_ast *ast)
+{
+  stack_foreach(struct fh_p_named_func *, f, &ast->funcs) {
+    fh_dump_named_func(ast, NULL, f);
+  }
+}

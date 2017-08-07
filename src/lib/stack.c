@@ -23,6 +23,11 @@ void fh_free_stack(struct fh_stack *s)
   s->cap = 0;
 }
 
+void fh_clear_stack(struct fh_stack *s)
+{
+  s->num = 0;
+}
+
 int fh_stack_is_empty(struct fh_stack *s)
 {
   return s->num == 0;

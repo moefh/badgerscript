@@ -43,13 +43,13 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg);
 
-struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc)
+struct fh_compiler *fh_new_compiler(void)
 {
   struct fh_compiler *c = malloc(sizeof(struct fh_compiler));
   if (! c)
     return NULL;
-  c->ast = ast;
-  c->bc = bc;
+  c->ast = NULL;
+  c->bc = NULL;
   c->last_err_msg[0] = '\0';
   fh_init_stack(&c->funcs, sizeof(struct func_info));
   fh_init_stack(&c->c_funcs, sizeof(struct c_func_entry));
@@ -63,6 +63,15 @@ void fh_free_compiler(struct fh_compiler *c)
   fh_free_stack(&c->funcs);
   fh_free_stack(&c->c_funcs);
   free(c);
+}
+
+static void reset_compiler(struct fh_compiler *c)
+{
+  c->ast = NULL;
+  c->bc = NULL;
+  c->last_err_msg[0] = '\0';
+  while (c->funcs.num > 0)
+    pop_func_info(c);
 }
 
 int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func)
@@ -955,8 +964,12 @@ static const char *get_func_name(struct fh_compiler *c, struct fh_p_named_func *
   return name;
 }
 
-int fh_compile(struct fh_compiler *c)
+int fh_compile(struct fh_compiler *c, struct fh_bc *bc, struct fh_ast *ast)
 {
+  reset_compiler(c);
+  c->bc = bc;
+  c->ast = ast;
+  
   stack_foreach(struct fh_p_named_func *, f, &c->ast->funcs) {
     const char *name = get_func_name(c, f);
     if (! name)

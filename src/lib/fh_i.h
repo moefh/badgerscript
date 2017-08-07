@@ -134,18 +134,17 @@ const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok);
 const char *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok);
 const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok);
 
-struct fh_parser *fh_new_parser(struct fh_input *in, struct fh_ast *ast);
+struct fh_parser *fh_new_parser(void);
 void fh_free_parser(struct fh_parser *p);
-int fh_parse(struct fh_parser *p);
+int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in);
 const char *fh_get_parser_error(struct fh_parser *p);
-void fh_parser_dump(struct fh_parser *p);
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 void *fh_parse_error_oom(struct fh_parser *p, struct fh_src_loc loc);
 void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *expected);
 
-struct fh_compiler *fh_new_compiler(struct fh_ast *ast, struct fh_bc *bc);
+struct fh_compiler *fh_new_compiler(void);
 void fh_free_compiler(struct fh_compiler *c);
-int fh_compile(struct fh_compiler *c);
+int fh_compile(struct fh_compiler *c, struct fh_bc *bc, struct fh_ast *ast);
 const char *fh_get_compiler_error(struct fh_compiler *p);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
 int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func);

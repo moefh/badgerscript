@@ -158,5 +158,6 @@ void fh_free_named_func(struct fh_p_named_func func);
 
 void fh_dump_named_func(struct fh_ast *ast, struct fh_output *out, struct fh_p_named_func *func);
 void fh_dump_expr(struct fh_ast *ast, struct fh_output *out, struct fh_p_expr *expr);
+void fh_dump_ast(struct fh_ast *p);
 
 #endif /* AST_H_FILE */

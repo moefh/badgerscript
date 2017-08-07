@@ -22,7 +22,7 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 
-struct fh_parser *fh_new_parser(struct fh_input *in, struct fh_ast *ast)
+struct fh_parser *fh_new_parser(void)
 {
   struct fh_parser *p = malloc(sizeof(struct fh_parser));
   if (p == NULL)
@@ -33,16 +33,16 @@ struct fh_parser *fh_new_parser(struct fh_input *in, struct fh_ast *ast)
   p->ast = NULL;
   p->t = NULL;
 
-  p->t = fh_new_tokenizer(in, ast);
-  if (! p->t)
-    goto err;
-
-  p->ast = ast;
   return p;
+}
 
- err:
-  fh_free_parser(p);
-  return NULL;
+static void reset_parser(struct fh_parser *p)
+{
+  p->ast = NULL;
+  if (p->t) {
+    fh_free_tokenizer(p->t);
+    p->t = NULL;
+  }
 }
 
 void fh_free_parser(struct fh_parser *p)
@@ -732,15 +732,22 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
   return func;
 }
 
-int fh_parse(struct fh_parser *p)
+int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
 {
-  struct fh_token tok;
-  struct fh_stack funcs;
+  reset_parser(p);
 
+  struct fh_stack funcs;
   fh_init_stack(&funcs, sizeof(struct fh_p_named_func));
+
+  p->ast = ast;
+  p->t = fh_new_tokenizer(in, ast);
+  if (! p->t)
+    goto err;
+
+  struct fh_token tok;
   while (1) {
     if (get_token(p, &tok) < 0)
-      goto error;
+      goto err;
 
     if (tok_is_eof(&tok))
       break;
@@ -748,16 +755,16 @@ int fh_parse(struct fh_parser *p)
     if (tok_is_keyword(&tok, KW_FUNCTION)) {
       struct fh_p_named_func func;
       if (parse_named_func(p, &func) == NULL)
-        goto error;
+        goto err;
       if (! fh_push(&funcs, &func)) {
         fh_parse_error_oom(p, tok.loc);
-        goto error;
+        goto err;
       }
       continue;
     }
 
     fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->t, &tok));
-    goto error;
+    goto err;
   }
   stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_push(&p->ast->funcs, f);
@@ -765,17 +772,12 @@ int fh_parse(struct fh_parser *p)
   fh_free_stack(&funcs);
   return 0;
 
- error:
+ err:
+  if (p->t)
+    fh_free_tokenizer(p->t);
   stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_free_named_func(*f);
   }
   fh_free_stack(&funcs);
   return -1;
-}
-
-void fh_parser_dump(struct fh_parser *p)
-{
-  stack_foreach(struct fh_p_named_func *, f, &p->ast->funcs) {
-    fh_dump_named_func(p->ast, NULL, f);
-  }
 }
