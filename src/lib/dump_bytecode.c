@@ -144,11 +144,11 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
     return;
 
   case FH_VAL_FUNC:
-    fh_output(out, "<function at %p>\n", c->data.func);
+    fh_output(out, "<function at %p>\n", (void *) c->data.func);
     return;
 
   case FH_VAL_C_FUNC:
-    fh_output(out, "<C function at %p>\n", c->data.c_func);
+    fh_output(out, "<C function>\n");
     return;
   }
 

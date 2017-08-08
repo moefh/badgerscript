@@ -1,5 +1,6 @@
 /* buffer.c */
 
+#include <limits.h>
 #include <string.h>
 
 #include "fh_i.h"
@@ -20,23 +21,27 @@ void fh_free_buffer(struct fh_buffer *buf)
   buf->cap = 0;
 }
 
-int fh_buf_grow(struct fh_buffer *buf, int add_size)
+int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
 {
-  int new_size = buf->size + add_size;  // TODO: check overflow
-  if (new_size > buf->cap) {
-    int new_cap = ((new_size + 1024 + 1) / 1024) * 1024;
+  size_t new_size = buf->size + add_size;
+  if (new_size > INT_MAX || new_size < (size_t)buf->size)
+    return -1;
+  if ((int)new_size > buf->cap) {
+    size_t new_cap = ((new_size + 1024 + 1) / 1024) * 1024;
+    if (new_cap > INT_MAX || new_cap < new_size)
+      return -1;
     void *new_p = realloc(buf->p, new_cap);
     if (new_p == NULL)
       return -1;
     buf->p = new_p;
-    buf->cap = new_cap;
+    buf->cap = (int) new_cap;
   }
   
-  buf->size = new_size;
+  buf->size = (int) new_size;
   return 0;
 }
 
-int fh_buf_add_string(struct fh_buffer *buf, const char *str, int str_size)
+int fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size)
 {
   int pos = buf->size;
   if (fh_buf_grow(buf, str_size + 1) < 0)

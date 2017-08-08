@@ -37,8 +37,8 @@ void fh_dump_value(const struct fh_value *val)
   switch (val->type) {
   case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
   case FH_VAL_STRING: printf("STRING("); fh_dump_string(val->data.str); printf(")"); return;
-  case FH_VAL_FUNC: printf("FUNC(%p)", val->data.func); return;
-  case FH_VAL_C_FUNC: printf("C_FUNC(%p)", val->data.c_func); return;
+  case FH_VAL_FUNC: printf("FUNC(%p)", (void *) val->data.func); return;
+  case FH_VAL_C_FUNC: printf("C_FUNC"); return;
   }
   printf("INVALID_VALUE(type=%d)", val->type);
 }
@@ -71,7 +71,7 @@ struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
   return ret;
 }
 
-int fh_utf8_len(char *str, int str_size)
+int fh_utf8_len(char *str, size_t str_size)
 {
   int len = 0;
   uint8_t *p = (uint8_t *) str;
