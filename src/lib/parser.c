@@ -6,51 +6,32 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "fh_i.h"
+#include "parser.h"
 #include "ast.h"
-
-struct fh_parser {
-  struct fh_tokenizer *t;
-  struct fh_ast *ast;
-  char last_err_msg[256];
-  struct fh_src_loc last_loc;
-  int has_saved_tok;
-  struct fh_token saved_tok;
-};
 
 static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt_block *block);
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 
-struct fh_parser *fh_new_parser(void)
+int fh_init_parser(struct fh_parser *p, struct fh_program *prog)
 {
-  struct fh_parser *p = malloc(sizeof(struct fh_parser));
-  if (p == NULL)
-    return NULL;
+  p->prog = prog;
   p->has_saved_tok = 0;
-  p->last_err_msg[0] = '\0';
   p->last_loc = fh_make_src_loc(0,0);
   p->ast = NULL;
-  p->t = NULL;
 
-  return p;
+  return 0;
 }
 
 static void reset_parser(struct fh_parser *p)
 {
   p->ast = NULL;
-  if (p->t) {
-    fh_free_tokenizer(p->t);
-    p->t = NULL;
-  }
 }
 
-void fh_free_parser(struct fh_parser *p)
+void fh_destroy_parser(struct fh_parser *p)
 {
-  if (p->t)
-    fh_free_tokenizer(p->t);
-
-  free(p);
+  UNUSED(p);
+  /* nothing to destroy :) */
 }
 
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
@@ -61,8 +42,7 @@ void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
   vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
-  snprintf(p->last_err_msg, sizeof(p->last_err_msg), "%d:%d: %s", loc.line, loc.col, str);
-  //printf("%s\n", p->last_err_msg);
+  fh_set_error(p->prog, "%d:%d: %s", loc.line, loc.col, str);
   return NULL;
 }
 
@@ -76,11 +56,6 @@ void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *
   return fh_parse_error(p, loc, "expected '%s'", expected);
 }
 
-const char *fh_get_parser_error(struct fh_parser *p)
-{
-  return p->last_err_msg;
-}
-
 static int get_token(struct fh_parser *p, struct fh_token *tok)
 {
   if (p->has_saved_tok) {
@@ -91,10 +66,8 @@ static int get_token(struct fh_parser *p, struct fh_token *tok)
     return 0;
   }
 
-  if (fh_read_token(p->t, tok) < 0) {
-    fh_parse_error(p, fh_get_tokenizer_error_loc(p->t), "%s", fh_get_tokenizer_error(p->t));
+  if (fh_read_token(&p->t, tok) < 0)
     return -1;
-  }
   p->last_loc = tok->loc;
   //printf(":::::: token '%s'\n", fh_dump_token(p->t, tok));
   return 0;
@@ -108,6 +81,26 @@ static void unget_token(struct fh_parser *p, struct fh_token *tok)
   }
   p->saved_tok = *tok;
   p->has_saved_tok = 1;
+}
+
+static struct fh_p_expr *new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type)
+{
+  struct fh_p_expr *expr = malloc(sizeof(struct fh_p_expr));
+  if (! expr)
+    return fh_parse_error_oom(p, loc);
+  expr->type = type;
+  expr->loc = loc;
+  return expr;
+}
+
+static struct fh_p_stmt *new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type)
+{
+  struct fh_p_stmt *stmt = malloc(sizeof(struct fh_p_stmt));
+  if (! stmt)
+    return fh_parse_error_oom(p, loc);
+  stmt->type = type;
+  stmt->loc = loc;
+  return stmt;
 }
 
 #define tok_is_eof(tok)          ((tok)->type == TOK_EOF)
@@ -125,8 +118,8 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
   if (op == NULL)
     return 1;
   
-  const char *tok_op = fh_get_token_op(p->t, tok);
-  if (tok_op != NULL && strcmp(op, (const char *) tok_op) == 0)
+  const char *tok_op = fh_get_token_op(&p->t, tok);
+  if (tok_op != NULL && strcmp(op, tok_op) == 0)
     return 1;
   return 0;
 }
@@ -214,7 +207,7 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
       return 0;
     uint32_t op_id = op->op;
     enum fh_op_assoc op_assoc = op->assoc;
-    struct fh_p_expr *expr = fh_new_expr(p, loc, EXPR_NONE);
+    struct fh_p_expr *expr = new_expr(p, loc, EXPR_NONE);
     if (! expr) {
       fh_parse_error_oom(p, loc);
       return -1;
@@ -292,7 +285,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
 
-        expr = fh_new_expr(p, tok.loc, EXPR_FUNC_CALL);
+        expr = new_expr(p, tok.loc, EXPR_FUNC_CALL);
         if (! expr) {
           fh_free_expr(func);
           goto err;
@@ -384,7 +377,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *num = fh_new_expr(p, tok.loc, EXPR_NUMBER);
+      struct fh_p_expr *num = new_expr(p, tok.loc, EXPR_NUMBER);
       if (! num)
         goto err;
       num->data.num = tok.data.num;
@@ -403,7 +396,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *str = fh_new_expr(p, tok.loc, EXPR_STRING);
+      struct fh_p_expr *str = new_expr(p, tok.loc, EXPR_STRING);
       if (! str)
         goto err;
       str->data.str = tok.data.str;
@@ -422,7 +415,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *var = fh_new_expr(p, tok.loc, EXPR_VAR);
+      struct fh_p_expr *var = new_expr(p, tok.loc, EXPR_VAR);
       if (! var)
         goto err;
       var->data.var = tok.data.symbol_id;
@@ -435,7 +428,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       continue;
     }
 
-    fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->t, &tok));
+    fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
     goto err;
   }
 
@@ -456,7 +449,7 @@ static struct fh_p_stmt *parse_stmt_if(struct fh_parser *p)
   if (! tok_is_punct(&tok, '('))
     return fh_parse_error_expected(p, tok.loc, "'('");
 
-  struct fh_p_stmt *stmt = fh_new_stmt(p, tok.loc, STMT_IF);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_IF);
   if (! stmt)
     return NULL;
   stmt->data.stmt_if.test = NULL;
@@ -497,7 +490,7 @@ static struct fh_p_stmt *parse_stmt_while(struct fh_parser *p)
   if (! tok_is_punct(&tok, '('))
     return fh_parse_error_expected(p, tok.loc, "'('");
 
-  struct fh_p_stmt *stmt = fh_new_stmt(p, tok.loc, STMT_WHILE);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_WHILE);
   if (! stmt)
     return NULL;
   stmt->data.stmt_while.test = NULL;
@@ -535,7 +528,7 @@ static struct fh_p_stmt *parse_stmt(struct fh_parser *p)
     return parse_stmt_while(p);
   }
 
-  struct fh_p_stmt *stmt = fh_new_stmt(p, tok.loc, STMT_NONE);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_NONE);
   if (! stmt)
     return NULL;
 
@@ -736,13 +729,13 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
 {
   reset_parser(p);
 
+  if (fh_init_tokenizer(&p->t, p->prog, in, ast) < 0)
+    return -1;
+  
+  p->ast = ast;
+
   struct fh_stack funcs;
   fh_init_stack(&funcs, sizeof(struct fh_p_named_func));
-
-  p->ast = ast;
-  p->t = fh_new_tokenizer(in, ast);
-  if (! p->t)
-    goto err;
 
   struct fh_token tok;
   while (1) {
@@ -763,9 +756,10 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
       continue;
     }
 
-    fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->t, &tok));
+    fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
     goto err;
   }
+  fh_destroy_tokenizer(&p->t);
   stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_push(&p->ast->funcs, f);
   }
@@ -773,8 +767,7 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
   return 0;
 
  err:
-  if (p->t)
-    fh_free_tokenizer(p->t);
+  fh_destroy_tokenizer(&p->t);
   stack_foreach(struct fh_p_named_func *, f, &funcs) {
     fh_free_named_func(*f);
   }

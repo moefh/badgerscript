@@ -35,6 +35,13 @@ enum fh_stmt_type {
   STMT_CONTINUE,
 };
 
+struct fh_ast {
+  struct fh_buffer string_pool;
+  struct fh_symtab *symtab;
+  struct fh_op_table op_table;
+  struct fh_stack funcs;
+};
+
 struct fh_p_stmt_decl {
   fh_symbol_id var;
   struct fh_p_expr *val;
@@ -143,8 +150,6 @@ const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op);
 
 int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_expr *expr, void *data), void *data);
 
-struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type);
-struct fh_p_stmt *fh_new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type);
 void fh_free_named_func(struct fh_p_named_func func);
 void fh_free_func(struct fh_p_expr_func func);
 void fh_free_block(struct fh_p_stmt_block block);

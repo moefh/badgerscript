@@ -52,37 +52,31 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
-struct fh_bc;
-
 struct fh_bc_func {
-  uint32_t addr;
-  int32_t n_params;
-  int32_t n_opc;
-  int32_t n_regs;
-  struct fh_stack consts;
+  int n_params;
+  int n_regs;
+  uint32_t *code;
+  int code_size;
+  struct fh_value *consts;
+  int n_consts;
 };
 
-struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
-uint32_t *fh_add_bc_instr(struct fh_bc *bc, struct fh_src_loc loc, uint32_t instr);
-int fh_add_bc_const_number(struct fh_bc_func *func, double num);
-int fh_add_bc_const_string(struct fh_bc_func *func, const char *str);
-int fh_add_bc_const_func(struct fh_bc_func *func, struct fh_bc_func *f);
-int fh_add_bc_const_c_func(struct fh_bc_func *func, fh_c_func f);
+struct fh_bc {
+  struct fh_symtab *symtab;
+  struct fh_stack funcs;
+};
 
-uint32_t fh_get_bc_instruction(struct fh_bc *c, uint32_t addr);
-void fh_set_bc_instruction(struct fh_bc *c, uint32_t addr, uint32_t instr);
-uint32_t *fh_get_bc_code(struct fh_bc *c, uint32_t *size);
+int fh_init_bc(struct fh_bc *bc);
+void fh_destroy_bc(struct fh_bc *bc);
+
+struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
 
 int fh_get_bc_num_funcs(struct fh_bc *bc);
 struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
 struct fh_bc_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name);
 const char *fh_get_bc_func_name(struct fh_bc *bc, int num);
 
-struct fh_value *fh_get_bc_func_consts(struct fh_bc_func *func);
-struct fh_value *fh_get_bc_func_const(struct fh_bc_func *func, int num);
-int fh_get_bc_func_num_consts(struct fh_bc_func *func);
-
-void fh_dump_bc(struct fh_bc *bc, struct fh_output *out);
+void fh_dump_bc(struct fh_bc *bc);
 void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
 
 #endif /* BYTECODE_H_FILE */

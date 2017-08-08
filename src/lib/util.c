@@ -22,7 +22,10 @@ void fh_dump_string(const char *str)
     case '\\': printf("\\\\"); break;
     case '"': printf("\\\""); break;
     default:
-      printf("%c", *p);
+      if (*p < 32)
+        printf("\\x%02x", (unsigned char) *p);
+      else
+        printf("%c", *p);
       break;
     }
   }
@@ -34,7 +37,7 @@ void fh_dump_value(const struct fh_value *val)
   switch (val->type) {
   case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
   case FH_VAL_STRING: printf("STRING("); fh_dump_string(val->data.str); printf(")"); return;
-  case FH_VAL_FUNC: printf("FUNC(addr=%u)", val->data.func->addr); return;
+  case FH_VAL_FUNC: printf("FUNC(%p)", val->data.func); return;
   case FH_VAL_C_FUNC: printf("C_FUNC(%p)", val->data.c_func); return;
   }
   printf("INVALID_VALUE(type=%d)", val->type);
@@ -50,47 +53,6 @@ void fh_make_c_func(struct fh_value *val, fh_c_func func)
 {
   val->type = FH_VAL_C_FUNC;
   val->data.c_func = func;
-}
-
-const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
-{
-  static char str[256];
-  
-  switch (tok->type) {
-  case TOK_EOF:
-    snprintf(str, sizeof(str), "<end-of-file>");
-    break;
-    
-  case TOK_KEYWORD:
-    snprintf(str, sizeof(str), "%s", fh_get_token_keyword(t, tok));
-    break;
-    
-  case TOK_SYMBOL:
-    snprintf(str, sizeof(str), "%s", fh_get_token_symbol(t, tok));
-    break;
-    
-  case TOK_OP:
-    snprintf(str, sizeof(str), "%s", fh_get_token_op(t, tok));
-    break;
-    
-  case TOK_PUNCT:
-    snprintf(str, sizeof(str), "%c", tok->data.punct);
-    break;
-    
-  case TOK_STRING:
-    snprintf(str, sizeof(str), "\"%s\"", fh_get_token_string(t, tok));
-    break;
-    
-  case TOK_NUMBER:
-    snprintf(str, sizeof(str), "%g", tok->data.num);
-    break;
-    
-  default:
-    snprintf(str, sizeof(str), "<unknown token type %d>", tok->type);
-    break;
-  }
-
-  return str;
 }
 
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)

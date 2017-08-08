@@ -35,7 +35,10 @@ static void dump_string(struct fh_ast *ast, struct fh_output *out, const char *s
     case '\\': fh_output(out, "\\\\"); break;
     case '"': fh_output(out, "\\\""); break;
     default:
-      fh_output(out, "%c", *p);
+      if (*p < 32)
+        fh_output(out, "\\x%02x", (unsigned char) *p);
+      else
+        fh_output(out, "%c", *p);
       break;
     }
   }

@@ -5,9 +5,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "fh_i.h"
-
-#define BUF_SIZE 1024
+#include "tokenizer.h"
+#include "ast.h"
 
 #define FH_IS_SPACE(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t')
 #define FH_IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || (c) == '_')
@@ -28,30 +27,9 @@ static const struct keyword {
   { KW_CONTINUE,   "continue" },
 };
 
-struct fh_tokenizer {
-  struct fh_input *in;
-  struct fh_ast *ast;
-
-  struct fh_src_loc cur_loc;
-  uint32_t buf_pos;
-  uint32_t buf_len;
-  char buf[BUF_SIZE];
-
-  char last_err_msg[256];
-  struct fh_src_loc last_err_loc;
-  
-  int saved_byte;
-  struct fh_src_loc saved_loc;
-
-  struct fh_buffer tmp;
-};
-
-struct fh_tokenizer *fh_new_tokenizer(struct fh_input *in, struct fh_ast *ast)
+int fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast)
 {
-  struct fh_tokenizer *t = malloc(sizeof(struct fh_tokenizer));
-  if (! t)
-    return NULL;
-  
+  t->prog = prog;
   t->in = in;
   t->ast = ast;
   t->cur_loc = fh_make_src_loc(1, 0);
@@ -60,33 +38,28 @@ struct fh_tokenizer *fh_new_tokenizer(struct fh_input *in, struct fh_ast *ast)
   t->buf_len = 0;
   t->saved_byte = -1;
 
-  t->last_err_msg[0] = '\0';
   t->last_err_loc = fh_make_src_loc(0,0);
 
   fh_init_buffer(&t->tmp);
   
-  return t;
+  return 0;
 }
 
-void fh_free_tokenizer(struct fh_tokenizer *t)
+void fh_destroy_tokenizer(struct fh_tokenizer *t)
 {
   fh_free_buffer(&t->tmp);
-  free(t);
 }
 
 static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, ...)
 {
+  char str[256];
   va_list ap;
   va_start(ap, fmt);
-  vsnprintf((char *) t->last_err_msg, sizeof(t->last_err_msg), fmt, ap);
+  vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
+  fh_set_error(t->prog, "%d:%d: %s", loc.line, loc.col, str);
   t->last_err_loc = loc;
-}
-
-const char *fh_get_tokenizer_error(struct fh_tokenizer *t)
-{
-  return t->last_err_msg;
 }
 
 struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t)
@@ -139,7 +112,7 @@ static int next_byte(struct fh_tokenizer *t)
   }
   
   if (t->buf_pos == t->buf_len) {
-    ssize_t r = fh_input_read(t->in, t->buf, BUF_SIZE);
+    ssize_t r = fh_input_read(t->in, t->buf, sizeof(t->buf));
     if (r < 0)
       return -1;
     t->buf_len = (uint32_t) r;
@@ -179,6 +152,47 @@ static int find_keyword(char *keyword, size_t keyword_size, enum fh_keyword_type
     }
   }
   return 0;
+}
+
+const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
+{
+  static char str[256];
+  
+  switch (tok->type) {
+  case TOK_EOF:
+    snprintf(str, sizeof(str), "<end-of-file>");
+    break;
+    
+  case TOK_KEYWORD:
+    snprintf(str, sizeof(str), "%s", fh_get_token_keyword(t, tok));
+    break;
+    
+  case TOK_SYMBOL:
+    snprintf(str, sizeof(str), "%s", fh_get_token_symbol(t, tok));
+    break;
+    
+  case TOK_OP:
+    snprintf(str, sizeof(str), "%s", fh_get_token_op(t, tok));
+    break;
+    
+  case TOK_PUNCT:
+    snprintf(str, sizeof(str), "%c", tok->data.punct);
+    break;
+    
+  case TOK_STRING:
+    snprintf(str, sizeof(str), "\"%s\"", fh_get_token_string(t, tok));
+    break;
+    
+  case TOK_NUMBER:
+    snprintf(str, sizeof(str), "%g", tok->data.num);
+    break;
+    
+  default:
+    snprintf(str, sizeof(str), "<unknown token type %d>", tok->type);
+    break;
+  }
+
+  return str;
 }
 
 int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
@@ -233,6 +247,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
         case '"': c = '"'; break;
         case '\\': c = '\\'; break;
         case '\'': c = '\''; break;
+        case 'e': c = '\x1b'; break;
         case 'n': c = '\n'; break;
         case 't': c = '\t'; break;
         case 'r': c = '\r'; break;

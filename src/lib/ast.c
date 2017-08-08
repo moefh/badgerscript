@@ -96,26 +96,6 @@ const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
   return opr->name;
 }
 
-struct fh_p_expr *fh_new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type)
-{
-  struct fh_p_expr *expr = malloc(sizeof(struct fh_p_expr));
-  if (! expr)
-    return fh_parse_error_oom(p, loc);
-  expr->type = type;
-  expr->loc = loc;
-  return expr;
-}
-
-struct fh_p_stmt *fh_new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type)
-{
-  struct fh_p_stmt *stmt = malloc(sizeof(struct fh_p_stmt));
-  if (! stmt)
-    return fh_parse_error_oom(p, loc);
-  stmt->type = type;
-  stmt->loc = loc;
-  return stmt;
-}
-
 void fh_free_func(struct fh_p_expr_func func)
 {
   if (func.params)

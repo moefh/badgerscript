@@ -5,8 +5,10 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 struct fh_input;
+struct fh_program;
 
 struct fh_input_funcs {
   ssize_t (*read)(struct fh_input *in, char *line, ssize_t max_len);
@@ -21,10 +23,8 @@ enum fh_value_type {
 };
 
 struct fh_value;
-struct fh_bc;
-struct fh_vm;
 
-typedef int (*fh_c_func)(struct fh_vm *vm, struct fh_value *ret, struct fh_value *args, int n_args);
+typedef int (*fh_c_func)(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
 
 struct fh_value {
   union {
@@ -42,13 +42,18 @@ void *fh_get_input_user_data(struct fh_input *in);
 int fh_close_input(struct fh_input *in);
 ssize_t fh_input_read(struct fh_input *in, char *line, ssize_t max_len);
 
-struct fh_bc *fh_new_bc(void);
-void fh_free_bc(struct fh_bc *bc);
+struct fh_program *fh_new_program(void);
+void fh_free_program(struct fh_program *prog);
+int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func);
+int fh_compile_file(struct fh_program *prog, const char *filename);
+int fh_run_function(struct fh_program *prog, const char *func_name);
+int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret);
 
-struct fh_vm *fh_new_vm(struct fh_bc *bc);
-void fh_free_vm(struct fh_vm *vm);
-int fh_vm_error(struct fh_vm *vm, char *fmt, ...);
-const char *fh_get_vm_error(struct fh_vm *vm);
-int fh_call_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret);
+const char *fh_get_error(struct fh_program *prog);
+int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
+
+void fh_make_number(struct fh_value *val, double num);
+void fh_make_c_func(struct fh_value *val, fh_c_func func);
 
 #endif /* FH_H_FILE */

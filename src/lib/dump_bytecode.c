@@ -17,7 +17,10 @@ static void dump_string(struct fh_output *out, const char *str)
     case '\\': fh_output(out, "\\\\"); break;
     case '"': fh_output(out, "\\\""); break;
     default:
-      fh_output(out, "%c", *p);
+      if (*p < 32)
+        fh_output(out, "\\x%02x", (unsigned char) *p);
+      else
+        fh_output(out, "%c", *p);
       break;
     }
   }
@@ -141,7 +144,7 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
     return;
 
   case FH_VAL_FUNC:
-    fh_output(out, "<function at %d>\n", c->data.func->addr);
+    fh_output(out, "<function at %p>\n", c->data.func);
     return;
 
   case FH_VAL_C_FUNC:
@@ -152,28 +155,26 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
   fh_output(out, "<INVALID CONSTANT TYPE: %d>\n", c->type);
 }
 
-void fh_dump_bc(struct fh_bc *bc, struct fh_output *out)
+void fh_dump_bc(struct fh_bc *bc)
 {
-  uint32_t code_size;
-  uint32_t *code = fh_get_bc_code(bc, &code_size);
   int n_funcs = fh_get_bc_num_funcs(bc);
 
+  struct fh_output *out = NULL;
+  
   for (int i = 0; i < n_funcs; i++) {
     struct fh_bc_func *func = fh_get_bc_func(bc, i);
     const char *func_name = fh_get_bc_func_name(bc, i);
 
     fh_output(out, "; ===================================================\n");
     fh_output(out, "; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
-    
-    for (int i = 0; i < func->n_opc; i++)
-      fh_dump_bc_instr(bc, out, func->addr+i, code[func->addr+i]);
 
-    int n_consts = fh_get_bc_func_num_consts(func);
-    fh_output(out, "\n; %d constants\n", n_consts);
-    for (int j = 0; j < n_consts; j++) {
-      struct fh_value *c = fh_get_bc_func_const(func, j);
+    for (int i = 0; i < func->code_size; i++)
+      fh_dump_bc_instr(bc, out, i, func->code[i]);
+
+    fh_output(out, "\n; %d constants\n", func->n_consts);
+    for (int j = 0; j < func->n_consts; j++) {
       fh_output(out, "c[%d] = ", j);
-      dump_const(c, out);
+      dump_const(&func->consts[j], out);
     }
 
     fh_output(out, "\n");
