@@ -71,9 +71,9 @@ struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
   return ret;
 }
 
-ssize_t fh_utf8_len(char *str, size_t str_size)
+int fh_utf8_len(char *str, int str_size)
 {
-  size_t len = 0;
+  int len = 0;
   uint8_t *p = (uint8_t *) str;
   uint8_t *end = (uint8_t *) str + str_size;
 
@@ -112,41 +112,4 @@ void fh_output(struct fh_output *out, char *fmt, ...)
   else
     vprintf(fmt, ap);
   va_end(ap);
-}
-
-void fh_dump_mem(const char *label, const void *data, size_t len)
-{
-  char str[18];
-  size_t cur, str_len;
-
-  if (label == NULL)
-    printf("* dumping %u bytes\n", (unsigned int) len);
-  else
-    printf("%s (%u bytes)\n", label, (unsigned int) len);
-  
-  cur = 0;
-  while (cur < len) {
-    const uint8_t *line = (const uint8_t *) data + cur;
-    size_t i, si;
-
-    printf("| ");
-    str_len = (len - cur > 16) ? 16 : len - cur;
-    for (si = i = 0; i < str_len; i++) {
-      printf("%02x ", line[i]);
-      str[si++] = (line[i] >= 32 && line[i] < 127) ? line[i] : '.';
-      if (i == 7) {
-        printf(" ");
-        str[si++] = ' ';
-      }
-    }
-    str[si++] = '\0';
-    cur += str_len;
-
-    for (i = str_len; i < 16; i++) {
-      printf("   ");
-      if (i == 7)
-        printf(" ");
-    }
-    printf("| %-17s |\n", str);
-  }
 }

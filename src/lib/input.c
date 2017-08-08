@@ -32,7 +32,7 @@ int fh_close_input(struct fh_input *in)
   return ret;
 }
 
-ssize_t fh_input_read(struct fh_input *in, char *line, ssize_t max_len)
+int fh_input_read(struct fh_input *in, char *line, int max_len)
 {
   return in->funcs->read(in, line, max_len);
 }
@@ -40,7 +40,7 @@ ssize_t fh_input_read(struct fh_input *in, char *line, ssize_t max_len)
 /* ======================================= */
 /* === file input ======================== */
 
-static ssize_t file_read(struct fh_input *in, char *line, ssize_t max_len)
+static int file_read(struct fh_input *in, char *line, int max_len)
 {
   FILE *f = in->user_data;
 

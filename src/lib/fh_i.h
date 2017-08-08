@@ -25,8 +25,8 @@ struct fh_src_loc {
 
 struct fh_buffer {
   char *p;
-  size_t size;
-  size_t cap;
+  int size;
+  int cap;
 };
 
 struct fh_operator {
@@ -42,7 +42,7 @@ struct fh_op_table {
 };
 
 typedef int32_t fh_symbol_id;
-typedef ssize_t fh_string_id;
+typedef int fh_string_id;
 
 struct fh_value;
 struct fh_vm;
@@ -55,17 +55,16 @@ struct fh_parser;
 struct fh_compiler;
 struct fh_program;
 
-ssize_t fh_utf8_len(char *str, size_t str_size);
+int fh_utf8_len(char *str, int str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 void fh_output(struct fh_output *out, char *fmt, ...) __attribute__((format (printf, 2, 3)));
-void fh_dump_mem(const char *label, const void *data, size_t len);
 void fh_dump_value(const struct fh_value *val);
 
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_free_buffer(struct fh_buffer *buf);
-int fh_buf_grow(struct fh_buffer *buf, size_t add_size);
-ssize_t fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size);
-ssize_t fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
+int fh_buf_grow(struct fh_buffer *buf, int add_size);
+int fh_buf_add_string(struct fh_buffer *buf, const char *str, int str_size);
+int fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
 
 struct fh_symtab *fh_new_symtab(void);
 void fh_free_symtab(struct fh_symtab *s);

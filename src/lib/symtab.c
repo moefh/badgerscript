@@ -5,9 +5,9 @@
 #include "fh_i.h"
 
 struct fh_symtab {
-  int32_t num;
-  int32_t cap;
-  size_t *entries;
+  int num;
+  int cap;
+  int *entries;
   struct fh_buffer symbols;
 };
 
@@ -33,12 +33,12 @@ void fh_free_symtab(struct fh_symtab *s)
 
 fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
 {
-  int32_t cur = fh_get_symbol_id(s, symbol);
+  fh_symbol_id cur = fh_get_symbol_id(s, symbol);
   if (cur >= 0)
     return cur;
 
   if (s->num == s->cap) {
-    int32_t new_cap = (s->cap + 1024 + 1) / 1024 * 1024;
+    int new_cap = (s->cap + 1024 + 1) / 1024 * 1024;
     void *new_entries = realloc(s->entries, new_cap * sizeof(s->entries[0]));
     if (new_entries == NULL)
       return -1;
@@ -46,7 +46,7 @@ fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
     s->cap = new_cap;
   }
 
-  ssize_t entry_pos = fh_buf_add_string(&s->symbols, symbol, strlen(symbol));
+  int entry_pos = fh_buf_add_string(&s->symbols, symbol, strlen(symbol));
   if (entry_pos < 0)
     return -1;
   s->entries[s->num] = entry_pos;
@@ -55,7 +55,7 @@ fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
 
 fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const char *symbol)
 {
-  for (int32_t i = 0; i < s->num; i++) {
+  for (fh_symbol_id i = 0; i < s->num; i++) {
     if (strcmp(symbol, (char*) s->symbols.p + s->entries[i]) == 0)
       return i;
   }

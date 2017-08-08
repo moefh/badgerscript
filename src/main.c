@@ -65,10 +65,10 @@ static int run_script(struct fh_program *prog, char *script_file, char **args, i
   }
   struct fh_value script_ret;
   
-  if (fh_call_function(prog, "main", script_args, n_args, &script_ret) < 0)
-    return -1;
-
-  return 0;
+  int ret = fh_call_function(prog, "main", script_args, n_args, &script_ret);
+  
+  free(script_args);
+  return ret;
 }
 
 int main(int argc, char **argv)

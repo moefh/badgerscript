@@ -110,7 +110,7 @@ static int next_byte(struct fh_tokenizer *t)
   }
   
   if (t->buf_pos == t->buf_len) {
-    ssize_t r = fh_input_read(t->in, t->buf, sizeof(t->buf));
+    int r = fh_input_read(t->in, t->buf, sizeof(t->buf));
     if (r < 0)
       return -1;
     t->buf_len = (uint32_t) r;
@@ -141,10 +141,10 @@ static bool is_op(struct fh_tokenizer *t, char *name)
   return fh_get_op(&t->ast->op_table, name) != NULL;
 }
 
-static int find_keyword(char *keyword, size_t keyword_size, enum fh_keyword_type *ret)
+static int find_keyword(char *keyword, int keyword_size, enum fh_keyword_type *ret)
 {
   for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
-    if (strncmp((char *) keyword, keywords[i].name, keyword_size) == 0 && keywords[i].name[keyword_size] == '\0') {
+    if (strncmp(keyword, keywords[i].name, keyword_size) == 0 && keywords[i].name[keyword_size] == '\0') {
       *ret = keywords[i].type;
       return 1;
     }
