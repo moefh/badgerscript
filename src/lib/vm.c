@@ -15,14 +15,13 @@ struct fh_vm_call_frame {
   uint32_t *ret_addr;
 };
 
-int fh_init_vm(struct fh_vm *vm, struct fh_program *prog, struct fh_bc *bc)
+void fh_init_vm(struct fh_vm *vm, struct fh_program *prog, struct fh_bc *bc)
 {
   vm->prog = prog;
   vm->bc = bc;
   vm->stack = NULL;
   vm->stack_size = 0;
   fh_init_stack(&vm->call_stack, sizeof(struct fh_vm_call_frame));
-  return 0;
 }
 
 void fh_destroy_vm(struct fh_vm *vm)

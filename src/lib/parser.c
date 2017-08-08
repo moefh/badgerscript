@@ -13,19 +13,17 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 
-int fh_init_parser(struct fh_parser *p, struct fh_program *prog)
-{
-  p->prog = prog;
-  p->has_saved_tok = 0;
-  p->last_loc = fh_make_src_loc(0,0);
-  p->ast = NULL;
-
-  return 0;
-}
-
 static void reset_parser(struct fh_parser *p)
 {
   p->ast = NULL;
+  p->has_saved_tok = 0;
+  p->last_loc = fh_make_src_loc(0,0);
+}
+
+void fh_init_parser(struct fh_parser *p, struct fh_program *prog)
+{
+  p->prog = prog;
+  reset_parser(p);
 }
 
 void fh_destroy_parser(struct fh_parser *p)
@@ -728,9 +726,7 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
 int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
 {
   reset_parser(p);
-
-  if (fh_init_tokenizer(&p->t, p->prog, in, ast) < 0)
-    return -1;
+  fh_init_tokenizer(&p->t, p->prog, in, ast);
   
   p->ast = ast;
 

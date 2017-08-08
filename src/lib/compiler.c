@@ -39,14 +39,13 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg);
 
-int fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
+void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
 {
   c->prog = prog;
   c->ast = NULL;
   c->bc = NULL;
   fh_init_stack(&c->funcs, sizeof(struct func_info));
   fh_init_stack(&c->c_funcs, sizeof(struct named_c_func));
-  return 0;
 }
 
 void fh_destroy_compiler(struct fh_compiler *c)

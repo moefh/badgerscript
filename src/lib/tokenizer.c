@@ -27,7 +27,7 @@ static const struct keyword {
   { KW_CONTINUE,   "continue" },
 };
 
-int fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast)
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast)
 {
   t->prog = prog;
   t->in = in;
@@ -41,8 +41,6 @@ int fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh
   t->last_err_loc = fh_make_src_loc(0,0);
 
   fh_init_buffer(&t->tmp);
-  
-  return 0;
 }
 
 void fh_destroy_tokenizer(struct fh_tokenizer *t)

@@ -46,9 +46,13 @@ int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
       break;
       
     case 's':
-      if (args[next_arg].type != FH_VAL_STRING)
-        return fh_set_error(prog, "printf(): invalid argument type for '%%%c'", *c);
-      printf("%s", args[next_arg].data.str);
+      switch (args[next_arg].type) {
+      case FH_VAL_STRING: printf("%s", args[next_arg].data.str); break;
+      case FH_VAL_NUMBER: printf("%g", args[next_arg].data.num); break;
+      case FH_VAL_FUNC: printf("<func %p>", args[next_arg].data.func); break;
+      case FH_VAL_C_FUNC: printf("<C func %p>", args[next_arg].data.c_func); break;
+      default: printf("<unknown value, type=%d>", args[next_arg].type); break;
+      }
       break;
       
     default:

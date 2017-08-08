@@ -16,7 +16,7 @@ struct fh_vm {
   char *last_err_msg;
 };
 
-int fh_init_vm(struct fh_vm *vm, struct fh_program *prog, struct fh_bc *bc);
+void fh_init_vm(struct fh_vm *vm, struct fh_program *prog, struct fh_bc *bc);
 void fh_destroy_vm(struct fh_vm *vm);
 int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret);
 int fh_run_vm(struct fh_vm *vm);

@@ -20,6 +20,10 @@ struct fh_program {
   char last_error_msg[256];
 };
 
+static const struct fh_named_c_func c_funcs[] = {
+  { "printf", fh_printf },
+};
+
 struct fh_program *fh_new_program(void)
 {
   struct fh_program *prog = malloc(sizeof(struct fh_program));
@@ -27,28 +31,21 @@ struct fh_program *fh_new_program(void)
     return NULL;
   prog->last_error_msg[0] = '\0';
 
-  if (fh_init_parser(&prog->parser, prog) < 0)
-    goto err1;
-  if (fh_init_compiler(&prog->compiler, prog) < 0)
-    goto err2;
   if (fh_init_bc(&prog->bc) < 0)
-    goto err3;
-  if (fh_init_vm(&prog->vm, prog, &prog->bc) < 0)
-    goto err4;
-
-  if (fh_add_c_func(prog, "printf", fh_printf) < 0)
     goto err;
-  
+  fh_init_vm(&prog->vm, prog, &prog->bc);
+  fh_init_parser(&prog->parser, prog);
+  fh_init_compiler(&prog->compiler, prog);
+
+  if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
+    goto err;
+
   return prog;
 
  err:
- err4:
   fh_destroy_bc(&prog->bc);
- err3:
   fh_destroy_compiler(&prog->compiler);
- err2:
   fh_destroy_parser(&prog->parser);  
- err1:
   free(prog);
   return NULL;
 }
@@ -85,7 +82,17 @@ int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap)
 
 int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func)
 {
-  return fh_compiler_add_c_func(&prog->compiler, name, func);
+  if (fh_compiler_add_c_func(&prog->compiler, name, func) < 0)
+    return fh_set_error(prog, "out of memory");
+  return 0;
+}
+
+int fh_add_c_funcs(struct fh_program *prog, const struct fh_named_c_func *funcs, int n_funcs)
+{
+  for (int i = 0; i < n_funcs; i++)
+    if (fh_add_c_func(prog, funcs[i].name, funcs[i].func) < 0)
+      return -1;
+  return 0;
 }
 
 int fh_compile_file(struct fh_program *prog, const char *filename)

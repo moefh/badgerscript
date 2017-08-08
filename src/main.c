@@ -10,29 +10,32 @@
 #include <sys/ioctl.h>
 #endif
 
+static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
+static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
 
-static void print_val(const struct fh_value *val)
-{
-  switch (val->type) {
-  case FH_VAL_NUMBER: printf("%g", val->data.num); return;
-  case FH_VAL_STRING: printf("%s", val->data.str);  return;
-  case FH_VAL_FUNC: printf("<func %p>", val->data.func); return;
-  case FH_VAL_C_FUNC: printf("<C func %p>", val->data.c_func); return;
-  }
-  printf("<invalid value %d>", val->type);
-}
+static const struct fh_named_c_func c_funcs[] = {
+  { "print", fn_print },
+  { "get_term_lines", fn_get_term_lines },
+};
 
-static int my_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   (void)prog;
 
-  for (int i = 0; i < n_args; i++)
-    print_val(&args[i]);
+  for (int i = 0; i < n_args; i++) {
+    switch (args[i].type) {
+    case FH_VAL_NUMBER: printf("%g", args[i].data.num); break;
+    case FH_VAL_STRING: printf("%s", args[i].data.str);  break;
+    case FH_VAL_FUNC: printf("<func %p>", args[i].data.func); break;
+    case FH_VAL_C_FUNC: printf("<C func %p>", args[i].data.c_func); break;
+    default: printf("<invalid value %d>", args[i].type); break;
+    }
+  }
   fh_make_number(ret, 0);
   return 0;
 }
 
-static int get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   (void)prog;
   (void)args;
@@ -51,6 +54,23 @@ static int get_term_lines(struct fh_program *prog, struct fh_value *ret, struct 
   return 0;
 }
 
+static int run_script(struct fh_program *prog, char *script_file, char **args, int n_args)
+{
+  if (fh_compile_file(prog, script_file) < 0)
+    return -1;
+
+  struct fh_value *script_args = malloc(sizeof(struct fh_value) * n_args);
+  for (int i = 0; i < n_args; i++) {
+    fh_make_string(&script_args[i], args[i]);
+  }
+  struct fh_value script_ret;
+  
+  if (fh_call_function(prog, "main", script_args, n_args, &script_ret) < 0)
+    return -1;
+
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
   if (argc <= 1) {
@@ -64,19 +84,12 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if (fh_add_c_func(prog, "print", my_print) < 0)
-    goto err;
-  if (fh_add_c_func(prog, "get_term_lines", get_term_lines) < 0)
+  if (fh_add_c_funcs(prog, c_funcs, sizeof(c_funcs)/sizeof(c_funcs[0])) < 0)
     goto err;
   
-  for (int i = 1; i < argc; i++) {
-    if (fh_compile_file(prog, argv[i]) < 0)
-      goto err;
-  }
-  
-  if (fh_run_function(prog, "main") < 0)
+  if (run_script(prog, argv[1], &argv[2], argc-2) < 0)
     goto err;
-
+  
   fh_free_program(prog);
   return 0;
 

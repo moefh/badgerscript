@@ -59,7 +59,7 @@ struct fh_tokenizer {
   struct fh_buffer tmp;
 };
 
-int fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast);
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast);
 void fh_destroy_tokenizer(struct fh_tokenizer *t);
 int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok);
 struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t);

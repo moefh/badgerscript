@@ -1,7 +1,7 @@
 
 CC = gcc
-#CFLAGS = -O2 -Wall -Wextra -g
-CFLAGS = -O0 -Wall -Wextra -g
+CFLAGS = -O2 -Wall -Wextra -g
+#CFLAGS = -O0 -Wall -Wextra -g
 
 AR = ar
 ARFLAGS = rs

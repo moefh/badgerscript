@@ -1,7 +1,7 @@
 
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra -g -Ilib/
-#CFLAGS = -O0 -Wall -Wextra -g -Ilib/
+#CFLAGS = -O2 -Wall -Wextra -g -Ilib/
+CFLAGS = -O0 -Wall -Wextra -g -Ilib/
 LDFLAGS =
 
 OBJS = main.o

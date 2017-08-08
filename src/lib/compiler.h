@@ -14,7 +14,7 @@ struct fh_compiler {
   struct fh_stack c_funcs;
 };
 
-int fh_init_compiler(struct fh_compiler *c, struct fh_program *prog);
+void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog);
 void fh_destroy_compiler(struct fh_compiler *c);
 int fh_compile(struct fh_compiler *c, struct fh_bc *bc, struct fh_ast *ast);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));

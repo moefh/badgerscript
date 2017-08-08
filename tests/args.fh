@@ -1,0 +1,6 @@
+
+function main(arg1, arg2)
+{
+  printf("arg1 = %s\n", arg1);
+  printf("arg2 = %s\n", arg2);
+}

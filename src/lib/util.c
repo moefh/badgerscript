@@ -49,6 +49,12 @@ void fh_make_number(struct fh_value *val, double num)
   val->data.num = num;
 }
 
+void fh_make_string(struct fh_value *val, const char *str)
+{
+  val->type = FH_VAL_STRING;
+  val->data.str = (char *) str;
+}
+
 void fh_make_c_func(struct fh_value *val, fh_c_func func)
 {
   val->type = FH_VAL_C_FUNC;
