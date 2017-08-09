@@ -13,12 +13,12 @@ int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
   int next_arg = 1;
   for (char *c = args[0].data.str; *c != '\0'; c++) {
     if (*c != '%') {
-      putchar_unlocked(*c);
+      putchar(*c);
       continue;
     }
     c++;
     if (*c == '%') {
-      putchar_unlocked('%');
+      putchar('%');
       continue;
     }
     if (next_arg >= n_args)
