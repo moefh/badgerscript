@@ -10,7 +10,7 @@ TEST_FILE = tests/test.fh
 
 TARGETS = debug release ubsan
 
-.PHONY: $(TARGETS) build clean end
+.PHONY: $(TARGETS) build clean check test
 
 all: debug
 
@@ -38,4 +38,7 @@ build:
 	@echo
 
 check: debug
-	valgrind --track-origins=yes --leak-check=full src/fh $(TEST_FILE)
+	valgrind --track-origins=yes --leak-check=full src/fh $(TEST_FILE) arg1 arg2
+
+test: debug
+	src/fh tests/mandel_color.fh

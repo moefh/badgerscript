@@ -7,18 +7,18 @@
 #include <math.h>
 
 #include "vm.h"
+#include "program.h"
 #include "bytecode.h"
 
 struct fh_vm_call_frame {
-  struct fh_bc_func *func;
+  struct fh_func *func;
   int base;
   uint32_t *ret_addr;
 };
 
-void fh_init_vm(struct fh_vm *vm, struct fh_program *prog, struct fh_bc *bc)
+void fh_init_vm(struct fh_vm *vm, struct fh_program *prog)
 {
   vm->prog = prog;
-  vm->bc = bc;
   vm->stack = NULL;
   vm->stack_size = 0;
   fh_init_stack(&vm->call_stack, sizeof(struct fh_vm_call_frame));
@@ -66,7 +66,7 @@ static int ensure_stack_size(struct fh_vm *vm, int size)
   return 0;
 }
 
-struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_bc_func *func, int ret_reg, int n_args)
+struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_func *func, int ret_reg, int n_args)
 {
   if (ensure_stack_size(vm, ret_reg + 1 + func->n_regs) < 0)
     return NULL;
@@ -126,7 +126,7 @@ static void dump_regs(struct fh_vm *vm)
 
 int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
-  struct fh_bc_func *func = fh_get_bc_func_by_name(vm->bc, name);
+  struct fh_func *func = fh_get_bc_func_by_name(&vm->prog->bc, name);
   if (! func)
     return vm_error(vm, "function '%s' doesn't exist", name);
   
@@ -162,11 +162,25 @@ int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *arg
   return 0;
 }
 
+static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  int num_c_vals = vm->prog->c_vals.num;
+  
+  int r = func(vm->prog, ret, args, n_args);
+
+  // release any objects created by the C function
+  while (vm->prog->c_vals.num > num_c_vals) {
+    fh_pop(&vm->prog->c_vals, NULL);
+  }
+
+  return r;
+}
+
 static int is_true(struct fh_value *val)
 {
   switch (val->type) {
   case FH_VAL_NUMBER: return val->data.num != 0.0;
-  case FH_VAL_STRING: return val->data.str[0] != '\0';
+  case FH_VAL_STRING: return fh_get_string(val)[0] != '\0';
   case FH_VAL_FUNC:   return 1;
   case FH_VAL_C_FUNC: return 1;
   }
@@ -179,8 +193,8 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
     return 0;
   switch (v1->type) {
   case FH_VAL_NUMBER: return v1->data.num == v2->data.num;
-  case FH_VAL_STRING: return strcmp(v1->data.str, v2->data.str) == 0;
-  case FH_VAL_FUNC:   return v1->data.func == v2->data.func;
+  case FH_VAL_STRING: return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
+  case FH_VAL_FUNC:   return v1->data.obj == v2->data.obj;
   case FH_VAL_C_FUNC: return v1->data.c_func == v2->data.c_func;
   }
   return 0;
@@ -204,7 +218,7 @@ int fh_run_vm(struct fh_vm *vm)
   }
   while (1) {
     //dump_regs(vm);
-    //fh_dump_bc_instr(vm->bc, NULL, -1, *pc);
+    //fh_dump_bc_instr(&vm->prog->bc, NULL, -1, *pc);
     
     uint32_t instr = *pc++;
     struct fh_value *ra = &reg_base[GET_INSTR_RA(instr)];
@@ -318,13 +332,13 @@ int fh_run_vm(struct fh_vm *vm)
         //dump_regs(vm);
         struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
         if (ra->type == FH_VAL_FUNC) {
-          uint32_t *func_addr = ra->data.func->code;
+          uint32_t *func_addr = GET_OBJ_FUNC(ra->data.obj)->code;
           
           /*
            * WARNING: prepare_call() may move the stack, so don't trust reg_base
            * or ra after calling it -- jumping to changed_stack_frame fixes it.
            */
-          struct fh_vm_call_frame *new_frame = prepare_call(vm, ra->data.func, frame->base + GET_INSTR_RA(instr), GET_INSTR_RB(instr));
+          struct fh_vm_call_frame *new_frame = prepare_call(vm, GET_OBJ_FUNC(ra->data.obj), frame->base + GET_INSTR_RA(instr), GET_INSTR_RB(instr));
           if (! new_frame)
             goto err;
           new_frame->ret_addr = pc;
@@ -340,7 +354,7 @@ int fh_run_vm(struct fh_vm *vm)
           struct fh_vm_call_frame *new_frame = prepare_c_call(vm, frame->base + GET_INSTR_RA(instr), GET_INSTR_RB(instr));
           if (! new_frame)
             goto err;
-          int ret = c_func(vm->prog, vm->stack + new_frame->base - 1, vm->stack + new_frame->base, GET_INSTR_RB(instr));
+          int ret = call_c_func(vm, c_func, vm->stack + new_frame->base - 1, vm->stack + new_frame->base, GET_INSTR_RB(instr));
           fh_pop(&vm->call_stack, NULL);
           if (ret < 0)
             goto c_func_err;
@@ -431,7 +445,7 @@ int fh_run_vm(struct fh_vm *vm)
   printf("** instruction that caused error:\n");
   struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
   int addr = (frame) ? pc - 1 - frame->func->code : -1;
-  fh_dump_bc_instr(vm->bc, NULL, addr, pc[-1]);
+  fh_dump_bc_instr(&vm->prog->bc, NULL, addr, pc[-1]);
   printf("----------------------------\n");
 
  c_func_err:

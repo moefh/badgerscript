@@ -8,7 +8,6 @@
 #include <stdarg.h>
 
 struct fh_input;
-struct fh_program;
 
 struct fh_input_funcs {
   int (*read)(struct fh_input *in, char *line, int max_len);
@@ -16,29 +15,34 @@ struct fh_input_funcs {
 };
 
 enum fh_value_type {
+  // non-object values (no heap usage):
   FH_VAL_NUMBER,
+  FH_VAL_C_FUNC,
+  
+#define FH_FIRST_OBJECT_VAL FH_VAL_STRING
+  // objects (use heap):
   FH_VAL_STRING,
   FH_VAL_FUNC,
-  FH_VAL_C_FUNC,
 };
 
+struct fh_program;
 struct fh_value;
+struct fh_object;
 
 typedef int (*fh_c_func)(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
-
-struct fh_value {
-  union {
-    double num;
-    char *str;
-    struct fh_bc_func *func;
-    fh_c_func c_func;
-  } data;
-  enum fh_value_type type;
-};
 
 struct fh_named_c_func {
   const char *name;
   fh_c_func func;
+};
+
+struct fh_value {
+  union {
+    void *obj;
+    fh_c_func c_func;
+    double num;
+  } data;
+  enum fh_value_type type;
 };
 
 struct fh_input *fh_open_input_file(const char *filename);
@@ -59,8 +63,11 @@ const char *fh_get_error(struct fh_program *prog);
 int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 
-void fh_make_number(struct fh_value *val, double num);
-void fh_make_string(struct fh_value *val, const char *str);
-void fh_make_c_func(struct fh_value *val, fh_c_func func);
+void fh_make_number(struct fh_program *prog, struct fh_value *val, double num);
+int fh_make_string(struct fh_program *prog, struct fh_value *val, const char *str);
+int fh_make_string_n(struct fh_program *prog, struct fh_value *val, const char *str, size_t str_len);
+void fh_make_c_func(struct fh_program *prog, struct fh_value *val, fh_c_func func);
+
+const char *fh_get_string(const struct fh_value *val);
 
 #endif /* FH_H_FILE */

@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "fh_i.h"
+#include "value.h"
 
 #define MAX_FUNC_REGS 256
 
@@ -52,28 +53,20 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
-struct fh_bc_func {
-  int n_params;
-  int n_regs;
-  uint32_t *code;
-  int code_size;
-  struct fh_value *consts;
-  int n_consts;
-};
-
 struct fh_bc {
+  struct fh_program *prog;
   struct fh_symtab *symtab;
   struct fh_stack funcs;
 };
 
-int fh_init_bc(struct fh_bc *bc);
+int fh_init_bc(struct fh_bc *bc, struct fh_program *prog);
 void fh_destroy_bc(struct fh_bc *bc);
 
-struct fh_bc_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
+struct fh_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
 
 int fh_get_bc_num_funcs(struct fh_bc *bc);
-struct fh_bc_func *fh_get_bc_func(struct fh_bc *bc, int num);
-struct fh_bc_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name);
+struct fh_func *fh_get_bc_func(struct fh_bc *bc, int num);
+struct fh_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name);
 const char *fh_get_bc_func_name(struct fh_bc *bc, int num);
 
 void fh_dump_bc(struct fh_bc *bc);

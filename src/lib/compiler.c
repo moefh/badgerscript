@@ -24,7 +24,7 @@ struct named_c_func {
 };
 
 struct func_info {
-  struct fh_bc_func *bc_func;
+  struct fh_func *bc_func;
   int num_regs;
   struct fh_stack regs;
   struct fh_stack code;
@@ -74,7 +74,7 @@ int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func fu
   return 0;
 }
 
-static struct func_info *new_func_info(struct fh_compiler *c, struct fh_bc_func *bc_func)
+static struct func_info *new_func_info(struct fh_compiler *c, struct fh_func *bc_func)
 {
   struct func_info fi;
   fi.num_regs = 0;
@@ -217,7 +217,7 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   int k = 0;
   const char *str = fh_get_ast_string(c->ast, str_id);
   stack_foreach(struct fh_value *, c, &fi->consts) {
-    if (c->type == FH_VAL_STRING && strcmp(c->data.str, str) == 0)
+    if (c->type == FH_VAL_STRING && strcmp(fh_get_string(c), str) == 0)
       return k;
     k++;
   }
@@ -226,14 +226,10 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   struct fh_value *val = add_const(c, loc);
   if (! c)
     return -1;
-  char *dup = malloc(strlen(str)+1);
-  if (! dup) {
+  if (fh_make_string(c->prog, val, str) < 0) {
     fh_pop(&fi->consts, NULL);
     return -1;
   }
-  strcpy(dup, str);
-  val->type = FH_VAL_STRING;
-  val->data.str = dup;
   return k;
 }
 
@@ -246,14 +242,14 @@ static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbo
   const char *name = fh_get_ast_symbol(c->ast, func);
   
   // bytecode function
-  struct fh_bc_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
+  struct fh_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
   if (bc_func) {
     int k = fi->consts.num;
     struct fh_value *val = add_const(c, loc);
     if (! val)
       return -1;
     val->type = FH_VAL_FUNC;
-    val->data.func = bc_func;
+    val->data.obj = bc_func;
     return k;
   }
 
@@ -959,7 +955,7 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   return ret;
 }
 
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_bc_func *bc_func)
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func *bc_func)
 {
   struct func_info *fi = new_func_info(c, bc_func);
   if (! fi) {
@@ -999,7 +995,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   return 0;
 }
 
-static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_bc_func *bc_func)
+static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func *bc_func)
 {
   if (compile_func(c, func->loc, &func->func, bc_func) < 0)
     return -1;
@@ -1038,7 +1034,7 @@ int fh_compile(struct fh_compiler *c, struct fh_bc *bc, struct fh_ast *ast)
     const char *name = get_func_name(c, f);
     if (! name)
       return -1;
-    struct fh_bc_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
+    struct fh_func *bc_func = fh_get_bc_func_by_name(c->bc, name);
     if (compile_named_func(c, f, bc_func) < 0)
       return -1;
   }

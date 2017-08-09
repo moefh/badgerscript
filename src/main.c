@@ -10,34 +10,14 @@
 #include <sys/ioctl.h>
 #endif
 
-static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
 static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
 
 static const struct fh_named_c_func c_funcs[] = {
-  { "print", fn_print },
   { "get_term_lines", fn_get_term_lines },
 };
 
-static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
-{
-  (void)prog;
-
-  for (int i = 0; i < n_args; i++) {
-    switch (args[i].type) {
-    case FH_VAL_NUMBER: printf("%g", args[i].data.num); break;
-    case FH_VAL_STRING: printf("%s", args[i].data.str);  break;
-    case FH_VAL_FUNC: printf("<func %p>", args[i].data.func); break;
-    case FH_VAL_C_FUNC: printf("<C func %p>", args[i].data.c_func); break;
-    default: printf("<invalid value %d>", args[i].type); break;
-    }
-  }
-  fh_make_number(ret, 0);
-  return 0;
-}
-
 static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
-  (void)prog;
   (void)args;
   (void)n_args;
 
@@ -45,11 +25,11 @@ static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, stru
   struct winsize term_size;
 
   if (ioctl(0, TIOCGWINSZ, &term_size) < 0)
-    fh_make_number(ret, 25.0);
+    fh_make_number(prog, ret, 25.0);
   else
-    fh_make_number(ret, (double) term_size.ws_row);
+    fh_make_number(prog, ret, (double) term_size.ws_row);
 #else
-  fh_make_number(ret, 25);
+  fh_make_number(prog, ret, 25);
 #endif
   return 0;
 }
@@ -61,7 +41,8 @@ static int run_script(struct fh_program *prog, char *script_file, char **args, i
 
   struct fh_value *script_args = malloc(sizeof(struct fh_value) * n_args);
   for (int i = 0; i < n_args; i++) {
-    fh_make_string(&script_args[i], args[i]);
+    if (fh_make_string(prog, &script_args[i], args[i]) < 0)
+      return -1;
   }
   struct fh_value script_ret;
   

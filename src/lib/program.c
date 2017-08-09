@@ -3,24 +3,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "fh.h"
-#include "ast.h"
-#include "bytecode.h"
-#include "vm.h"
-#include "parser.h"
-#include "compiler.h"
-
-int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
-
-struct fh_program {
-  struct fh_parser parser;
-  struct fh_compiler compiler;
-  struct fh_bc bc;
-  struct fh_vm vm;
-  char last_error_msg[256];
-};
+#include "program.h"
+#include "c_funcs.h"
 
 static const struct fh_named_c_func c_funcs[] = {
+  { "print", fh_print },
   { "printf", fh_printf },
 };
 
@@ -29,13 +16,16 @@ struct fh_program *fh_new_program(void)
   struct fh_program *prog = malloc(sizeof(struct fh_program));
   if (! prog)
     return NULL;
+  prog->objects = NULL;
   prog->last_error_msg[0] = '\0';
 
-  if (fh_init_bc(&prog->bc) < 0)
-    goto err;
-  fh_init_vm(&prog->vm, prog, &prog->bc);
+  fh_init_vm(&prog->vm, prog);
   fh_init_parser(&prog->parser, prog);
   fh_init_compiler(&prog->compiler, prog);
+  fh_init_stack(&prog->c_vals, sizeof(struct fh_value));
+
+  if (fh_init_bc(&prog->bc, prog) < 0)
+    goto err;
 
   if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
     goto err;
@@ -43,6 +33,7 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
+  fh_free_stack(&prog->c_vals);
   fh_destroy_bc(&prog->bc);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);  
@@ -52,10 +43,19 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
+  fh_free_stack(&prog->c_vals);
   fh_destroy_vm(&prog->vm);
   fh_destroy_bc(&prog->bc);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);
+
+  struct fh_object *o = prog->objects;
+  while (o) {
+    struct fh_object *next = o->obj.header.next;
+    fh_free_object(o);
+    o = next;
+  }
+  
   free(prog);
 }
 

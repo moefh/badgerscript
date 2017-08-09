@@ -139,12 +139,12 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
     return;
     
   case FH_VAL_STRING:
-    dump_string(out, c->data.str);
+    dump_string(out, fh_get_string(c));
     fh_output(out, "\n");
     return;
 
   case FH_VAL_FUNC:
-    fh_output(out, "<function at %p>\n", (void *) c->data.func);
+    fh_output(out, "<function at %p>\n", c->data.obj);
     return;
 
   case FH_VAL_C_FUNC:
@@ -162,7 +162,7 @@ void fh_dump_bc(struct fh_bc *bc)
   struct fh_output *out = NULL;
   
   for (int i = 0; i < n_funcs; i++) {
-    struct fh_bc_func *func = fh_get_bc_func(bc, i);
+    struct fh_func *func = fh_get_bc_func(bc, i);
     const char *func_name = fh_get_bc_func_name(bc, i);
 
     fh_output(out, "; ===================================================\n");

@@ -5,13 +5,32 @@
 
 #include "fh.h"
 
+static void print_value(struct fh_value *val)
+{
+  switch (val->type) {
+  case FH_VAL_NUMBER: printf("%g", val->data.num); break;
+  case FH_VAL_STRING: printf("%s", fh_get_string(val));  break;
+  case FH_VAL_FUNC: printf("<func %p>", val->data.obj); break;
+  case FH_VAL_C_FUNC: printf("<C func %p>", val->data.c_func); break;
+  default: printf("<invalid value %d>", val->type); break;
+  }
+}
+
+int fh_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  for (int i = 0; i < n_args; i++)
+    print_value(&args[i]);
+  fh_make_number(prog, ret, 0);
+  return 0;
+}
+
 int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   if (n_args == 0 || args[0].type != FH_VAL_STRING)
     goto end;
 
   int next_arg = 1;
-  for (char *c = args[0].data.str; *c != '\0'; c++) {
+  for (const char *c = fh_get_string(&args[0]); *c != '\0'; c++) {
     if (*c != '%') {
       putchar(*c);
       continue;
@@ -46,13 +65,7 @@ int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
       break;
       
     case 's':
-      switch (args[next_arg].type) {
-      case FH_VAL_STRING: printf("%s", args[next_arg].data.str); break;
-      case FH_VAL_NUMBER: printf("%g", args[next_arg].data.num); break;
-      case FH_VAL_FUNC: printf("<func %p>", (void *) args[next_arg].data.func); break;
-      case FH_VAL_C_FUNC: printf("<C func>"); break;
-      default: printf("<unknown value, type=%d>", args[next_arg].type); break;
-      }
+      print_value(&args[next_arg]);
       break;
       
     default:
@@ -62,7 +75,7 @@ int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
   }
   
  end:
-  fh_make_number(ret, 0);
+  fh_make_number(prog, ret, 0);
   return 0;
 }
 
