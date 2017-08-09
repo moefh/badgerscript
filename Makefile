@@ -1,16 +1,34 @@
 
-.PHONY: all clean
+CC = gcc
+AR = ar rc
+RANLIB = ranlib
+CFLAGS = -Wall -Wextra -std=c99
+LDFLAGS =
+LIBS = -lm
 
 TEST_FILE = tests/test.fh
 
-all: src/fh
+TARGETS = debug release ubsan
+
+.PHONY: $(TARGETS) build clean end
+
+all: debug
+
+debug:
+	$(MAKE) build TARGET_CFLAGS="-g" TARGET_LDFLAGS=""
+
+release:
+	$(MAKE) build TARGET_CFLAGS="-O2" TARGET_LDFLAGS="-s"
+
+ubsan:
+	$(MAKE) build TARGET_CFLAGS="-g -fsanitize=undefined" TARGET_LDFLAGS="-fsanitize=undefined"
 
 clean:
 	rm -f *~
-	make -C src clean
+	$(MAKE) -C src clean
 
-src/fh:
-	make -C src
+build:
+	$(MAKE) -C src CFLAGS="$(CFLAGS) $(TARGET_CFLAGS)" CC="$(CC)" LDFLAGS="$(LDFLAGS) $(TARGET_LDFLAGS)" LIBS="$(LIBS)" AR="$(AR)" RANLIB="$(RANLIB)"
 	@echo
 	@echo Compilation successful!  Try these examples:
 	@echo
@@ -19,5 +37,5 @@ src/fh:
 	@echo "  src/fh tests/mandel_color.fh"
 	@echo
 
-test: src/fh
+check: debug
 	valgrind --track-origins=yes --leak-check=full src/fh $(TEST_FILE)

@@ -1,25 +1,22 @@
 
-CC = gcc
-CFLAGS = -O2 -Wall -Wextra -g -Ilib/
-#CFLAGS = -O0 -Wall -Wextra -g -Ilib/
-LDFLAGS =
-
 OBJS = main.o
-LIBS = lib/libfh.a -lm
 
-.PHONY: all lib clean
+EXTRA_CFLAGS = -Ilib
 
-all: fh
+.PHONY: $(TARGETS) clean
 
-fh: $(OBJS) $(LIBS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+fh: $(OBJS) lib/libfh.a
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) lib/libfh.a $(LIBS)
 
 lib/libfh.a:
-	make -C lib
+	$(MAKE) -C lib
 
 clean:
 	rm -f fh *.o *~
-	make -C lib clean
+	$(MAKE) -C lib clean
 
 %.o: %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ -c $<
+
+.c.o:
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ -c $<
