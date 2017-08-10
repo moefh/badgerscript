@@ -3,7 +3,7 @@
 #ifndef FH_H_FILE
 #define FH_H_FILE
 
-#include <sys/types.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -15,14 +15,15 @@ struct fh_input_funcs {
 };
 
 enum fh_value_type {
-  // non-object values (no heap usage):
+  // non-object values (completely contained inside struct fh_value)
   FH_VAL_NULL,
   FH_VAL_NUMBER,
   FH_VAL_C_FUNC,
   
 #define FH_FIRST_OBJECT_VAL FH_VAL_STRING
-  // objects (use heap):
+  // objects
   FH_VAL_STRING,
+  FH_VAL_ARRAY,
   FH_VAL_FUNC,
 };
 
@@ -63,15 +64,19 @@ int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_v
 const char *fh_get_error(struct fh_program *prog);
 int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
+void fh_collect_garbage(struct fh_program *prog);
 
 #define fh_new_null(prog) ((prog)->null_value)
 struct fh_value fh_new_number(struct fh_program *prog, double num);
+struct fh_value fh_new_array(struct fh_program *prog);
 struct fh_value fh_new_string(struct fh_program *prog, const char *str);
 struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len);
 struct fh_value fh_new_c_func(struct fh_program *prog, fh_c_func func);
 
-const char *fh_get_string(const struct fh_value *val);
+const char *fh_get_string(const struct fh_value *str);
 
-void fh_collect_garbage(struct fh_program *prog);
+uint32_t fh_get_array_size(const struct fh_value *arr);
+struct fh_value *fh_get_array_item(struct fh_value *arr, uint32_t index);
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, uint32_t num_items);
 
 #endif /* FH_H_FILE */

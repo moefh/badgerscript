@@ -1,0 +1,7 @@
+
+function main(args)
+{
+  printf("%s\n", args);
+  printf("num args: %d\n", len(args));
+}
+

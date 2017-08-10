@@ -57,18 +57,20 @@ static int run_script(struct fh_program *prog, char *script_file, char **args, i
   if (fh_compile_file(prog, script_file) < 0)
     return -1;
 
-  struct fh_value *script_args = malloc(sizeof(struct fh_value) * n_args);
+  struct fh_value script_args = fh_new_array(prog);
+  if (script_args.type == FH_VAL_NULL)
+    return -1;
   for (int i = 0; i < n_args; i++) {
-    script_args[i] = fh_new_string(prog, args[i]);
-    if (script_args[i].type == FH_VAL_NULL)
+    struct fh_value *item = fh_grow_array(prog, &script_args, 1);
+    if (! item)
+      return -1;
+    *item = fh_new_string(prog, args[i]);
+    if (item->type == FH_VAL_NULL)
       return -1;
   }
   struct fh_value script_ret;
   
-  int ret = fh_call_function(prog, "main", script_args, n_args, &script_ret);
-  
-  free(script_args);
-  return ret;
+  return fh_call_function(prog, "main", &script_args, 1, &script_ret);
 }
 
 int main(int argc, char **argv)

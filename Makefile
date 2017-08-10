@@ -44,4 +44,4 @@ test: debug
 	src/fh tests/mandel_color.fh
 
 dump_exported_symbols: debug
-	nm src/lib/libfh.a | grep " [A-TV-Z] "
+	nm src/lib/libfh.a | grep " [A-TV-Zuvw] "

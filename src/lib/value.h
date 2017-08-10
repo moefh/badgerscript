@@ -19,6 +19,14 @@ struct fh_string {
   size_t size;
 };
 
+struct fh_array {
+  OBJ_HEADER;
+  struct fh_object *gc_next_container;
+  uint32_t size;
+  uint32_t cap;
+  struct fh_value *items;
+};
+
 struct fh_func {
   OBJ_HEADER;
   struct fh_object *gc_next_container;
@@ -43,10 +51,12 @@ struct fh_object {
 void fh_free_object(struct fh_object *obj);
 
 struct fh_func *fh_get_func(const struct fh_value *val);
+struct fh_array *fh_get_array(const struct fh_value *val);
 
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
 #define GET_OBJ_STRING(o) (((char *) o) + sizeof(struct fh_string))
 #define GET_OBJ_FUNC(o)   ((struct fh_func *) (o))
+#define GET_OBJ_ARRAY(o)  ((struct fh_array *) (o))
 
 // non-object types
 #define fh_make_null   fh_new_null
@@ -55,6 +65,7 @@ struct fh_func *fh_get_func(const struct fh_value *val);
 
 // object types
 struct fh_func *fh_make_func(struct fh_program *prog);
+struct fh_array *fh_make_array(struct fh_program *prog);
 struct fh_object *fh_make_string(struct fh_program *prog, const char *str);
 struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len);
 

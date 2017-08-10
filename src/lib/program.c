@@ -9,6 +9,7 @@
 static const struct fh_named_c_func c_funcs[] = {
   { "print", fh_print },
   { "printf", fh_printf },
+  { "len", fh_len },
 };
 
 struct fh_program *fh_new_program(void)
@@ -42,11 +43,11 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
+  fh_free_stack(&prog->c_vals);
   fh_collect_garbage(prog);
   fh_free_program_objects(prog);
   
   fh_free_stack(&prog->funcs);
-  fh_free_stack(&prog->c_vals);
   fh_destroy_vm(&prog->vm);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);

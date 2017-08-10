@@ -8,9 +8,12 @@
 //#define DEBUG_GC
 
 #ifdef DEBUG_GC
-#define PRINT(x) x
+#define DEBUG_LOG(x)    printf(x)
+#define DEBUG_LOG1(x,y) printf(x,y)
 #else
-#define PRINT(x)
+#define DEBUG_LOG(x)
+#define DEBUG_LOG1(x,y)
+#define DEBUG_OBJ(x, y)
 #endif
 
 struct fh_gc_state {
@@ -18,7 +21,7 @@ struct fh_gc_state {
 };
 
 #ifdef DEBUG_GC
-static void dump_obj(const char *prefix, struct fh_object *obj)
+static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
 {
   printf("%s object %p of type %d", prefix, obj, obj->obj.header.type);
   switch (obj->obj.header.type) {
@@ -32,6 +35,10 @@ static void dump_obj(const char *prefix, struct fh_object *obj)
     printf(" (func)\n");
     break;
 
+  case FH_VAL_ARRAY:
+    printf(" (array)\n");
+    break;
+
   default:
     printf(" (UNEXPECTED TYPE)\n");
   }
@@ -41,17 +48,17 @@ static void dump_obj(const char *prefix, struct fh_object *obj)
 static void sweep(struct fh_program *prog)
 {
   UNUSED(prog);
-  PRINT(printf("***** sweeping\n");)
+  DEBUG_LOG("***** sweeping\n");
   struct fh_object **objs = &prog->objects;
   struct fh_object *cur;
   while ((cur = *objs) != NULL) {
     if (cur->obj.header.gc_mark) {
       cur->obj.header.gc_mark = 0;
-      PRINT(dump_obj("-> keeping", cur);)
+      DEBUG_OBJ("-> keeping", cur);
       objs = &cur->obj.header.next;
     } else {
       *objs = cur->obj.header.next;
-      PRINT(dump_obj("-> FREEING", cur);)
+      DEBUG_OBJ("-> FREEING", cur);
       fh_free_object(cur);
     }      
   }
@@ -59,11 +66,11 @@ static void sweep(struct fh_program *prog)
 
 void fh_free_program_objects(struct fh_program *prog)
 {
-  PRINT(printf("***** FREEING ALL OBJECTS\n");)
+  DEBUG_LOG("***** FREEING ALL OBJECTS\n");
   struct fh_object *o = prog->objects;
   while (o) {
     struct fh_object *next = o->obj.header.next;
-    PRINT(dump_obj("-> freeing", o);)
+    DEBUG_OBJ("-> FREEING", o);
     fh_free_object(o);
     o = next;
   }
@@ -74,22 +81,31 @@ void fh_free_program_objects(struct fh_program *prog)
 
 static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
 {
-  PRINT(dump_obj("-> marking", obj);)
+  DEBUG_OBJ("-> marking", obj);
   
   obj->obj.header.gc_mark = 1;
   switch (obj->obj.header.type) {
   case FH_VAL_STRING:
-    break;
+    return;
     
   case FH_VAL_FUNC:
     GET_OBJ_FUNC(obj)->gc_next_container = gc->container_list;
     gc->container_list = obj;
-    break;
+    return;
 
-  default:
-    fprintf(stderr, "GC ERROR: marking invalid object of type %d\n", obj->obj.header.type);
-    break;
+  case FH_VAL_ARRAY:
+    GET_OBJ_ARRAY(obj)->gc_next_container = gc->container_list;
+    gc->container_list = obj;
+    return;
+
+  case FH_VAL_NULL:
+  case FH_VAL_NUMBER:
+  case FH_VAL_C_FUNC:
+    fprintf(stderr, "GC ERROR: marking non-object type %d\n", obj->obj.header.type);
+    return;
   }
+    
+  fprintf(stderr, "GC ERROR: marking invalid object type %d\n", obj->obj.header.type);
 }
 
 static void mark_func_children(struct fh_gc_state *gc, struct fh_func *func)
@@ -100,7 +116,13 @@ static void mark_func_children(struct fh_gc_state *gc, struct fh_func *func)
     MARK_VALUE(gc, &func->consts[i]);
 }
 
-static void propagate_marks(struct fh_gc_state *gc)
+static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
+{
+  for (uint32_t i = 0; i < arr->size; i++)
+    MARK_VALUE(gc, &arr->items[i]);
+}
+
+static void mark_container_children(struct fh_gc_state *gc)
 {
   while (gc->container_list) {
     switch (gc->container_list->obj.header.type) {
@@ -110,12 +132,25 @@ static void propagate_marks(struct fh_gc_state *gc)
         gc->container_list = f->gc_next_container;
         mark_func_children(gc, f);
       }
-      break;
+      continue;
 
-    default:
-      fprintf(stderr, "GC ERROR: propagating mark on invalid object of type %d\n", gc->container_list->obj.header.type);
-      break;
+    case FH_VAL_ARRAY:
+      {
+        struct fh_array *a = GET_OBJ_ARRAY(gc->container_list);
+        gc->container_list = a->gc_next_container;
+        mark_array_children(gc, a);
+      }
+      continue;
+
+    case FH_VAL_NULL:
+    case FH_VAL_NUMBER:
+    case FH_VAL_C_FUNC:
+    case FH_VAL_STRING:
+      fprintf(stderr, "GC ERROR: found non-container object (type %d)\n", gc->container_list->obj.header.type);
+      continue;
     }
+    
+    fprintf(stderr, "GC ERROR: found on invalid object of type %d\n", gc->container_list->obj.header.type);
   }
 }
 
@@ -126,7 +161,7 @@ static void mark(struct fh_program *prog)
   gc.container_list = NULL;
   
   // mark functions
-  PRINT(printf("***** marking functions\n");)
+  DEBUG_LOG("***** marking functions\n");
   stack_foreach(struct fh_func **, pf, &prog->funcs) {
     MARK_OBJECT(&gc, (struct fh_object *) *pf);
   }
@@ -136,25 +171,25 @@ static void mark(struct fh_program *prog)
   if (cur_frame) {
     int stack_size = cur_frame->base + ((cur_frame->func) ? cur_frame->func->n_regs : 0);
     struct fh_value *stack = prog->vm.stack;
-    PRINT(printf("***** marking %d stack values\n", stack_size);)
+    DEBUG_LOG1("***** marking %d stack values\n", stack_size);
     for (int i = 0; i < stack_size; i++)
       MARK_VALUE(&gc, &stack[i]);
   }
 
   // mark C values
-  PRINT(printf("***** marking %d C tmp values\n", prog->c_vals.num);)
+  DEBUG_LOG1("***** marking %d C tmp values\n", prog->c_vals.num);
   stack_foreach(struct fh_value *, v, &prog->c_vals) {
     MARK_VALUE(&gc, v);
   }
 
-  PRINT(printf("***** propagating marks\n");)
-  propagate_marks(&gc);
+  DEBUG_LOG("***** marking container children\n");
+  mark_container_children(&gc);
 }
 
 void fh_collect_garbage(struct fh_program *prog)
 {
-  PRINT(printf("== STARTING GC ==================\n");)
+  DEBUG_LOG("== STARTING GC ==================\n");
   mark(prog);
   sweep(prog);
-  PRINT(printf("== GC DONE ======================\n");)
+  DEBUG_LOG("== GC DONE ======================\n");
 }

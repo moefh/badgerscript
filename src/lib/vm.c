@@ -164,6 +164,7 @@ static int is_true(struct fh_value *val)
   case FH_VAL_NULL:   return 0;
   case FH_VAL_NUMBER: return val->data.num != 0.0;
   case FH_VAL_STRING: return fh_get_string(val)[0] != '\0';
+  case FH_VAL_ARRAY:  return 1;
   case FH_VAL_FUNC:   return 1;
   case FH_VAL_C_FUNC: return 1;
   }
@@ -177,9 +178,10 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
   switch (v1->type) {
   case FH_VAL_NULL:   return 1;
   case FH_VAL_NUMBER: return v1->data.num == v2->data.num;
-  case FH_VAL_STRING: return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
-  case FH_VAL_FUNC:   return v1->data.obj == v2->data.obj;
   case FH_VAL_C_FUNC: return v1->data.c_func == v2->data.c_func;
+  case FH_VAL_STRING: return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
+  case FH_VAL_ARRAY:  return v1->data.obj == v2->data.obj;
+  case FH_VAL_FUNC:   return v1->data.obj == v2->data.obj;
   }
   return 0;
 }
