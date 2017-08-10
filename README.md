@@ -50,15 +50,22 @@ of garbage collection to be useful. Current plans are:
 
 ```javascript
 
+# Calculate the color of the point c=(cx, cy)
 function calc_point(cx, cy, max_iter)
 {
     var i = 0;
+    
+    # start with z = x+iy = 0
     var x = 0;
     var y = 0;
+
     while (i < max_iter) {
+        # z = z^2 + c
         var t = x*x - y*y + cx;
         y = 2*x*y + cy;
         x = t;
+
+        # stop if |z| > 2
         if (x*x + y*y > 4)
             break;
         i = i + 1;
@@ -66,7 +73,7 @@ function calc_point(cx, cy, max_iter)
     return i;
 }
 
-function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter)
+function mandelbrot(x1, y1, x2, y2, size_x, size_y, max_iter)
 {
     var step_x = (x2-x1)/size_x;
     var step_y = (y2-y1)/size_y;
