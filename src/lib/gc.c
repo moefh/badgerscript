@@ -105,8 +105,8 @@ static void propagate_marks(struct fh_gc_state *gc)
     case FH_VAL_FUNC:
       {
         struct fh_func *f = GET_OBJ_FUNC(gc->container_list);
-        mark_func_children(gc, f);
         gc->container_list = f->gc_next_container;
+        mark_func_children(gc, f);
       }
       break;
 
