@@ -95,30 +95,23 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
   struct fh_input *in = NULL;
   struct fh_ast *ast = NULL;
 
-  //printf("------------------------\n");
-  //printf("-> opening file '%s'...\n", filename);
   in = fh_open_input_file(filename);
   if (! in) {
     fh_set_error(prog, "ERROR: can't open '%s'", filename);
     goto err;
   }
   
-  // parse
   ast = fh_new_ast();
   if (! ast) {
     fh_set_error(prog, "ERROR: out of memory for AST");
     goto err;
   }
-  //printf("-> parsing...\n");
   if (fh_parse(&prog->parser, ast, in) < 0)
     goto err;
   //fh_dump_ast(ast);
 
-  // compile
-  //printf("-> compiling...\n");
   if (fh_compile(&prog->compiler, ast) < 0)
     goto err;
-  //printf("-> ok\n");
   //fh_dump_bc(prog);
 
   fh_free_ast(ast);

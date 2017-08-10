@@ -52,7 +52,7 @@ static int ensure_stack_size(struct fh_vm *vm, int size)
   return 0;
 }
 
-struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_func *func, int ret_reg, int n_args)
+static struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_func *func, int ret_reg, int n_args)
 {
   if (ensure_stack_size(vm, ret_reg + 1 + func->n_regs) < 0)
     return NULL;
@@ -75,7 +75,7 @@ struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_func *func, in
   return frame;
 }
 
-struct fh_vm_call_frame *prepare_c_call(struct fh_vm *vm, int ret_reg, int n_args)
+static struct fh_vm_call_frame *prepare_c_call(struct fh_vm *vm, int ret_reg, int n_args)
 {
   if (ensure_stack_size(vm, ret_reg + 1 + n_args) < 0)
     return NULL;

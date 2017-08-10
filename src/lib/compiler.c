@@ -114,7 +114,7 @@ static int get_cur_pc(struct fh_compiler *c, struct fh_src_loc loc)
   return fi->code.num;
 }
 
-const char *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
+static const char *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
 {
   const char *name = fh_get_ast_symbol(c->ast, sym);
   if (! name)

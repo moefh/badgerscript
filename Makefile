@@ -10,7 +10,7 @@ TEST_FILE = tests/test.fh
 
 TARGETS = debug release ubsan
 
-.PHONY: $(TARGETS) build clean check test
+.PHONY: $(TARGETS) build clean check test dump_exported_symbols
 
 all: debug
 
@@ -42,3 +42,6 @@ check: debug
 
 test: debug
 	src/fh tests/mandel_color.fh
+
+dump_exported_symbols: debug
+	nm src/lib/libfh.a | grep " [A-TV-Z] "
