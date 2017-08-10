@@ -48,7 +48,7 @@ const char *fh_get_string(const struct fh_value *val)
 
 struct fh_func *fh_get_func(const struct fh_value *val)
 {
-  if (val->type != FH_VAL_STRING)
+  if (val->type != FH_VAL_FUNC)
     return NULL;
   return GET_OBJ_FUNC(val->data.obj);
 }
@@ -60,9 +60,14 @@ struct fh_func *fh_get_func(const struct fh_value *val)
  * of program objects.
  *************************************************************************/
 
-static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_type type, size_t extra_size)
+static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_type type, size_t size)
 {
-  struct fh_object *obj = malloc(sizeof(struct fh_object) + extra_size);
+  if (size < sizeof(struct fh_object_header)) {
+    fh_set_error(prog, "trying to create object with small size");
+    return NULL;
+  }
+  
+  struct fh_object *obj = malloc(size);
   if (! obj) {
     fh_set_error(prog, "out of memory");
     return NULL;
@@ -76,26 +81,26 @@ static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_t
 
 struct fh_func *fh_make_func(struct fh_program *prog)
 {
-  struct fh_func *func = (struct fh_func *) fh_make_object(prog, FH_VAL_FUNC, 0);
+  struct fh_func *func = (struct fh_func *) fh_make_object(prog, FH_VAL_FUNC, sizeof(struct fh_func));
   if (! func)
     return NULL;
   func->gc_next_container = NULL;
   return func;
 }
 
-struct fh_string *fh_make_string(struct fh_program *prog, const char *str)
+struct fh_object *fh_make_string(struct fh_program *prog, const char *str)
 {
   return fh_make_string_n(prog, str, strlen(str)+1);
 }
 
-struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len)
+struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len)
 {
-  struct fh_object *obj = fh_make_object(prog, FH_VAL_STRING, str_len);
+  struct fh_object *obj = fh_make_object(prog, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
   if (! obj)
     return NULL;
   memcpy(GET_OBJ_STRING(obj), str, str_len);
   obj->obj.str.size = str_len;
-  return (struct fh_string *) obj;
+  return obj;
 }
 
 /*************************************************************************
@@ -136,12 +141,12 @@ struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
-  struct fh_string *s = fh_make_string_n(prog, str, str_len);
-  if (! s) {
+  struct fh_object *obj = fh_make_string_n(prog, str, str_len);
+  if (! obj) {
     fh_pop(&prog->c_vals, NULL);
     return prog->null_value;
   }
   val->type = FH_VAL_STRING;
-  val->data.obj = s;
+  val->data.obj = obj;
   return *val;
 }

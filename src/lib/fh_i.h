@@ -47,7 +47,6 @@ typedef int fh_string_id;
 struct fh_value;
 struct fh_vm;
 struct fh_func;
-struct fh_bc;
 struct fh_output;
 struct fh_symtab;
 struct fh_tokenizer;

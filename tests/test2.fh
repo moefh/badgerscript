@@ -1,5 +1,13 @@
 
+function f() {}
+
 function main()
 {
+  var x;
+  f();
+  f();
+  f();
   printf("%x\n", -1);
+  printf("%s\n", x);
+  printf("%s\n", f);
 }

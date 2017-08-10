@@ -20,7 +20,7 @@ struct fh_gc_state {
 #ifdef DEBUG_GC
 static void dump_obj(const char *prefix, struct fh_object *obj)
 {
-  printf("%s object of type %d", prefix, obj->obj.header.type);
+  printf("%s object %p of type %d", prefix, obj, obj->obj.header.type);
   switch (obj->obj.header.type) {
   case FH_VAL_STRING:
     printf(" (string) ");
@@ -51,7 +51,7 @@ static void sweep(struct fh_program *prog)
       objs = &cur->obj.header.next;
     } else {
       *objs = cur->obj.header.next;
-      PRINT(dump_obj("-> freeing", cur);)
+      PRINT(dump_obj("-> FREEING", cur);)
       fh_free_object(cur);
     }      
   }
@@ -74,7 +74,7 @@ void fh_free_program_objects(struct fh_program *prog)
 
 static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
 {
-  PRINT(dump_obj("-> marking ", obj);)
+  PRINT(dump_obj("-> marking", obj);)
   
   obj->obj.header.gc_mark = 1;
   switch (obj->obj.header.type) {
@@ -94,6 +94,8 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
 
 static void mark_func_children(struct fh_gc_state *gc, struct fh_func *func)
 {
+  if (func->name)
+    MARK_OBJECT(gc, func->name);
   for (int i = 0; i < func->n_consts; i++)
     MARK_VALUE(gc, &func->consts[i]);
 }
@@ -125,8 +127,8 @@ static void mark(struct fh_program *prog)
   
   // mark functions
   PRINT(printf("***** marking functions\n");)
-  stack_foreach(struct fh_bc_func_info *, fi, &prog->bc.funcs) {
-    MARK_OBJECT(&gc, (struct fh_object *) fi->func);
+  stack_foreach(struct fh_func **, pf, &prog->funcs) {
+    MARK_OBJECT(&gc, (struct fh_object *) *pf);
   }
 
   // mark stack

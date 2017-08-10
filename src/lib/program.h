@@ -16,8 +16,8 @@ struct fh_program {
   struct fh_value null_value;
   struct fh_parser parser;
   struct fh_compiler compiler;
-  struct fh_bc bc;            // BC funcs contains GC roots (function constants)
   struct fh_vm vm;            // VM stack contains GC roots (stack values)
+  struct fh_stack funcs;      // GC roots (global functions)
   struct fh_stack c_vals;     // GC roots (values held by running C functions)
   struct fh_object *objects;  // all created objects
 };

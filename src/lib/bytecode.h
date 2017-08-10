@@ -15,7 +15,7 @@ enum fh_bc_opcode {
   OPC_CALL,
 
   OPC_MOV,
-  OPC_LD0,
+  OPC_LDNULL,
   OPC_LDC,
   
   OPC_JMP,
@@ -53,28 +53,14 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
-struct fh_bc_func_info {
-  fh_symbol_id name;
-  struct fh_func *func;
-};
+struct fh_func *fh_add_bc_func(struct fh_program *prog, struct fh_src_loc loc, const char *name, int n_params);
 
-struct fh_bc {
-  struct fh_program *prog;
-  struct fh_symtab *symtab;
-  struct fh_stack funcs;     /* fh_bc_func_info */
-};
+int fh_get_bc_num_funcs(struct fh_program *prog);
+struct fh_func *fh_get_bc_func(struct fh_program *prog, int num);
+struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name);
+const char *fh_get_bc_func_name(struct fh_program *prog, int num);
 
-int fh_init_bc(struct fh_bc *bc, struct fh_program *prog);
-void fh_destroy_bc(struct fh_bc *bc);
-
-struct fh_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params);
-
-int fh_get_bc_num_funcs(struct fh_bc *bc);
-struct fh_func *fh_get_bc_func(struct fh_bc *bc, int num);
-struct fh_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name);
-const char *fh_get_bc_func_name(struct fh_bc *bc, int num);
-
-void fh_dump_bc(struct fh_bc *bc);
-void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr);
+void fh_dump_bc(struct fh_program *prog);
+void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t addr, uint32_t instr);
 
 #endif /* BYTECODE_H_FILE */

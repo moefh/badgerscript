@@ -44,17 +44,9 @@ static int ensure_stack_size(struct fh_vm *vm, int size)
   if (vm->stack_size >= size)
     return 0;
   int new_size = (size + 1024 + 1) / 1024 * 1024;
-  //int new_size = (size + 4 + 1) / 4 * 4;
   void *new_stack = realloc(vm->stack, new_size * sizeof(struct fh_value));
   if (! new_stack)
     return vm_error(vm, "out of memory");
-#if 0
-  if (new_stack != vm->stack) {
-    printf("**********************************************************\n");
-    printf("********** STACK MOVED ***********************************\n");
-    printf("**********************************************************\n");
-  }
-#endif
   vm->stack = new_stack;
   vm->stack_size = new_size;
   return 0;
@@ -120,7 +112,7 @@ static void dump_regs(struct fh_vm *vm)
 
 int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
-  struct fh_func *func = fh_get_bc_func_by_name(&vm->prog->bc, name);
+  struct fh_func *func = fh_get_bc_func_by_name(vm->prog, name);
   if (! func)
     return vm_error(vm, "function '%s' doesn't exist", name);
   
@@ -210,14 +202,19 @@ int fh_run_vm(struct fh_vm *vm)
   }
   while (1) {
     //dump_regs(vm);
-    //fh_dump_bc_instr(&vm->prog->bc, NULL, -1, *pc);
+    //fh_dump_bc_instr(vm->prog, NULL, -1, *pc);
     
     uint32_t instr = *pc++;
     struct fh_value *ra = &reg_base[GET_INSTR_RA(instr)];
     switch (GET_INSTR_OP(instr)) {
       handle_op(OPC_LDC) {
         *ra = const_base[GET_INSTR_RU(instr)];
-        break;      
+        break;
+      }
+
+      handle_op(OPC_LDNULL) {
+        ra->type = FH_VAL_NULL;
+        break;
       }
 
       handle_op(OPC_MOV) {
@@ -231,7 +228,7 @@ int fh_run_vm(struct fh_vm *vm)
         if (has_val)
           vm->stack[frame->base-1] = *ra;
         else
-          memset(&vm->stack[frame->base-1], 0, sizeof(struct fh_value));
+          vm->stack[frame->base-1].type = FH_VAL_NULL;
         uint32_t *ret_addr = frame->ret_addr;
         fh_pop(&vm->call_stack, NULL);
         if (vm->call_stack.num == 0 || ! ret_addr) {
@@ -437,7 +434,7 @@ int fh_run_vm(struct fh_vm *vm)
   printf("** instruction that caused error:\n");
   struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
   int addr = (frame) ? pc - 1 - frame->func->code : -1;
-  fh_dump_bc_instr(&vm->prog->bc, NULL, addr, pc[-1]);
+  fh_dump_bc_instr(vm->prog, NULL, addr, pc[-1]);
   printf("----------------------------\n");
 
  c_func_err:

@@ -19,14 +19,12 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
+  fh_init_stack(&prog->funcs, sizeof(struct fh_func *));
 
   fh_init_vm(&prog->vm, prog);
   fh_init_parser(&prog->parser, prog);
   fh_init_compiler(&prog->compiler, prog);
   fh_init_stack(&prog->c_vals, sizeof(struct fh_value));
-
-  if (fh_init_bc(&prog->bc, prog) < 0)
-    goto err;
 
   if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
     goto err;
@@ -34,8 +32,8 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
+  fh_free_stack(&prog->funcs);
   fh_free_stack(&prog->c_vals);
-  fh_destroy_bc(&prog->bc);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);  
   free(prog);
@@ -45,14 +43,14 @@ struct fh_program *fh_new_program(void)
 void fh_free_program(struct fh_program *prog)
 {
   fh_collect_garbage(prog);
+  fh_free_program_objects(prog);
   
+  fh_free_stack(&prog->funcs);
   fh_free_stack(&prog->c_vals);
   fh_destroy_vm(&prog->vm);
-  fh_destroy_bc(&prog->bc);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);
 
-  fh_free_program_objects(prog);
   free(prog);
 }
 
@@ -118,10 +116,10 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
 
   // compile
   //printf("-> compiling...\n");
-  if (fh_compile(&prog->compiler, &prog->bc, ast) < 0)
+  if (fh_compile(&prog->compiler, ast) < 0)
     goto err;
   //printf("-> ok\n");
-  //fh_dump_bc(&prog->bc);
+  //fh_dump_bc(prog);
 
   fh_free_ast(ast);
   fh_close_input(in);

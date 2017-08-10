@@ -93,11 +93,15 @@ static void dump_instr_ra_b(struct fh_output *out, uint32_t instr)
   fh_output(out, "r%d, %d\n", a, b);
 }
 
-void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uint32_t instr)
+void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t addr, uint32_t instr)
 {
-  UNUSED(bc);
-  
-  fh_output(out, "%-5d  %08x     ", addr, instr);
+  UNUSED(prog);
+
+  if (addr >= 0)
+    fh_output(out, "%-5d", addr);
+  else
+    fh_output(out, "     ");
+  fh_output(out, "%08x     ", instr);
   enum fh_bc_opcode opc = GET_INSTR_OP(instr);
   switch (opc) {
   case OPC_RET:
@@ -124,7 +128,7 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
   case OPC_TEST:    fh_output(out, "test    "); dump_instr_ra_b(out, instr); return;
   case OPC_JMP:     fh_output(out, "jmp     %d            ; to %d\n",  GET_INSTR_RS(instr), addr + 1 + GET_INSTR_RS(instr)); return;
     
-  case OPC_LD0:     fh_output(out, "ld0     r%d\n",            GET_INSTR_RA(instr)); return;
+  case OPC_LDNULL:  fh_output(out, "ldnull  r%d\n",            GET_INSTR_RA(instr)); return;
   case OPC_LDC:     fh_output(out, "ldc     r%d, c[%d]\n",     GET_INSTR_RA(instr), GET_INSTR_RU(instr)); return;
   }
 
@@ -159,21 +163,21 @@ static void dump_const(struct fh_value *c, struct fh_output *out)
   fh_output(out, "<INVALID CONSTANT TYPE: %d>\n", c->type);
 }
 
-void fh_dump_bc(struct fh_bc *bc)
+void fh_dump_bc(struct fh_program *prog)
 {
-  int n_funcs = fh_get_bc_num_funcs(bc);
+  int n_funcs = fh_get_bc_num_funcs(prog);
 
   struct fh_output *out = NULL;
   
   for (int i = 0; i < n_funcs; i++) {
-    struct fh_func *func = fh_get_bc_func(bc, i);
-    const char *func_name = fh_get_bc_func_name(bc, i);
+    struct fh_func *func = fh_get_bc_func(prog, i);
+    const char *func_name = fh_get_bc_func_name(prog, i);
 
     fh_output(out, "; ===================================================\n");
     fh_output(out, "; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
 
     for (int i = 0; i < func->code_size; i++)
-      fh_dump_bc_instr(bc, out, i, func->code[i]);
+      fh_dump_bc_instr(prog, out, i, func->code[i]);
 
     fh_output(out, "\n; %d constants\n", func->n_consts);
     for (int j = 0; j < func->n_consts; j++) {

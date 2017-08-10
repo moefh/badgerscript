@@ -8,12 +8,13 @@
 static void print_value(struct fh_value *val)
 {
   switch (val->type) {
-  case FH_VAL_NUMBER: printf("%g", val->data.num); break;
-  case FH_VAL_STRING: printf("%s", fh_get_string(val));  break;
-  case FH_VAL_FUNC: printf("<func %p>", val->data.obj); break;
-  case FH_VAL_C_FUNC: printf("<C func %p>", val->data.c_func); break;
-  default: printf("<invalid value %d>", val->type); break;
+  case FH_VAL_NULL: printf("null"); return;
+  case FH_VAL_NUMBER: printf("%g", val->data.num); return;
+  case FH_VAL_STRING: printf("%s", fh_get_string(val));  return;
+  case FH_VAL_FUNC: printf("<function %p>", val->data.obj); return;
+  case FH_VAL_C_FUNC: printf("<C function %p>", val->data.c_func); return;
   }
+  printf("<invalid value %d>", val->type);
 }
 
 int fh_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)

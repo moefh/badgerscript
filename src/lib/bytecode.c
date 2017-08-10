@@ -5,38 +5,16 @@
 #include <stdio.h>
 
 #include "bytecode.h"
+#include "program.h"
 
-int fh_init_bc(struct fh_bc *bc, struct fh_program *prog)
-{
-  bc->prog = prog;
-  bc->symtab = NULL;
-  fh_init_stack(&bc->funcs, sizeof(struct fh_bc_func_info));
-
-  bc->symtab = fh_new_symtab();
-  if (! bc->symtab)
-    goto err;
-  
-  return 0;
-
- err:
-  fh_destroy_bc(bc);
-  return -1;
-}
-
-void fh_destroy_bc(struct fh_bc *bc)
-{
-  fh_free_stack(&bc->funcs);
-  if (bc->symtab)
-    fh_free_symtab(bc->symtab);
-}
-
-struct fh_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const char *name, int n_params)
+struct fh_func *fh_add_bc_func(struct fh_program *prog, struct fh_src_loc loc, const char *name, int n_params)
 {
   UNUSED(loc); // TODO: record source location
 
-  struct fh_func *func = fh_make_func(bc->prog);
+  struct fh_func *func = fh_make_func(prog);
   if (! func)
     return NULL;
+  func->name = fh_make_string(prog, name);
   func->n_params = n_params;
   func->n_regs = 0;
   func->code = NULL;
@@ -44,48 +22,41 @@ struct fh_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const ch
   func->consts = NULL;
   func->n_consts = 0;
 
-  fh_symbol_id name_id = fh_add_symbol(bc->symtab, name);
-  if (name_id < 0)
+  if (! fh_push(&prog->funcs, &func))
     return NULL;
-  
-  struct fh_bc_func_info *fi = fh_push(&bc->funcs, NULL);
-  if (! fi)
-    return NULL;
-  fi->name = name_id;
-  fi->func = func;
   return func;
 }
 
-int fh_get_bc_num_funcs(struct fh_bc *bc)
+int fh_get_bc_num_funcs(struct fh_program *prog)
 {
-  return bc->funcs.num;
+  return prog->funcs.num;
 }
 
-struct fh_func *fh_get_bc_func(struct fh_bc *bc, int num)
+struct fh_func *fh_get_bc_func(struct fh_program *prog, int num)
 {
-  struct fh_bc_func_info *fi = fh_stack_item(&bc->funcs, num);
-  if (! fi)
+  struct fh_func **pf = fh_stack_item(&prog->funcs, num);
+  if (! pf)
     return NULL;
-  return fi->func;
+  return *pf;
 }
 
-struct fh_func *fh_get_bc_func_by_name(struct fh_bc *bc, const char *name)
+struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name)
 {
-  fh_symbol_id name_id = fh_get_symbol_id(bc->symtab, name);
-  if (name_id < 0)
-    return NULL;
-  
-  stack_foreach(struct fh_bc_func_info *, fi, &bc->funcs) {
-    if (fi->name == name_id)
-      return fi->func;
+  stack_foreach(struct fh_func **, pf, &prog->funcs) {
+    struct fh_func *func = *pf;
+    if (func->name != NULL && strcmp(GET_OBJ_STRING(func->name), name) == 0)
+      return func;
   }
   return NULL;
 }
 
-const char *fh_get_bc_func_name(struct fh_bc *bc, int num)
+const char *fh_get_bc_func_name(struct fh_program *prog, int num)
 {
-  struct fh_bc_func_info *fi = fh_stack_item(&bc->funcs, num);
-  if (! fi)
+  struct fh_func **pf = fh_stack_item(&prog->funcs, num);
+  if (! pf)
     return NULL;
-  return fh_get_symbol_name(bc->symtab, fi->name);
+  struct fh_func *func = *pf;
+  if (! func->name)
+    return NULL;
+  return GET_OBJ_STRING(func->name);
 }
