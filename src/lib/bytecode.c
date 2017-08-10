@@ -6,11 +6,6 @@
 
 #include "bytecode.h"
 
-struct fh_bc_func_info {
-  fh_symbol_id name;
-  struct fh_func *func;
-};
-
 int fh_init_bc(struct fh_bc *bc, struct fh_program *prog)
 {
   bc->prog = prog;
@@ -39,8 +34,7 @@ struct fh_func *fh_add_bc_func(struct fh_bc *bc, struct fh_src_loc loc, const ch
 {
   UNUSED(loc); // TODO: record source location
 
-  struct fh_object *obj = fh_new_object(bc->prog, FH_VAL_FUNC, 0);
-  struct fh_func *func = &obj->obj.func;
+  struct fh_func *func = fh_make_func(bc->prog);
   if (! func)
     return NULL;
   func->n_params = n_params;

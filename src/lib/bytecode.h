@@ -53,10 +53,15 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
+struct fh_bc_func_info {
+  fh_symbol_id name;
+  struct fh_func *func;
+};
+
 struct fh_bc {
   struct fh_program *prog;
   struct fh_symtab *symtab;
-  struct fh_stack funcs;
+  struct fh_stack funcs;     /* fh_bc_func_info */
 };
 
 int fh_init_bc(struct fh_bc *bc, struct fh_program *prog);

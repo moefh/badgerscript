@@ -6,11 +6,17 @@
 #include "fh_i.h"
 #include "stack.h"
 
+struct fh_vm_call_frame {
+  struct fh_func *func;
+  int base;
+  uint32_t *ret_addr;
+};
+
 struct fh_vm {
   struct fh_program *prog;
   struct fh_value *stack;
   int stack_size;
-  struct fh_stack call_stack;
+  struct fh_stack call_stack;  // fh_vm_call_frame
   uint32_t *pc;
   char *last_err_msg;
 };

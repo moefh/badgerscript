@@ -134,6 +134,10 @@ void fh_dump_bc_instr(struct fh_bc *bc, struct fh_output *out, int32_t addr, uin
 static void dump_const(struct fh_value *c, struct fh_output *out)
 {
   switch (c->type) {
+  case FH_VAL_NULL:
+    fh_output(out, "NULL\n");
+    return;
+    
   case FH_VAL_NUMBER:
     fh_output(out, "%f\n", c->data.num);
     return;

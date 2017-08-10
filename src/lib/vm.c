@@ -10,12 +10,6 @@
 #include "program.h"
 #include "bytecode.h"
 
-struct fh_vm_call_frame {
-  struct fh_func *func;
-  int base;
-  uint32_t *ret_addr;
-};
-
 void fh_init_vm(struct fh_vm *vm, struct fh_program *prog)
 {
   vm->prog = prog;
@@ -168,17 +162,14 @@ static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, s
   
   int r = func(vm->prog, ret, args, n_args);
 
-  // release any objects created by the C function
-  while (vm->prog->c_vals.num > num_c_vals) {
-    fh_pop(&vm->prog->c_vals, NULL);
-  }
-
+  vm->prog->c_vals.num = num_c_vals;  // release any objects created by the C function
   return r;
 }
 
 static int is_true(struct fh_value *val)
 {
   switch (val->type) {
+  case FH_VAL_NULL:   return 0;
   case FH_VAL_NUMBER: return val->data.num != 0.0;
   case FH_VAL_STRING: return fh_get_string(val)[0] != '\0';
   case FH_VAL_FUNC:   return 1;
@@ -192,6 +183,7 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
   if (v1->type != v2->type)
     return 0;
   switch (v1->type) {
+  case FH_VAL_NULL:   return 1;
   case FH_VAL_NUMBER: return v1->data.num == v2->data.num;
   case FH_VAL_STRING: return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
   case FH_VAL_FUNC:   return v1->data.obj == v2->data.obj;

@@ -1,7 +1,7 @@
 
 function test(x)
 {
-  printf("In function test(), x=%d\n", x);
+  printf("In function test(), x=%s\n", x);
 }
 
 function main() {
@@ -14,10 +14,12 @@ function main() {
       i = i + 1;
       continue;
     }
+    add_garbage();
     printf("i=%d\n", i);
     i = i + 1;
   }
 
-  test(42);
+  gc();
+  test("hi");
   return 1;
 }

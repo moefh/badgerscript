@@ -20,7 +20,7 @@ int fh_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *arg
 {
   for (int i = 0; i < n_args; i++)
     print_value(&args[i]);
-  fh_make_number(prog, ret, 0);
+  *ret = fh_new_number(prog, 0);
   return 0;
 }
 
@@ -75,7 +75,7 @@ int fh_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
   }
   
  end:
-  fh_make_number(prog, ret, 0);
+  *ret = fh_new_number(prog, 0);
   return 0;
 }
 

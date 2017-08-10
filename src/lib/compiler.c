@@ -105,6 +105,8 @@ static void pop_func_info(struct fh_compiler *c)
     return;
   fh_free_stack(&fi.regs);
   fh_free_stack(&fi.fix_break_addrs);
+  fh_free_stack(&fi.code);
+  fh_free_stack(&fi.consts);
 }
 
 static int get_cur_pc(struct fh_compiler *c, struct fh_src_loc loc)
@@ -226,10 +228,13 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   struct fh_value *val = add_const(c, loc);
   if (! c)
     return -1;
-  if (fh_make_string(c->prog, val, str) < 0) {
+  struct fh_string *obj = fh_make_string(c->prog, str);
+  if (! obj) {
     fh_pop(&fi->consts, NULL);
     return -1;
   }
+  val->type = FH_VAL_STRING;
+  val->data.obj = obj;
   return k;
 }
 
@@ -960,25 +965,25 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   struct func_info *fi = new_func_info(c, bc_func);
   if (! fi) {
     fh_compiler_error(c, loc, "out of memory");
-    return -1;
+    goto err;
   }
 
   for (int i = 0; i < func->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
-      return -1;
+      goto err;
   }
 
   if (compile_block(c, loc, &func->body) < 0)
-    return -1;
+    goto err;
 
   if (func->body.n_stmts == 0 || func->body.stmts[func->body.n_stmts-1]->type != STMT_RETURN) {
     if (add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0)) < 0)
-      return -1;
+      goto err;
   }
 
   if (fh_stack_shrink_to_fit(&fi->code) < 0 || fh_stack_shrink_to_fit(&fi->consts) < 0) {
     fh_compiler_error(c, loc, "out of memory");
-    return -1;
+    goto err;
   }
     
   bc_func->n_regs = fi->num_regs;
@@ -993,6 +998,10 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   
   pop_func_info(c);
   return 0;
+
+ err:
+  pop_func_info(c);
+  return -1;
 }
 
 static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func *bc_func)

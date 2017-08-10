@@ -32,7 +32,7 @@ Feature                  | Status
 Parsing to AST           | Works
 Bytecode compilation     | Works
 VM (bytecode execution)  | Works
-Garbage collection       | TODO
+Garbage collection       | In progress
 
 
 ### TODO

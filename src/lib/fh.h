@@ -16,6 +16,7 @@ struct fh_input_funcs {
 
 enum fh_value_type {
   // non-object values (no heap usage):
+  FH_VAL_NULL,
   FH_VAL_NUMBER,
   FH_VAL_C_FUNC,
   
@@ -63,11 +64,14 @@ const char *fh_get_error(struct fh_program *prog);
 int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 
-void fh_make_number(struct fh_program *prog, struct fh_value *val, double num);
-int fh_make_string(struct fh_program *prog, struct fh_value *val, const char *str);
-int fh_make_string_n(struct fh_program *prog, struct fh_value *val, const char *str, size_t str_len);
-void fh_make_c_func(struct fh_program *prog, struct fh_value *val, fh_c_func func);
+#define fh_new_null(prog) ((prog)->null_value)
+struct fh_value fh_new_number(struct fh_program *prog, double num);
+struct fh_value fh_new_string(struct fh_program *prog, const char *str);
+struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len);
+struct fh_value fh_new_c_func(struct fh_program *prog, fh_c_func func);
 
 const char *fh_get_string(const struct fh_value *val);
+
+void fh_collect_garbage(struct fh_program *prog);
 
 #endif /* FH_H_FILE */
