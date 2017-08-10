@@ -6,7 +6,7 @@ CFLAGS = -Wall -Wextra -std=c99
 LDFLAGS =
 LIBS = -lm
 
-TEST_FILE = tests/test.fh
+CHECK_SCRIPT = tests/test.fh
 
 TARGETS = debug release ubsan
 
@@ -38,7 +38,7 @@ build:
 	@echo
 
 check: debug
-	valgrind --track-origins=yes --leak-check=full src/fh $(TEST_FILE) arg1 arg2
+	valgrind --track-origins=yes --leak-check=full src/fh $(CHECK_SCRIPT) arg1 arg2
 
 test: debug
 	src/fh tests/mandel_color.fh

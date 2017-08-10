@@ -118,7 +118,7 @@ static void mark_func_children(struct fh_gc_state *gc, struct fh_func *func)
 
 static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
 {
-  for (uint32_t i = 0; i < arr->size; i++)
+  for (int i = 0; i < arr->len; i++)
     MARK_VALUE(gc, &arr->items[i]);
 }
 

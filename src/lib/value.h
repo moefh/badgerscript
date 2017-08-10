@@ -22,9 +22,9 @@ struct fh_string {
 struct fh_array {
   OBJ_HEADER;
   struct fh_object *gc_next_container;
-  uint32_t size;
-  uint32_t cap;
   struct fh_value *items;
+  int len;
+  int cap;
 };
 
 struct fh_func {

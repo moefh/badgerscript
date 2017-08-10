@@ -46,7 +46,7 @@ void fh_dump_value(const struct fh_value *val)
   case FH_VAL_NULL: printf("NULL"); return;
   case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
   case FH_VAL_STRING: printf("STRING("); fh_dump_string(fh_get_string(val)); printf(")"); return;
-  case FH_VAL_ARRAY: printf("ARRAY(size=%d)", fh_get_array(val)->size); return;
+  case FH_VAL_ARRAY: printf("ARRAY(size=%d)", fh_get_array_len(val)); return;
   case FH_VAL_FUNC: printf("FUNC(%p)", (void *) fh_get_func(val)); return;
   case FH_VAL_C_FUNC: printf("C_FUNC"); return;
   }

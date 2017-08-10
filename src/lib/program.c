@@ -6,10 +6,12 @@
 #include "program.h"
 #include "c_funcs.h"
 
+#define DEF_FN(name)  { #name, fh_fn_##name }
+
 static const struct fh_named_c_func c_funcs[] = {
-  { "print", fh_print },
-  { "printf", fh_printf },
-  { "len", fh_len },
+  DEF_FN(print),
+  DEF_FN(printf),
+  DEF_FN(len),
 };
 
 struct fh_program *fh_new_program(void)

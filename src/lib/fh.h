@@ -66,17 +66,23 @@ int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((f
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 void fh_collect_garbage(struct fh_program *prog);
 
+// misc values
 #define fh_new_null(prog) ((prog)->null_value)
-struct fh_value fh_new_number(struct fh_program *prog, double num);
-struct fh_value fh_new_array(struct fh_program *prog);
-struct fh_value fh_new_string(struct fh_program *prog, const char *str);
-struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len);
 struct fh_value fh_new_c_func(struct fh_program *prog, fh_c_func func);
 
+// number
+struct fh_value fh_new_number(struct fh_program *prog, double num);
+#define fh_get_number(val) ((val)->data.num)
+
+// string
+struct fh_value fh_new_string(struct fh_program *prog, const char *str);
+struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len);
 const char *fh_get_string(const struct fh_value *str);
 
-uint32_t fh_get_array_size(const struct fh_value *arr);
-struct fh_value *fh_get_array_item(struct fh_value *arr, uint32_t index);
-struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, uint32_t num_items);
+// array
+struct fh_value fh_new_array(struct fh_program *prog);
+int fh_get_array_len(const struct fh_value *arr);
+struct fh_value *fh_get_array_item(struct fh_value *arr, int index);
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items);
 
 #endif /* FH_H_FILE */

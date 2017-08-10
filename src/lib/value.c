@@ -1,5 +1,6 @@
 /* value.c */
 
+#include <limits.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -71,46 +72,48 @@ struct fh_array *fh_get_array(const struct fh_value *val)
   return GET_OBJ_ARRAY(val->data.obj);
 }
 
-uint32_t fh_get_array_size(const struct fh_value *val)
+int fh_get_array_len(const struct fh_value *val)
 {
   if (val->type != FH_VAL_ARRAY)
-    return 0;
-  return GET_OBJ_ARRAY(val->data.obj)->size;
+    return -1;
+  return GET_OBJ_ARRAY(val->data.obj)->len;
 }
 
-struct fh_value *fh_get_array_item(struct fh_value *val, uint32_t index)
+struct fh_value *fh_get_array_item(struct fh_value *val, int index)
 {
   if (val->type != FH_VAL_ARRAY)
     return NULL;
 
   struct fh_array *arr = GET_OBJ_ARRAY(val->data.obj);
-  if (index >= arr->size)
+  if (index < 0 || index >= arr->len)
     return NULL;
   return &arr->items[index];
 }
 
-struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, uint32_t num_items)
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items)
 {
   if (val->type != FH_VAL_ARRAY)
     return NULL;
 
   struct fh_array *arr = GET_OBJ_ARRAY(val->data.obj);
-  if (arr->size + num_items < arr->size)
-    return NULL; // overflow
-  if (arr->size + num_items >= arr->cap) {
-    uint32_t new_cap = (arr->cap + 16) / 16 * 16;
+  if (num_items <= 0
+      || (size_t) arr->len + num_items + 15 < (size_t) arr->len
+      || (size_t) arr->len + num_items + 15 > INT_MAX)
+    return NULL;
+  if (arr->len + num_items >= arr->cap) {
+    size_t new_cap = ((size_t) arr->len + num_items + 15) / 16 * 16;
     void *new_items = realloc(arr->items, new_cap*sizeof(struct fh_value));
     if (! new_items) {
       fh_set_error(prog, "out of memory");
       return NULL;
     }
     arr->items = new_items;
-    arr->cap = new_cap;
+    arr->cap = (int) new_cap;
   }
-  struct fh_value *ret = &arr->items[arr->size];
-  for (uint32_t i = 0; i < num_items; i++)
+  struct fh_value *ret = &arr->items[arr->len];
+  for (int i = 0; i < num_items; i++)
     ret[i].type = FH_VAL_NULL;
-  arr->size += num_items;
+  arr->len += num_items;
   return ret;
 }
 
@@ -155,7 +158,7 @@ struct fh_array *fh_make_array(struct fh_program *prog)
   if (! arr)
     return NULL;
   arr->gc_next_container = NULL;
-  arr->size = 0;
+  arr->len = 0;
   arr->cap = 0;
   arr->items = NULL;
   return arr;
