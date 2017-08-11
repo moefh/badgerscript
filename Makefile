@@ -15,7 +15,7 @@ TARGETS = debug release ubsan
 all: debug
 
 debug:
-	$(MAKE) build TARGET_CFLAGS="-g" TARGET_LDFLAGS=""
+	$(MAKE) build TARGET_CFLAGS="-O1 -g" TARGET_LDFLAGS=""
 
 release:
 	$(MAKE) build TARGET_CFLAGS="-O2" TARGET_LDFLAGS="-s"

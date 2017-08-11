@@ -1,11 +1,22 @@
 
-function main(args)
+function print_array(arr)
 {
-  printf("num args: %d\n", len(args));
+  printf("array has %d elements:\n", len(arr));
   var i = 0;
-  while (i < len(args)) {
-    printf("arg[%d] = %s\n", i, args[i]);
+  while (i < len(arr)) {
+    printf("  [%d] = %s\n", i, arr[i]);
     i = i + 1;
   }
+}
+
+function main(args)
+{
+   printf("BEFORE: ");
+   print_array(args);
+
+   args[0] = "hello, world!";
+
+   printf("AFTER: ");
+   print_array(args);
 }
 

@@ -504,6 +504,56 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
           return left_reg;
       }
       return dest_reg;
+    } else if (expr->left->type == EXPR_INDEX) {
+      struct fh_p_expr *container_expr = expr->left->data.index.container;
+      int container_reg;
+      if (dest_reg >= 0 && container_expr->type == EXPR_VAR) {
+        container_reg = get_var_reg(c, container_expr->loc, container_expr->data.var);
+      } else if (container_expr->type == EXPR_NUMBER) {
+        container_reg = add_const_number(c, container_expr->loc, container_expr->data.num);
+        if (container_reg >= 0) container_reg += MAX_FUNC_REGS+1;
+      } else {
+        container_reg = compile_expr(c, container_expr, -1);
+      }
+      if (container_reg < 0)
+        return -1;
+
+      struct fh_p_expr *index_expr = expr->left->data.index.index;
+      int index_reg;
+      if (dest_reg >= 0 && index_expr->type == EXPR_VAR) {
+        index_reg = get_var_reg(c, index_expr->loc, index_expr->data.var);
+      } else if (index_expr->type == EXPR_NUMBER) {
+        index_reg = add_const_number(c, index_expr->loc, index_expr->data.num);
+        if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
+      } else if (expr->right->type == EXPR_STRING) {
+        index_reg = add_const_string(c, index_expr->loc, index_expr->data.str);
+        if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
+      } else {
+        index_reg = compile_expr(c, index_expr, -1);
+      }
+      if (index_reg < 0)
+        return -1;
+
+      int val_reg;
+      if (dest_reg >= 0 && expr->right->type == EXPR_VAR) {
+        val_reg = get_var_reg(c, expr->right->loc, expr->right->data.var);
+      } else if (expr->right->type == EXPR_NUMBER) {
+        val_reg = add_const_number(c, expr->right->loc, expr->right->data.num);
+        if (val_reg >= 0) val_reg += MAX_FUNC_REGS+1;
+      } else if (expr->right->type == EXPR_STRING) {
+        val_reg = add_const_string(c, expr->right->loc, expr->right->data.str);
+        if (val_reg >= 0) val_reg += MAX_FUNC_REGS+1;
+      } else {
+        val_reg = compile_expr(c, expr->right, dest_reg);
+      }
+      if (val_reg < 0)
+        return -1;
+      
+      if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_SETEL, container_reg, index_reg, val_reg)) < 0)
+        return -1;
+      if (dest_reg < 0)
+        return val_reg;
+      return dest_reg;
     } else {
       return fh_compiler_error(c, loc, "invalid assignment");
     }
@@ -646,7 +696,7 @@ static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh
     if (dest_reg < 0)
       return -1;
   }
-  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_INDEX, dest_reg, container_reg, index_reg)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_GETEL, dest_reg, container_reg, index_reg)) < 0)
     return -1;
   return dest_reg;
 }

@@ -122,7 +122,8 @@ void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t ad
   case OPC_MOV:     fh_output(out, "mov     "); dump_instr_ra_rkb(out, instr); return;
   case OPC_NOT:     fh_output(out, "not     "); dump_instr_ra_rkb(out, instr); return;
 
-  case OPC_INDEX:   fh_output(out, "index   "); dump_instr_ra_rkb_rkc(out, instr); return;
+  case OPC_GETEL:   fh_output(out, "getel   "); dump_instr_ra_rkb_rkc(out, instr); return;
+  case OPC_SETEL:   fh_output(out, "setel   "); dump_instr_ra_rkb_rkc(out, instr); return;
     
   case OPC_CMP_EQ:  fh_output(out, "cmp.eq  "); dump_instr_a_rkb_rkc(out, instr); return;
   case OPC_CMP_LT:  fh_output(out, "cmp.lt  "); dump_instr_a_rkb_rkc(out, instr); return;

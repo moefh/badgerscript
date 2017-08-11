@@ -241,12 +241,12 @@ int fh_run_vm(struct fh_vm *vm)
         goto changed_stack_frame;
       }
 
-      handle_op(OPC_INDEX) {
+      handle_op(OPC_GETEL) {
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type == FH_VAL_ARRAY) {
           if (rc->type != FH_VAL_NUMBER) {
-            vm_error(vm, "invalid index access with non-numeric index");
+            vm_error(vm, "invalid array access (non-numeric index)D");
             goto err;
           }
           struct fh_value *val = fh_get_array_item(rb, (int) rc->data.num);
@@ -257,7 +257,27 @@ int fh_run_vm(struct fh_vm *vm)
           *ra = *val;
           break;
         }
-        vm_error(vm, "invalid index access to non-container object");
+        vm_error(vm, "invalid element access (non-container object)");
+        goto err;
+      }
+
+      handle_op(OPC_SETEL) {
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
+        if (ra->type == FH_VAL_ARRAY) {
+          if (rb->type != FH_VAL_NUMBER) {
+            vm_error(vm, "invalid array access (non-numeric index)");
+            goto err;
+          }
+          struct fh_value *val = fh_get_array_item(ra, (int) rb->data.num);
+          if (! val) {
+            vm_error(vm, "invalid array index");
+            goto err;
+          }
+          *val = *rc;
+          break;
+        }
+        vm_error(vm, "invalid element access (non-container object)");
         goto err;
       }
 

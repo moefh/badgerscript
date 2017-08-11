@@ -24,7 +24,8 @@ enum fh_bc_opcode {
   OPC_CMP_LT,
   OPC_CMP_LE,
 
-  OPC_INDEX,
+  OPC_GETEL,
+  OPC_SETEL,
   
   OPC_ADD,
   OPC_SUB,
