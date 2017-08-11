@@ -83,5 +83,7 @@ struct fh_operator *fh_get_op(struct fh_op_table *ops, char *name);
 struct fh_operator *fh_get_op_by_id(struct fh_op_table *ops, uint32_t op);
 
 void fh_free_program_objects(struct fh_program *prog);
+fh_c_func fh_get_c_func_by_name(struct fh_program *prog, const char *name);
+const char *fh_get_c_func_name(struct fh_program *prog, fh_c_func func);
 
 #endif /* FH_I_H_FILE */

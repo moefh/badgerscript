@@ -281,6 +281,19 @@ int fh_run_vm(struct fh_vm *vm)
         goto err;
       }
 
+      handle_op(OPC_NEWARRAY) {
+        int n_elems = GET_INSTR_RU(instr);
+
+        struct fh_array *arr = fh_make_array(vm->prog);
+        struct fh_value *first;
+        if (! arr || (first = fh_grow_array_object(vm->prog, arr, n_elems)) == NULL)
+          goto err;
+        memcpy(first, ra + 1, n_elems*sizeof(struct fh_value));
+        ra->type = FH_VAL_ARRAY;
+        ra->data.obj = arr;
+        break;
+      }
+      
       handle_op(OPC_ADD) {
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
@@ -358,7 +371,7 @@ int fh_run_vm(struct fh_vm *vm)
         ra->data.num = (is_true(rb)) ? 0.0 : 1.0;
         break;
       }
-      
+
       handle_op(OPC_CALL) {
         //dump_regs(vm);
         struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);

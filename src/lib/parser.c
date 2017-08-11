@@ -28,8 +28,7 @@ void fh_init_parser(struct fh_parser *p, struct fh_program *prog)
 
 void fh_destroy_parser(struct fh_parser *p)
 {
-  UNUSED(p);
-  /* nothing to destroy :) */
+  reset_parser(p);
 }
 
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
@@ -122,7 +121,7 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
   return 0;
 }
 
-static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
+static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args, char stop_char)
 {
   struct fh_token tok;
   struct expr_stack args;
@@ -131,11 +130,12 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
 
   if (get_token(p, &tok) < 0)
     goto err;
-
-  if (! tok_is_punct(&tok, ')')) {
+  
+  char end_expr_chars[3] = { stop_char, ',', '\0' };
+  if (! tok_is_punct(&tok, (uint8_t)stop_char)) {
     unget_token(p, &tok);
     while (1) {
-      struct fh_p_expr *e = parse_expr(p, false, ",)");
+      struct fh_p_expr *e = parse_expr(p, false, end_expr_chars);
       if (! e)
         goto err;
       if (! expr_stack_push(&args, e)) {
@@ -146,11 +146,11 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
       
       if (get_token(p, &tok) < 0)
         goto err;
-      if (tok_is_punct(&tok, ')'))
+      if (tok_is_punct(&tok, (uint8_t)stop_char))
         break;
       if (tok_is_punct(&tok, ','))
         continue;
-      fh_parse_error_expected(p, tok.loc, "',' or ')'");
+      fh_parse_error(p, tok.loc, "expected ',' or '%c'", stop_char);
       goto err;
     }
   }
@@ -289,7 +289,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
         expr->data.func_call.func = func;
-        expr->data.func_call.n_args = parse_arg_list(p, &expr->data.func_call.args);
+        expr->data.func_call.n_args = parse_expr_list(p, &expr->data.func_call.args, ')');
         if (expr->data.func_call.n_args < 0) {
           free(expr);
           fh_free_expr(func);
@@ -344,8 +344,15 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
     if (tok_is_punct(&tok, '[')) {
       struct fh_p_expr *expr;
       if (expect_opn) {
-        fh_parse_error(p, tok.loc, "parsing of array literal not implemented");
-        goto err;
+        expr = new_expr(p, tok.loc, EXPR_ARRAY_LIT);
+        if (! expr)
+          goto err;
+        expr->data.array_lit.n_elems = parse_expr_list(p, &expr->data.array_lit.elems, ']');
+        if (expr->data.array_lit.n_elems < 0) {
+          free(expr);
+          goto err;
+        }
+        expect_opn = false;
       } else {
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, FUNC_CALL_PREC) < 0)
           goto err;

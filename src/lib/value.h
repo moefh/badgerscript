@@ -51,8 +51,6 @@ struct fh_object {
   } obj;
 };
 
-void fh_free_object(struct fh_object *obj);
-
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
 #define GET_OBJ_FUNC(o)   ((struct fh_func *) (o))
 #define GET_OBJ_ARRAY(o)  ((struct fh_array *) (o))
@@ -72,5 +70,9 @@ struct fh_func *fh_make_func(struct fh_program *prog);
 struct fh_array *fh_make_array(struct fh_program *prog);
 struct fh_object *fh_make_string(struct fh_program *prog, const char *str);
 struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len);
+
+// object functions
+void fh_free_object(struct fh_object *obj);
+struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items);
 
 #endif /* VALUE_H_FILE */

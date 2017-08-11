@@ -26,6 +26,7 @@ enum fh_bc_opcode {
 
   OPC_GETEL,
   OPC_SETEL,
+  OPC_NEWARRAY,
   
   OPC_ADD,
   OPC_SUB,
@@ -63,7 +64,6 @@ struct fh_func *fh_get_bc_func(struct fh_program *prog, int num);
 struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name);
 const char *fh_get_bc_func_name(struct fh_program *prog, int num);
 
-void fh_dump_bc(struct fh_program *prog);
 void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t addr, uint32_t instr);
 
 #endif /* BYTECODE_H_FILE */

@@ -76,12 +76,11 @@ struct fh_value *fh_get_array_item(struct fh_value *val, int index)
   return &arr->items[index];
 }
 
-struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items)
+struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items)
 {
-  if (val->type != FH_VAL_ARRAY)
+  if (arr->type != FH_VAL_ARRAY)
     return NULL;
 
-  struct fh_array *arr = GET_OBJ_ARRAY(val->data.obj);
   if (num_items <= 0
       || (size_t) arr->len + num_items + 15 < (size_t) arr->len
       || (size_t) arr->len + num_items + 15 > INT_MAX)
@@ -101,6 +100,11 @@ struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, in
     ret[i].type = FH_VAL_NULL;
   arr->len += num_items;
   return ret;
+}
+
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items)
+{
+  return fh_grow_array_object(prog, GET_OBJ_ARRAY(val->data.obj), num_items);
 }
 
 /*************************************************************************

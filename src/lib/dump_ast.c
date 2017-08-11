@@ -104,6 +104,16 @@ static void dump_expr(struct fh_ast *ast, struct fh_output *out, int indent, str
     fh_output(out, ")");
     return;
 
+  case EXPR_ARRAY_LIT:
+    fh_output(out, "[");
+    for (int i = 0; i < expr->data.array_lit.n_elems; i++) {
+      dump_expr(ast, out, indent, &expr->data.array_lit.elems[i]);
+      if (i+1 < expr->data.array_lit.n_elems)
+        fh_output(out, ", ");
+    }
+    fh_output(out, "]");
+    return;
+
   case EXPR_FUNC:
     fh_output(out, "<...func...>");
     return;

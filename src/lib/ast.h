@@ -86,6 +86,7 @@ enum fh_expr_type {
   EXPR_FUNC,
   EXPR_FUNC_CALL,
   EXPR_INDEX,
+  EXPR_ARRAY_LIT,
 };
 
 struct fh_p_expr_bin_op {
@@ -116,6 +117,11 @@ struct fh_p_expr_index {
   struct fh_p_expr *index;
 };
 
+struct fh_p_expr_array_lit {
+  int n_elems;
+  struct fh_p_expr *elems;
+};
+
 struct fh_p_expr {
   enum fh_expr_type type;
   struct fh_src_loc loc;
@@ -128,6 +134,7 @@ struct fh_p_expr {
     struct fh_p_expr_func func;
     struct fh_p_expr_func_call func_call;
     struct fh_p_expr_index index;
+    struct fh_p_expr_array_lit array_lit;
   } data;
 };
 

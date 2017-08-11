@@ -52,11 +52,14 @@ static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, stru
   return 0;
 }
 
-static int run_script(struct fh_program *prog, char *script_file, char **args, int n_args)
+static int run_script(struct fh_program *prog, int dump_bytecode, char *script_file, char **args, int n_args)
 {
   if (fh_compile_file(prog, script_file) < 0)
     return -1;
 
+  if (dump_bytecode)
+    fh_dump_bytecode(prog);
+  
   struct fh_value script_args = fh_new_array(prog);
   if (script_args.type == FH_VAL_NULL)
     return -1;
@@ -76,13 +79,50 @@ static int run_script(struct fh_program *prog, char *script_file, char **args, i
   return fh_call_function(prog, "main", &script_args, 1, &script_ret);
 }
 
+static void print_usage(char *progname)
+{
+  printf("USAGE: %s [options] filename [args...]\n", progname);
+  printf("\n");
+  printf("options:\n");
+  printf("\n");
+  printf("  -h      show this help\n");
+  printf("  -d      dump bytecode\n");
+  printf("\n");
+}
+
 int main(int argc, char **argv)
 {
-  if (argc <= 1) {
-    printf("USAGE: %s filename\n", argv[0]);
-    return 1;
-  }
+  char *script_filename = NULL;
+  char **script_args = NULL;
+  int num_script_args = 0;
+  int dump_bytecode = 0;
 
+  for (int i = 1; i < argc; i++) {
+    if (argv[i][0] != '-') {
+      script_filename = argv[i];
+      script_args = argv + i + 1;
+      num_script_args = argc - i - 1;
+      break;
+    }
+    switch (argv[i][1]) {
+    case 'h':
+      print_usage(argv[0]);
+      return 0;
+
+    case 'd':
+      dump_bytecode = 1;
+      break;
+
+    default:
+      printf("%s: unknown option '%s'\n", argv[0], argv[i]);
+      exit(1);
+    }
+  }
+  if (script_filename == NULL) {
+    print_usage(argv[0]);
+    return 0;
+  }
+  
   struct fh_program *prog = fh_new_program();
   if (! prog) {
     printf("ERROR: can't create program\n");
@@ -97,7 +137,7 @@ int main(int argc, char **argv)
   if (fh_add_c_funcs(prog, c_funcs, sizeof(c_funcs)/sizeof(c_funcs[0])) < 0)
     goto err;
   
-  if (run_script(prog, argv[1], &argv[2], argc-2) < 0)
+  if (run_script(prog, dump_bytecode, script_filename, script_args, num_script_args) < 0)
     goto err;
   
   fh_free_program(prog);

@@ -23,7 +23,6 @@ void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
   c->prog = prog;
   c->ast = NULL;
   func_info_stack_init(&c->funcs);
-  named_c_func_stack_init(&c->c_funcs);
 }
 
 static void reset_compiler(struct fh_compiler *c)
@@ -37,17 +36,6 @@ void fh_destroy_compiler(struct fh_compiler *c)
 {
   reset_compiler(c);
   func_info_stack_free(&c->funcs);
-  named_c_func_stack_free(&c->c_funcs);
-}
-
-int fh_compiler_add_c_func(struct fh_compiler *c, const char *name, fh_c_func func)
-{
-  struct named_c_func *cf = named_c_func_stack_push(&c->c_funcs, NULL);
-  if (! cf)
-    return -1;
-  cf->name = name;
-  cf->func = func;
-  return 0;
 }
 
 static struct func_info *new_func_info(struct fh_compiler *c)
@@ -242,22 +230,21 @@ static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbo
   }
 
   // C function
-  stack_foreach(struct named_c_func, *, c_func, &c->c_funcs) {
-    if (strcmp(name, c_func->name) == 0) {
-      int k = 0;
-      stack_foreach(struct fh_value, *, c, &fi->consts) {
-        if (c->type == FH_VAL_C_FUNC && c->data.c_func == c_func->func)
-          return k;
-        k++;
-      }
-      k = value_stack_size(&fi->consts);
-      struct fh_value *val = add_const(c, loc);
-      if (! val)
-        return -1;
-      val->type = FH_VAL_C_FUNC;
-      val->data.c_func = c_func->func;
-      return k;
+  fh_c_func c_func = fh_get_c_func_by_name(c->prog, name);
+  if (c_func) {
+    int k = 0;
+    stack_foreach(struct fh_value, *, c, &fi->consts) {
+      if (c->type == FH_VAL_C_FUNC && c->data.c_func == c_func)
+        return k;
+      k++;
     }
+    k = value_stack_size(&fi->consts);
+    struct fh_value *val = add_const(c, loc);
+    if (! val)
+      return -1;
+    val->type = FH_VAL_C_FUNC;
+    val->data.c_func = c_func;
+    return k;
   }
   
   return fh_compiler_error(c, loc, "undefined function '%s'", get_ast_symbol_name(c, func));
@@ -701,6 +688,33 @@ static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   return dest_reg;
 }
 
+static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_array_lit *expr, int req_dest_reg)
+{
+  int array_reg = alloc_n_regs(c, loc, expr->n_elems+1);
+  if (array_reg < 0)
+    return -1;
+  for (int i = 0; i < expr->n_elems; i++) {
+    if (compile_expr(c, &expr->elems[i], array_reg+i+1) < 0)
+      return -1;
+  }
+
+  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWARRAY, array_reg, expr->n_elems)) < 0)
+    return -1;
+
+  for (int i = 1; i < expr->n_elems+1; i++)
+    free_reg(c, loc, array_reg+i);
+
+  if (req_dest_reg < 0)
+    return array_reg;
+  
+  if (array_reg != req_dest_reg) {
+    free_reg(c, loc, array_reg);
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, req_dest_reg, array_reg)) < 0)
+      return -1;
+  }
+  return req_dest_reg;
+}
+
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg)
 {
   switch (expr->type) {
@@ -708,6 +722,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
   case EXPR_BIN_OP:    return compile_bin_op(c, expr->loc, &expr->data.bin_op, req_dest_reg);
   case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op, req_dest_reg);
   case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call, req_dest_reg);
+  case EXPR_ARRAY_LIT: return compile_array_lit(c, expr->loc, &expr->data.array_lit, req_dest_reg);
   case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index, req_dest_reg);
   case EXPR_FUNC:      return fh_compiler_error(c, expr->loc, "compilation of inner function implemented");
   default:
@@ -741,12 +756,13 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
         goto err;
       break;
     }
-  
+
   case EXPR_NONE:
   case EXPR_VAR:
   case EXPR_BIN_OP:
   case EXPR_UN_OP:
   case EXPR_FUNC_CALL:
+  case EXPR_ARRAY_LIT:
   case EXPR_FUNC:
   case EXPR_INDEX:
     break;
