@@ -5,12 +5,42 @@
 
 #include "fh_i.h"
 #include "stack.h"
+#include "value.h"
+
+DECLARE_STACK(int_stack, int);
+DECLARE_STACK(code_stack, uint32_t);
+
+struct named_c_func {
+  const char *name;
+  fh_c_func func;
+};
+
+DECLARE_STACK(named_c_func_stack, struct named_c_func);
+
+struct reg_info {
+  fh_symbol_id var;
+  bool alloc;
+};
+
+DECLARE_STACK(reg_stack, struct reg_info);
+
+struct func_info {
+  int num_regs;
+  struct reg_stack regs;
+  struct code_stack code;
+  struct value_stack consts;
+
+  int continue_target_addr;
+  struct int_stack fix_break_addrs;
+};
+
+DECLARE_STACK(func_info_stack, struct func_info);
 
 struct fh_compiler {
   struct fh_program *prog;
   struct fh_ast *ast;
-  struct fh_stack funcs;
-  struct fh_stack c_funcs;
+  struct func_info_stack funcs;
+  struct named_c_func_stack c_funcs;
 };
 
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog);

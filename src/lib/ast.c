@@ -46,7 +46,7 @@ struct fh_ast *fh_new_ast(void)
   ast->symtab = NULL;
   fh_init_op_table(&ast->op_table);
   fh_init_buffer(&ast->string_pool);
-  fh_init_stack(&ast->funcs, sizeof(struct fh_p_named_func));
+  named_func_stack_init(&ast->funcs);
 
   for (int i = 0; i < ARRAY_SIZE(ast_ops); i++) {
     if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0)
@@ -66,10 +66,10 @@ struct fh_ast *fh_new_ast(void)
 
 void fh_free_ast(struct fh_ast *ast)
 {
-  stack_foreach(struct fh_p_named_func *, func, &ast->funcs) {
+  stack_foreach(struct fh_p_named_func, *, func, &ast->funcs) {
     fh_free_named_func(*func);
   }
-  fh_free_stack(&ast->funcs);
+  named_func_stack_free(&ast->funcs);
 
   fh_free_op_table(&ast->op_table);
   fh_free_buffer(&ast->string_pool);

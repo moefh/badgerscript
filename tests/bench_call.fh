@@ -1,0 +1,16 @@
+
+# function call speed benchmark
+
+function f(x)
+{
+  return x;
+}
+
+function main()
+{
+  var i = 0;
+  while (i < 200000000) {
+    f(i);
+    i=i+1;
+  }
+}

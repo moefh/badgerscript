@@ -35,13 +35,6 @@ enum fh_stmt_type {
   STMT_CONTINUE,
 };
 
-struct fh_ast {
-  struct fh_buffer string_pool;
-  struct fh_symtab *symtab;
-  struct fh_op_table op_table;
-  struct fh_stack funcs;
-};
-
 struct fh_p_stmt_decl {
   fh_symbol_id var;
   struct fh_p_expr *val;
@@ -148,6 +141,18 @@ struct fh_p_named_func {
 };
 
 /* =========================================== */
+
+DECLARE_STACK(named_func_stack, struct fh_p_named_func);
+DECLARE_STACK(expr_stack, struct fh_p_expr);
+DECLARE_STACK(p_expr_stack, struct fh_p_expr *);
+DECLARE_STACK(p_stmt_stack, struct fh_p_stmt *);
+
+struct fh_ast {
+  struct fh_buffer string_pool;
+  struct fh_symtab *symtab;
+  struct fh_op_table op_table;
+  struct named_func_stack funcs;
+};
 
 struct fh_ast *fh_new_ast(void);
 void fh_free_ast(struct fh_ast *ast);

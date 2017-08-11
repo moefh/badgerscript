@@ -15,14 +15,14 @@ void fh_init_vm(struct fh_vm *vm, struct fh_program *prog)
   vm->prog = prog;
   vm->stack = NULL;
   vm->stack_size = 0;
-  fh_init_stack(&vm->call_stack, sizeof(struct fh_vm_call_frame));
+  call_frame_stack_init(&vm->call_stack);
 }
 
 void fh_destroy_vm(struct fh_vm *vm)
 {
   if (vm->stack)
     free(vm->stack);
-  fh_free_stack(&vm->call_stack);
+  call_frame_stack_free(&vm->call_stack);
 }
 
 static int vm_error(struct fh_vm *vm, char *fmt, ...)
@@ -64,7 +64,7 @@ static struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_func *f
    */
   memset(vm->stack + ret_reg + 1 + func->n_params, 0, (func->n_regs - func->n_params) * sizeof(struct fh_value));
   
-  struct fh_vm_call_frame *frame = fh_push(&vm->call_stack, NULL);
+  struct fh_vm_call_frame *frame = call_frame_stack_push(&vm->call_stack, NULL);
   if (! frame) {
     vm_error(vm, "out of memory");
     return NULL;
@@ -80,7 +80,7 @@ static struct fh_vm_call_frame *prepare_c_call(struct fh_vm *vm, int ret_reg, in
   if (ensure_stack_size(vm, ret_reg + 1 + n_args) < 0)
     return NULL;
   
-  struct fh_vm_call_frame *frame = fh_push(&vm->call_stack, NULL);
+  struct fh_vm_call_frame *frame = call_frame_stack_push(&vm->call_stack, NULL);
   if (! frame) {
     vm_error(vm, "out of memory");
     return NULL;
@@ -100,7 +100,7 @@ static void dump_val(char *label, struct fh_value *val)
 
 static void dump_regs(struct fh_vm *vm)
 {
-  struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
+  struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
   struct fh_value *reg_base = vm->stack + frame->base;
   printf("--- base=%d, n_regs=%d\n", frame->base, frame->func->n_regs);
   for (int i = 0; i < frame->func->n_regs; i++) {
@@ -119,7 +119,7 @@ int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *arg
   if (n_args > func->n_params)
     n_args = func->n_params;
   
-  struct fh_vm_call_frame *prev_frame = fh_stack_top(&vm->call_stack);
+  struct fh_vm_call_frame *prev_frame = call_frame_stack_top(&vm->call_stack);
   int ret_reg = (prev_frame) ? prev_frame->base + prev_frame->func->n_regs : 0;
   if (ensure_stack_size(vm, ret_reg + n_args + 1) < 0)
     return -1;
@@ -150,11 +150,11 @@ int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *arg
 
 static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, struct fh_value *args, int n_args)
 {
-  int num_c_vals = vm->prog->c_vals.num;
+  int num_c_vals = value_stack_size(&vm->prog->c_vals);
   
   int r = func(vm->prog, ret, args, n_args);
 
-  vm->prog->c_vals.num = num_c_vals;  // release any objects created by the C function
+  value_stack_set_size(&vm->prog->c_vals, num_c_vals);  // release any objects created by the C function
   return r;
 }
 
@@ -198,7 +198,7 @@ int fh_run_vm(struct fh_vm *vm)
   
  changed_stack_frame:
   {
-    struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
+    struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
     const_base = frame->func->consts;
     reg_base = vm->stack + frame->base;
   }
@@ -225,15 +225,15 @@ int fh_run_vm(struct fh_vm *vm)
       }
       
       handle_op(OPC_RET) {
-        struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
+        struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
         int has_val = GET_INSTR_RB(instr);
         if (has_val)
           vm->stack[frame->base-1] = *ra;
         else
           vm->stack[frame->base-1].type = FH_VAL_NULL;
         uint32_t *ret_addr = frame->ret_addr;
-        fh_pop(&vm->call_stack, NULL);
-        if (vm->call_stack.num == 0 || ! ret_addr) {
+        call_frame_stack_pop(&vm->call_stack, NULL);
+        if (call_frame_stack_size(&vm->call_stack) == 0 || ! ret_addr) {
           vm->pc = pc;
           return 0;
         }
@@ -341,7 +341,7 @@ int fh_run_vm(struct fh_vm *vm)
       
       handle_op(OPC_CALL) {
         //dump_regs(vm);
-        struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
+        struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
         if (ra->type == FH_VAL_FUNC) {
           uint32_t *func_addr = GET_OBJ_FUNC(ra->data.obj)->code;
           
@@ -366,7 +366,7 @@ int fh_run_vm(struct fh_vm *vm)
           if (! new_frame)
             goto err;
           int ret = call_c_func(vm, c_func, vm->stack + new_frame->base - 1, vm->stack + new_frame->base, GET_INSTR_RB(instr));
-          fh_pop(&vm->call_stack, NULL);
+          call_frame_stack_pop(&vm->call_stack, NULL);
           if (ret < 0)
             goto c_func_err;
           goto changed_stack_frame;
@@ -454,7 +454,7 @@ int fh_run_vm(struct fh_vm *vm)
   printf("** current stack frame:\n");
   dump_regs(vm);
   printf("** instruction that caused error:\n");
-  struct fh_vm_call_frame *frame = fh_stack_top(&vm->call_stack);
+  struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
   int addr = (frame) ? pc - 1 - frame->func->code : -1;
   fh_dump_bc_instr(vm->prog, NULL, addr, pc[-1]);
   printf("----------------------------\n");

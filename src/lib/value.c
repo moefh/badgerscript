@@ -198,14 +198,14 @@ struct fh_value fh_new_string(struct fh_program *prog, const char *str)
 
 struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len)
 {
-  struct fh_value *val = fh_push(&prog->c_vals, NULL);
+  struct fh_value *val = value_stack_push(&prog->c_vals, NULL);
   if (! val) {
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
   struct fh_object *obj = fh_make_string_n(prog, str, str_len);
   if (! obj) {
-    fh_pop(&prog->c_vals, NULL);
+    value_stack_pop(&prog->c_vals, NULL);
     return prog->null_value;
   }
   val->type = FH_VAL_STRING;
@@ -215,14 +215,14 @@ struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t
 
 struct fh_value fh_new_array(struct fh_program *prog)
 {
-  struct fh_value *val = fh_push(&prog->c_vals, NULL);
+  struct fh_value *val = value_stack_push(&prog->c_vals, NULL);
   if (! val) {
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
   struct fh_array *arr = fh_make_array(prog);
   if (! arr) {
-    fh_pop(&prog->c_vals, NULL);
+    value_stack_pop(&prog->c_vals, NULL);
     return prog->null_value;
   }
   val->type = FH_VAL_ARRAY;

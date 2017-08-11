@@ -4,6 +4,9 @@
 #define VALUE_H_FILE
 
 #include "fh.h"
+#include "stack.h"
+
+DECLARE_STACK(value_stack, struct fh_value);
 
 #define OBJ_HEADER  \
   struct fh_object *next;  \

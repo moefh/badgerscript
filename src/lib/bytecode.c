@@ -22,19 +22,19 @@ struct fh_func *fh_add_bc_func(struct fh_program *prog, struct fh_src_loc loc, c
   func->consts = NULL;
   func->n_consts = 0;
 
-  if (! fh_push(&prog->funcs, &func))
+  if (! p_func_stack_push(&prog->funcs, &func))
     return NULL;
   return func;
 }
 
 int fh_get_bc_num_funcs(struct fh_program *prog)
 {
-  return prog->funcs.num;
+  return p_func_stack_size(&prog->funcs);
 }
 
 struct fh_func *fh_get_bc_func(struct fh_program *prog, int num)
 {
-  struct fh_func **pf = fh_stack_item(&prog->funcs, num);
+  struct fh_func **pf = p_func_stack_item(&prog->funcs, num);
   if (! pf)
     return NULL;
   return *pf;
@@ -42,7 +42,7 @@ struct fh_func *fh_get_bc_func(struct fh_program *prog, int num)
 
 struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name)
 {
-  stack_foreach(struct fh_func **, pf, &prog->funcs) {
+  stack_foreach(struct fh_func *, *, pf, &prog->funcs) {
     struct fh_func *func = *pf;
     if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), name) == 0)
       return func;
@@ -52,7 +52,7 @@ struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name
 
 const char *fh_get_bc_func_name(struct fh_program *prog, int num)
 {
-  struct fh_func **pf = fh_stack_item(&prog->funcs, num);
+  struct fh_func **pf = p_func_stack_item(&prog->funcs, num);
   if (! pf)
     return NULL;
   struct fh_func *func = *pf;

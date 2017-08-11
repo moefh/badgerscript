@@ -1,5 +1,6 @@
 
-function calc_point(cx, cy, max_iter) {
+function calc_point(cx, cy, max_iter)
+{
     var i = 0;
     var x = 0;
     var y = 0;
@@ -14,10 +15,10 @@ function calc_point(cx, cy, max_iter) {
     return i;
 }
 
-function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter) {
-
-    var step_x = (x2-x1)/size_x;
-    var step_y = (y2-y1)/size_y;
+function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter)
+{
+    var step_x = (x2-x1)/(size_x-1);
+    var step_y = (y2-y1)/(size_y-1);
 
     var y = y1;
     while (y <= y2) {
@@ -25,17 +26,16 @@ function mandelbrot(x1,y1, x2,y2, size_x,size_y, max_iter) {
         while (x <= x2) {
             var c = calc_point(x, y, max_iter);
             if (c == max_iter)
-                printf("\e[37;40m ");
+                ".";
             else
-                printf("\e[37;4%dm ", c%6+1);
+                c%10;
             x = x + step_x;
         }
         y = y + step_y;
-        printf("\e[0m\n");
     }
 }
 
 function main()
 {
-  mandelbrot(-2, -2, 2, 2, 122, 54, 1500);
+  mandelbrot(-2, -2, 2, 2, 500, 500, 1500);
 }

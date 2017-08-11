@@ -22,12 +22,12 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
-  fh_init_stack(&prog->funcs, sizeof(struct fh_func *));
+  p_func_stack_init(&prog->funcs);
 
   fh_init_vm(&prog->vm, prog);
   fh_init_parser(&prog->parser, prog);
   fh_init_compiler(&prog->compiler, prog);
-  fh_init_stack(&prog->c_vals, sizeof(struct fh_value));
+  value_stack_init(&prog->c_vals);
 
   if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
     goto err;
@@ -35,8 +35,8 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
-  fh_free_stack(&prog->funcs);
-  fh_free_stack(&prog->c_vals);
+  p_func_stack_free(&prog->funcs);
+  value_stack_free(&prog->c_vals);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);  
   free(prog);
@@ -45,8 +45,8 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
-  fh_free_stack(&prog->funcs);
-  fh_free_stack(&prog->c_vals);
+  p_func_stack_free(&prog->funcs);
+  value_stack_free(&prog->c_vals);
   fh_collect_garbage(prog);
   fh_free_program_objects(prog);
   

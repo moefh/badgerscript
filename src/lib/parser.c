@@ -125,9 +125,9 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
 static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
 {
   struct fh_token tok;
-  struct fh_stack args;
+  struct expr_stack args;
 
-  fh_init_stack(&args, sizeof(struct fh_p_expr));
+  expr_stack_init(&args);
 
   if (get_token(p, &tok) < 0)
     goto err;
@@ -138,7 +138,7 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
       struct fh_p_expr *e = parse_expr(p, false, ",)");
       if (! e)
         goto err;
-      if (! fh_push(&args, e)) {
+      if (! expr_stack_push(&args, e)) {
         fh_free_expr(e);
         goto err;
       }
@@ -155,40 +155,40 @@ static int parse_arg_list(struct fh_parser *p, struct fh_p_expr **ret_args)
     }
   }
 
-  fh_stack_shrink_to_fit(&args);
-  *ret_args = args.data;
-  return args.num;
+  expr_stack_shrink_to_fit(&args);
+  *ret_args = expr_stack_data(&args);
+  return expr_stack_size(&args);
   
  err:
-  stack_foreach(struct fh_p_expr *, e, &args) {
+  stack_foreach(struct fh_p_expr, *, e, &args) {
     fh_free_expr_children(e);
   }
-  fh_free_stack(&args);
+  expr_stack_free(&args);
   return -1;
 }
 
-static void dump_opn_stack(struct fh_parser *p, struct fh_stack *opns)
+static void dump_opn_stack(struct fh_parser *p, struct p_expr_stack *opns)
 {
-  printf("**** opn stack has %d elements\n", opns->num);
+  printf("**** opn stack has %d elements\n", p_expr_stack_size(opns));
   int i = 0;
-  stack_foreach(struct fh_p_expr **, pe, opns) {
+  stack_foreach(struct fh_p_expr *, *, pe, opns) {
     printf("[%d] ", i++);
     fh_dump_expr(p->ast, NULL, *pe);
     printf("\n");
   }
 }
 
-static void dump_opr_stack(struct fh_parser *p, struct fh_stack *oprs)
+static void dump_opr_stack(struct fh_parser *p, struct op_stack *oprs)
 {
   UNUSED(p);
-  printf("**** opr stack has %d elements\n", oprs->num);
+  printf("**** opr stack has %d elements\n", op_stack_size(oprs));
   int i = 0;
-  stack_foreach(struct fh_operator *, op, oprs) {
+  stack_foreach(struct fh_operator, *, op, oprs) {
     printf("[%d] %s\n", i++, op->name);
   }
 }
 
-static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct fh_stack *opns, struct fh_stack *oprs, int32_t stop_prec)
+static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct p_expr_stack *opns, struct op_stack *oprs, int32_t stop_prec)
 {
   while (1) {
     //printf("********** STACKS ********************************\n");
@@ -196,10 +196,10 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
     //dump_opr_stack(p, oprs);
     //printf("**************************************************\n");
     
-    if (fh_stack_size(oprs) == 0)
+    if (op_stack_size(oprs) == 0)
       return 0;
     
-    struct fh_operator *op = fh_stack_top(oprs);
+    struct fh_operator *op = op_stack_top(oprs);
     int32_t op_prec = (op->assoc == FH_ASSOC_RIGHT) ? op->prec-1 : op->prec;
     if (op_prec < stop_prec)
       return 0;
@@ -211,30 +211,30 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
       return -1;
     }
     
-    fh_pop(oprs, NULL);
+    op_stack_pop(oprs, NULL);
     switch (op_assoc) {
     case FH_ASSOC_RIGHT:
     case FH_ASSOC_LEFT:
-      if (fh_stack_size(opns) < 2) {
+      if (p_expr_stack_size(opns) < 2) {
         fh_free_expr(expr);
         fh_parse_error(p, loc, "syntax error");
         return -1;
       }
       expr->type = EXPR_BIN_OP;
       expr->data.bin_op.op = op_id;
-      fh_pop(opns, &expr->data.bin_op.right);
-      fh_pop(opns, &expr->data.bin_op.left);
+      p_expr_stack_pop(opns, &expr->data.bin_op.right);
+      p_expr_stack_pop(opns, &expr->data.bin_op.left);
       break;
 
     case FH_ASSOC_PREFIX:
-      if (fh_stack_size(opns) < 1) {
+      if (p_expr_stack_size(opns) < 1) {
         fh_free_expr(expr);
         fh_parse_error(p, loc, "syntax error");
         return -1;
       }
       expr->type = EXPR_UN_OP;
       expr->data.bin_op.op = op_id;
-      fh_pop(opns, &expr->data.un_op.arg);
+      p_expr_stack_pop(opns, &expr->data.un_op.arg);
       break;
     }
 
@@ -244,7 +244,7 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
       return -1;
     }
    
-    if (! fh_push(opns, &expr)) {
+    if (! p_expr_stack_push(opns, &expr)) {
       fh_free_expr(expr);
       fh_parse_error_oom(p, loc);
       return -1;
@@ -254,12 +254,12 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
 
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars)
 {
-  struct fh_stack opns;
-  struct fh_stack oprs;
+  struct p_expr_stack opns;
+  struct op_stack oprs;
   bool expect_opn = true;
 
-  fh_init_stack(&opns, sizeof(struct fh_p_expr *));
-  fh_init_stack(&oprs, sizeof(struct fh_operator));
+  p_expr_stack_init(&opns);
+  op_stack_init(&oprs);
 
   while (1) {
     struct fh_token tok;
@@ -278,7 +278,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, FUNC_CALL_PREC) < 0)
           goto err;
         struct fh_p_expr *func;
-        if (fh_pop(&opns, &func) < 0) {
+        if (p_expr_stack_pop(&opns, &func) < 0) {
           fh_parse_error(p, tok.loc, "syntax error (no function on stack!)");
           goto err;
         }
@@ -297,7 +297,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
       }
 
-      if (! fh_push(&opns, &expr)) {
+      if (! p_expr_stack_push(&opns, &expr)) {
         fh_parse_error_oom(p, tok.loc);
         fh_free_expr(expr);
         goto err;
@@ -323,19 +323,19 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         //printf("AFTER:\n"); dump_opn_stack(p, &opns); dump_opr_stack(p, &oprs);
 
-        if (fh_stack_size(&opns) > 1) {
+        if (p_expr_stack_size(&opns) > 1) {
           dump_opn_stack(p, &opns);
           dump_opr_stack(p, &oprs);
           fh_parse_error(p, tok.loc, "syntax error (stack not empty!)");
           goto err;
         }
         struct fh_p_expr *ret;
-        if (fh_pop(&opns, &ret) < 0) {
+        if (p_expr_stack_pop(&opns, &ret) < 0) {
           fh_parse_error_expected(p, tok.loc, "expression");
           goto err;
         }
-        fh_free_stack(&opns);
-        fh_free_stack(&oprs);
+        p_expr_stack_free(&opns);
+        op_stack_free(&oprs);
         return ret;
       }
     }
@@ -350,7 +350,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, FUNC_CALL_PREC) < 0)
           goto err;
         struct fh_p_expr *container;
-        if (fh_pop(&opns, &container) < 0) {
+        if (p_expr_stack_pop(&opns, &container) < 0) {
           fh_parse_error(p, tok.loc, "syntax error (no container on stack!)");
           goto err;
         }
@@ -369,7 +369,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
       }
 
-      if (! fh_push(&opns, &expr)) {
+      if (! p_expr_stack_push(&opns, &expr)) {
         fh_parse_error_oom(p, tok.loc);
         fh_free_expr(expr);
         goto err;
@@ -385,7 +385,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           fh_parse_error_expected(p, tok.loc, "expression");
           goto err;
         }
-        if (! fh_push(&oprs, op)) {
+        if (! op_stack_push(&oprs, op)) {
           fh_parse_error_oom(p, tok.loc);
           goto err;
         }
@@ -397,7 +397,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
         if (resolve_expr_stack(p, tok.loc, &opns, &oprs, op->prec) < 0)
           goto err;
-        if (! fh_push(&oprs, op)) {
+        if (! op_stack_push(&oprs, op)) {
           fh_parse_error_oom(p, tok.loc);
           goto err;
         }
@@ -416,7 +416,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! num)
         goto err;
       num->data.num = tok.data.num;
-      if (! fh_push(&opns, &num)) {
+      if (! p_expr_stack_push(&opns, &num)) {
         fh_free_expr(num);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -435,7 +435,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! str)
         goto err;
       str->data.str = tok.data.str;
-      if (! fh_push(&opns, &str)) {
+      if (! p_expr_stack_push(&opns, &str)) {
         fh_free_expr(str);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -454,7 +454,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (! var)
         goto err;
       var->data.var = tok.data.symbol_id;
-      if (! fh_push(&opns, &var)) {
+      if (! p_expr_stack_push(&opns, &var)) {
         fh_free_expr(var);
         fh_parse_error_oom(p, tok.loc);
         goto err;
@@ -468,11 +468,11 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
   }
 
  err:
-  stack_foreach(struct fh_p_expr **, pe, &opns) {
+  stack_foreach(struct fh_p_expr *, *, pe, &opns) {
     fh_free_expr(*pe);
   }
-  fh_free_stack(&opns);
-  fh_free_stack(&oprs);
+  p_expr_stack_free(&opns);
+  op_stack_free(&oprs);
   return NULL;
 }
 
@@ -664,8 +664,8 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
   if (! tok_is_punct(&tok, '{'))
     return fh_parse_error_expected(p, tok.loc, "'{'");
 
-  struct fh_stack stmts;
-  fh_init_stack(&stmts, sizeof(struct fh_stmt *));
+  struct p_stmt_stack stmts;
+  p_stmt_stack_init(&stmts);
   while (1) {
     if (get_token(p, &tok) < 0)
       goto err;
@@ -676,21 +676,21 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
     struct fh_p_stmt *stmt = parse_stmt(p);
     if (stmt == NULL)
       goto err;
-    if (! fh_push(&stmts, &stmt)) {
+    if (! p_stmt_stack_push(&stmts, &stmt)) {
       fh_parse_error_oom(p, tok.loc);
       goto err;
     }
   }
 
-  if (fh_stack_shrink_to_fit(&stmts) < 0)
+  if (p_stmt_stack_shrink_to_fit(&stmts) < 0)
     goto err;
-  block->n_stmts = stmts.num;
-  block->stmts = stmts.data;
+  block->n_stmts = p_stmt_stack_size(&stmts);
+  block->stmts = p_stmt_stack_data(&stmts);
   return block;
 
  err:
-  fh_free_stmts(stmts.data, stmts.num);
-  fh_free_stack(&stmts);
+  fh_free_stmts(p_stmt_stack_data(&stmts), p_stmt_stack_size(&stmts));
+  p_stmt_stack_free(&stmts);
   return NULL;
 }
 
@@ -767,8 +767,8 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
   
   p->ast = ast;
 
-  struct fh_stack funcs;
-  fh_init_stack(&funcs, sizeof(struct fh_p_named_func));
+  struct named_func_stack funcs;
+  named_func_stack_init(&funcs);
 
   struct fh_token tok;
   while (1) {
@@ -782,7 +782,7 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
       struct fh_p_named_func func;
       if (parse_named_func(p, &func) == NULL)
         goto err;
-      if (! fh_push(&funcs, &func)) {
+      if (! named_func_stack_push(&funcs, &func)) {
         fh_parse_error_oom(p, tok.loc);
         goto err;
       }
@@ -793,17 +793,17 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
     goto err;
   }
   fh_destroy_tokenizer(&p->t);
-  stack_foreach(struct fh_p_named_func *, f, &funcs) {
-    fh_push(&p->ast->funcs, f);
+  stack_foreach(struct fh_p_named_func, *, f, &funcs) {
+    named_func_stack_push(&p->ast->funcs, f);
   }
-  fh_free_stack(&funcs);
+  named_func_stack_free(&funcs);
   return 0;
 
  err:
   fh_destroy_tokenizer(&p->t);
-  stack_foreach(struct fh_p_named_func *, f, &funcs) {
+  stack_foreach(struct fh_p_named_func, *, f, &funcs) {
     fh_free_named_func(*f);
   }
-  fh_free_stack(&funcs);
+  named_func_stack_free(&funcs);
   return -1;
 }

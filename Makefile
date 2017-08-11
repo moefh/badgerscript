@@ -30,7 +30,7 @@ clean:
 build:
 	$(MAKE) -C src CFLAGS="$(CFLAGS) $(TARGET_CFLAGS)" CC="$(CC)" LDFLAGS="$(LDFLAGS) $(TARGET_LDFLAGS)" LIBS="$(LIBS)" AR="$(AR)" RANLIB="$(RANLIB)"
 	@echo
-	@echo Compilation successful!  Try these examples:
+	@echo "Compilation successful!  Try these examples:"
 	@echo
 	@echo "  src/fh tests/test.fh"
 	@echo "  src/fh tests/mandelbrot.fh"
@@ -38,7 +38,7 @@ build:
 	@echo
 
 check: debug
-	valgrind --track-origins=yes --leak-check=full src/fh $(CHECK_SCRIPT) arg1 arg2
+	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all src/fh $(CHECK_SCRIPT) arg1 arg2
 
 test: debug
 	src/fh tests/mandel_color.fh

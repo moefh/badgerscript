@@ -36,9 +36,11 @@ struct fh_operator {
   char name[4];
 };
 
+DECLARE_STACK(op_stack, struct fh_operator);
+
 struct fh_op_table {
-  struct fh_stack prefix;
-  struct fh_stack binary;
+  struct op_stack prefix;
+  struct op_stack binary;
 };
 
 typedef int32_t fh_symbol_id;

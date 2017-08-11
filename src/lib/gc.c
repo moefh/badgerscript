@@ -161,12 +161,12 @@ static void mark(struct fh_program *prog)
   
   // mark functions
   DEBUG_LOG("***** marking functions\n");
-  stack_foreach(struct fh_func **, pf, &prog->funcs) {
+  stack_foreach(struct fh_func *, *, pf, &prog->funcs) {
     MARK_OBJECT(&gc, (struct fh_object *) *pf);
   }
 
   // mark stack
-  struct fh_vm_call_frame *cur_frame = fh_stack_top(&prog->vm.call_stack);
+  struct fh_vm_call_frame *cur_frame = call_frame_stack_top(&prog->vm.call_stack);
   if (cur_frame) {
     int stack_size = cur_frame->base + ((cur_frame->func) ? cur_frame->func->n_regs : 0);
     struct fh_value *stack = prog->vm.stack;
@@ -177,7 +177,7 @@ static void mark(struct fh_program *prog)
 
   // mark C values
   DEBUG_LOG1("***** marking %d C tmp values\n", prog->c_vals.num);
-  stack_foreach(struct fh_value *, v, &prog->c_vals) {
+  stack_foreach(struct fh_value, *, v, &prog->c_vals) {
     MARK_VALUE(&gc, v);
   }
 
