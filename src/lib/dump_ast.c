@@ -74,6 +74,16 @@ static void dump_expr(struct fh_ast *ast, struct fh_output *out, int indent, str
     if (expr_needs_paren(expr->data.bin_op.right)) fh_output(out, ")");
     return;
 
+  case EXPR_INDEX:
+    if (expr_needs_paren(expr->data.index.container)) fh_output(out, "(");
+    dump_expr(ast, out, indent, expr->data.index.container);
+    if (expr_needs_paren(expr->data.index.container)) fh_output(out, ")");
+    fh_output(out, " %s ", fh_get_ast_op(ast, expr->data.bin_op.op));
+    fh_output(out, "[");
+    dump_expr(ast, out, indent, expr->data.index.index);
+    fh_output(out, "]");
+    return;
+    
   case EXPR_UN_OP:
     fh_output(out, "%s", fh_get_ast_op(ast, expr->data.un_op.op));
     if (expr_needs_paren(expr->data.un_op.arg)) fh_output(out, "(");

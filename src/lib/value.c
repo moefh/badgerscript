@@ -55,21 +55,7 @@ const char *fh_get_string(const struct fh_value *val)
 {
   if (val->type != FH_VAL_STRING)
     return NULL;
-  return GET_OBJ_STRING(val->data.obj);
-}
-
-struct fh_func *fh_get_func(const struct fh_value *val)
-{
-  if (val->type != FH_VAL_FUNC)
-    return NULL;
-  return GET_OBJ_FUNC(val->data.obj);
-}
-
-struct fh_array *fh_get_array(const struct fh_value *val)
-{
-  if (val->type != FH_VAL_ARRAY)
-    return NULL;
-  return GET_OBJ_ARRAY(val->data.obj);
+  return GET_OBJ_STRING_DATA(val->data.obj);
 }
 
 int fh_get_array_len(const struct fh_value *val)
@@ -174,8 +160,8 @@ struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, siz
   struct fh_object *obj = fh_make_object(prog, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
   if (! obj)
     return NULL;
-  memcpy(GET_OBJ_STRING(obj), str, str_len);
-  obj->obj.str.size = str_len;
+  memcpy(GET_OBJ_STRING_DATA(obj), str, str_len);
+  GET_OBJ_STRING(obj)->size = str_len;
   return obj;
 }
 

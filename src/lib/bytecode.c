@@ -44,7 +44,7 @@ struct fh_func *fh_get_bc_func_by_name(struct fh_program *prog, const char *name
 {
   stack_foreach(struct fh_func **, pf, &prog->funcs) {
     struct fh_func *func = *pf;
-    if (func->name != NULL && strcmp(GET_OBJ_STRING(func->name), name) == 0)
+    if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), name) == 0)
       return func;
   }
   return NULL;
@@ -58,5 +58,5 @@ const char *fh_get_bc_func_name(struct fh_program *prog, int num)
   struct fh_func *func = *pf;
   if (! func->name)
     return NULL;
-  return GET_OBJ_STRING(func->name);
+  return GET_OBJ_STRING_DATA(func->name);
 }

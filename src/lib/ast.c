@@ -125,6 +125,11 @@ void fh_free_expr_children(struct fh_p_expr *expr)
     fh_free_expr(expr->data.bin_op.right);
     return;
 
+  case EXPR_INDEX:
+    fh_free_expr(expr->data.index.container);
+    fh_free_expr(expr->data.index.index);
+    return;
+
   case EXPR_FUNC_CALL:
     fh_free_expr(expr->data.func_call.func);
     if (expr->data.func_call.args) {
@@ -236,6 +241,13 @@ int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_exp
     if ((ret = fh_ast_visit_expr_nodes(expr->data.bin_op.left, visit, data)) != 0)
       return ret;
     if ((ret = fh_ast_visit_expr_nodes(expr->data.bin_op.right, visit, data)) != 0)
+      return ret;
+    return 0;
+
+  case EXPR_INDEX:
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.index.container, visit, data)) != 0)
+      return ret;
+    if ((ret = fh_ast_visit_expr_nodes(expr->data.index.index, visit, data)) != 0)
       return ret;
     return 0;
 

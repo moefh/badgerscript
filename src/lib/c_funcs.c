@@ -24,7 +24,7 @@ int fh_fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
 {
   if (n_args != 1)
     return fh_set_error(prog, "len(): invalid number of arguments: %d", n_args);
-  struct fh_array *arr = fh_get_array(&args[0]);
+  struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
   if (! arr)
     return fh_set_error(prog, "len(): argument must be an array");
   *ret = fh_new_number(prog, arr->len);

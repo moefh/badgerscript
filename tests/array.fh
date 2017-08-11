@@ -1,7 +1,11 @@
 
 function main(args)
 {
-  printf("%s\n", args);
   printf("num args: %d\n", len(args));
+  var i = 0;
+  while (i < len(args)) {
+    printf("arg[%d] = %s\n", i, args[i]);
+    i = i + 1;
+  }
 }
 

@@ -514,9 +514,6 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
             return -1;
         }
       } else {
-        //printf("%s <- ", fh_get_ast_symbol(c->ast, expr->left->data.var));
-        //fh_dump_expr(c->ast, NULL, expr->right);
-        //printf("\n");
         int tmp_reg = compile_expr(c, expr->right, dest_reg);
         if (tmp_reg < 0)
           return -1;
@@ -550,7 +547,7 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
       return -1;
     int right_reg;
     if (dest_reg >= 0 && expr->right->type == EXPR_VAR) {
-      right_reg = get_var_reg(c, expr->left->loc, expr->right->data.var);
+      right_reg = get_var_reg(c, expr->right->loc, expr->right->data.var);
     } else if (expr->right->type == EXPR_NUMBER) {
       right_reg = add_const_number(c, loc, expr->right->data.num);
       if (right_reg >= 0) right_reg += MAX_FUNC_REGS+1;
@@ -642,6 +639,39 @@ static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struc
   return req_dest_reg;
 }
 
+static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_index *expr, int dest_reg)
+{
+  int container_reg;
+  if (dest_reg >= 0 && expr->container->type == EXPR_VAR) {
+    container_reg = get_var_reg(c, expr->container->loc, expr->container->data.var);
+  } else {
+    container_reg = compile_expr(c, expr->container, dest_reg);
+  }
+  if (container_reg < 0)
+    return -1;
+  
+  int index_reg;
+  if (dest_reg >= 0 && expr->index->type == EXPR_VAR) {
+    index_reg = get_var_reg(c, expr->index->loc, expr->index->data.var);
+  } else if (expr->index->type == EXPR_NUMBER) {
+    index_reg = add_const_number(c, loc, expr->index->data.num);
+    if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
+  } else {
+    index_reg = compile_expr(c, expr->index, -1);
+  }
+  if (index_reg < 0)
+    return -1;
+  
+  if (dest_reg < 0) {
+    dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+    if (dest_reg < 0)
+      return -1;
+  }
+  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_INDEX, dest_reg, container_reg, index_reg)) < 0)
+    return -1;
+  return dest_reg;
+}
+
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg)
 {
   switch (expr->type) {
@@ -649,6 +679,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
   case EXPR_BIN_OP:    return compile_bin_op(c, expr->loc, &expr->data.bin_op, req_dest_reg);
   case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op, req_dest_reg);
   case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call, req_dest_reg);
+  case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index, req_dest_reg);
   case EXPR_FUNC:      return fh_compiler_error(c, expr->loc, "compilation of inner function implemented");
   default:
     break;
@@ -662,30 +693,33 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_d
   }
 
   switch (expr->type) {
-  case EXPR_NUMBER: {
-    int k = add_const_number(c, expr->loc, expr->data.num);
-    if (k < 0)
-      goto err;
-    if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-      goto err;
-    break;
-  }
-
-  case EXPR_STRING: {
-    int k = add_const_string(c, expr->loc, expr->data.str);
-    if (k < 0)
-      goto err;
-    if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-      goto err;
-    break;
- }
-    
+  case EXPR_NUMBER:
+    {
+      int k = add_const_number(c, expr->loc, expr->data.num);
+      if (k < 0)
+        goto err;
+      if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
+        goto err;
+      break;
+    }
+  
+  case EXPR_STRING:
+    {
+      int k = add_const_string(c, expr->loc, expr->data.str);
+      if (k < 0)
+        goto err;
+      if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
+        goto err;
+      break;
+    }
+  
   case EXPR_NONE:
   case EXPR_VAR:
   case EXPR_BIN_OP:
   case EXPR_UN_OP:
   case EXPR_FUNC_CALL:
   case EXPR_FUNC:
+  case EXPR_INDEX:
     break;
   }
   return dest_reg;

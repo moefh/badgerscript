@@ -50,13 +50,14 @@ struct fh_object {
 
 void fh_free_object(struct fh_object *obj);
 
-struct fh_func *fh_get_func(const struct fh_value *val);
-struct fh_array *fh_get_array(const struct fh_value *val);
-
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
-#define GET_OBJ_STRING(o) (((char *) o) + sizeof(struct fh_string))
 #define GET_OBJ_FUNC(o)   ((struct fh_func *) (o))
 #define GET_OBJ_ARRAY(o)  ((struct fh_array *) (o))
+#define GET_OBJ_STRING(o) ((struct fh_string *) (o))
+#define GET_OBJ_STRING_DATA(o) (((char *) o) + sizeof(struct fh_string))
+
+#define GET_VAL_FUNC(v)   (((v)->type == FH_VAL_FUNC ) ? ((struct fh_func  *) ((v)->data.obj)) : NULL)
+#define GET_VAL_ARRAY(v)  (((v)->type == FH_VAL_ARRAY) ? ((struct fh_array *) ((v)->data.obj)) : NULL)
 
 // non-object types
 #define fh_make_null   fh_new_null

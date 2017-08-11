@@ -60,12 +60,15 @@ static int run_script(struct fh_program *prog, char *script_file, char **args, i
   struct fh_value script_args = fh_new_array(prog);
   if (script_args.type == FH_VAL_NULL)
     return -1;
+  struct fh_value *items = fh_grow_array(prog, &script_args, n_args+1);
+  if (! items)
+    return -1;
+  items[0] = fh_new_string(prog, script_file);
+  if (items[0].type == FH_VAL_NULL)
+    return -1;
   for (int i = 0; i < n_args; i++) {
-    struct fh_value *item = fh_grow_array(prog, &script_args, 1);
-    if (! item)
-      return -1;
-    *item = fh_new_string(prog, args[i]);
-    if (item->type == FH_VAL_NULL)
+    items[i+1] = fh_new_string(prog, args[i]);
+    if (items[i+1].type == FH_VAL_NULL)
       return -1;
   }
   struct fh_value script_ret;

@@ -47,15 +47,14 @@ static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
 
 static void sweep(struct fh_program *prog)
 {
-  UNUSED(prog);
   DEBUG_LOG("***** sweeping\n");
   struct fh_object **objs = &prog->objects;
   struct fh_object *cur;
   while ((cur = *objs) != NULL) {
     if (cur->obj.header.gc_mark) {
+      objs = &cur->obj.header.next;
       cur->obj.header.gc_mark = 0;
       DEBUG_OBJ("-> keeping", cur);
-      objs = &cur->obj.header.next;
     } else {
       *objs = cur->obj.header.next;
       DEBUG_OBJ("-> FREEING", cur);

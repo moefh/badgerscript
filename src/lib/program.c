@@ -45,11 +45,11 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
+  fh_free_stack(&prog->funcs);
   fh_free_stack(&prog->c_vals);
   fh_collect_garbage(prog);
   fh_free_program_objects(prog);
   
-  fh_free_stack(&prog->funcs);
   fh_destroy_vm(&prog->vm);
   fh_destroy_compiler(&prog->compiler);
   fh_destroy_parser(&prog->parser);
@@ -100,13 +100,13 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
 
   in = fh_open_input_file(filename);
   if (! in) {
-    fh_set_error(prog, "ERROR: can't open '%s'", filename);
+    fh_set_error(prog, "can't open '%s'", filename);
     goto err;
   }
   
   ast = fh_new_ast();
   if (! ast) {
-    fh_set_error(prog, "ERROR: out of memory for AST");
+    fh_set_error(prog, "out of memory for AST");
     goto err;
   }
   if (fh_parse(&prog->parser, ast, in) < 0)

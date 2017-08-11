@@ -23,17 +23,7 @@ void fh_free_stack(struct fh_stack *s)
   s->cap = 0;
 }
 
-void fh_clear_stack(struct fh_stack *s)
-{
-  s->num = 0;
-}
-
-int fh_stack_is_empty(struct fh_stack *s)
-{
-  return s->num == 0;
-}
-
-int fh_stack_count(struct fh_stack *s)
+int fh_stack_size(struct fh_stack *s)
 {
   return s->num;
 }
@@ -67,7 +57,7 @@ int fh_stack_shrink_to_fit(struct fh_stack *s)
   return 0;
 }
 
-int fh_stack_ensure_size(struct fh_stack *s, int n_items)
+static int ensure_cap(struct fh_stack *s, int n_items)
 {
   if (s->num + n_items > s->cap) {
     int new_cap = (s->cap + 16 + 1) / 16 * 16;
@@ -80,22 +70,12 @@ int fh_stack_ensure_size(struct fh_stack *s, int n_items)
   return 0;
 }
 
-int fh_stack_grow(struct fh_stack *s, int n_items)
-{
-  if (fh_stack_ensure_size(s, n_items) < 0)
-    return -1;
-
-  memset((char *) s->data + s->num * s->item_size, 0, n_items * s->item_size);
-  s->num += n_items;
-  return 0;
-}
-
 int fh_copy_stack(struct fh_stack *dst, const struct fh_stack *src)
 {
   if (dst->item_size != src->item_size)
     return -1;
   if (dst->cap < src->num)
-    if (fh_stack_ensure_size(dst, src->num - dst->num) < 0)
+    if (ensure_cap(dst, src->num - dst->num) < 0)
       return -1;
   if (src->num > 0)
     memcpy(dst->data, src->data, dst->item_size*src->num);
@@ -105,7 +85,7 @@ int fh_copy_stack(struct fh_stack *dst, const struct fh_stack *src)
 
 void *fh_push(struct fh_stack *s, void *item)
 {
-  if (fh_stack_ensure_size(s, 1) < 0)
+  if (ensure_cap(s, 1) < 0)
     return NULL;
 
   if (item)
