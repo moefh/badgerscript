@@ -60,14 +60,14 @@ static int get_token(struct fh_parser *p, struct fh_token *tok)
     *tok = p->saved_tok;
     p->has_saved_tok = 0;
     p->last_loc = tok->loc;
-    //printf("::: re-token '%s'\n", fh_dump_token(p->t, tok));
+    //printf("::: re-token '%s'  @%d:%d\n", fh_dump_token(&p->t, tok), tok->loc.line, tok->loc.col);
     return 0;
   }
 
   if (fh_read_token(&p->t, tok) < 0)
     return -1;
   p->last_loc = tok->loc;
-  //printf(":::::: token '%s'\n", fh_dump_token(p->t, tok));
+  //printf(":::::: token '%s'  @%d:%d\n", fh_dump_token(&p->t, tok), tok->loc.line, tok->loc.col);
   return 0;
 }
 
@@ -332,7 +332,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
         struct fh_p_expr *ret;
         if (p_expr_stack_pop(&opns, &ret) < 0) {
-          fh_parse_error_expected(p, tok.loc, "expression");
+          fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
           goto err;
         }
         p_expr_stack_free(&opns);
@@ -390,7 +390,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       if (expect_opn) {
         struct fh_operator *op = fh_get_prefix_op(&p->ast->op_table, tok.data.op_name);
         if (! op) {
-          fh_parse_error_expected(p, tok.loc, "expression");
+          fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
           goto err;
         }
         if (! op_stack_push(&oprs, op)) {

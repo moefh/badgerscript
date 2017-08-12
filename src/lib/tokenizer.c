@@ -133,6 +133,7 @@ static void unget_byte(struct fh_tokenizer *t, uint8_t b)
     return;
   }
 
+  t->saved_loc = t->cur_loc;
   t->saved_byte = b;
 }
 
