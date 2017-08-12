@@ -188,6 +188,8 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
 
 #define handle_op(op) case op:
 #define LOAD_REG_OR_CONST(index)  (((index) <= MAX_FUNC_REGS) ? &reg_base[index] : &const_base[(index)-MAX_FUNC_REGS-1])
+#define LOAD_REG(index)    (&reg_base[index])
+#define LOAD_CONST(index)  (&const_base[(index)-MAX_FUNC_REGS-1])
 
 int fh_run_vm(struct fh_vm *vm)
 {
@@ -220,7 +222,8 @@ int fh_run_vm(struct fh_vm *vm)
       }
 
       handle_op(OPC_MOV) {
-        *ra = reg_base[GET_INSTR_RB(instr)];
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        *ra = *rb;
         break;
       }
       
