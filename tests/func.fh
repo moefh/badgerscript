@@ -1,0 +1,18 @@
+
+function test(f)
+{
+  function(x) {
+    x("goodbye");
+  }(f);
+}
+
+function main(args)
+{
+  var f = function(x) {
+    printf("%s from inner function\n", x);
+  };
+  f("hello");
+  test(f);
+  return test+1;
+}
+

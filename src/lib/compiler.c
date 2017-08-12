@@ -13,10 +13,13 @@
 #define TMP_VARIABLE     ((fh_symbol_id)-1)
 #define MAX_FUNC_CONSTS  (512-MAX_FUNC_REGS)
 
+#define RK_IS_CONST(rk)   ((rk)>=MAX_FUNC_REGS+1)
+
 static void pop_func_info(struct fh_compiler *c);
+static int compile_expr_to_reg(struct fh_compiler *c, struct fh_p_expr *expr, int dest_reg);
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block);
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
-static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg);
+static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr);
 static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func *bc_func, struct func_info *parent);
 
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
@@ -381,6 +384,25 @@ static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
   return first_reg;
 }
 
+#if 0
+static bool reg_is_tmp(struct fh_compiler *c, struct fh_src_loc loc, int reg)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi) {
+    fprintf(stderr, "%s\n", fh_get_error(c->prog));
+    return false;
+  }
+
+  struct reg_info *ri = reg_stack_item(&fi->regs, reg);
+  if (! ri) {
+    fprintf(stderr, "INTERNAL COMPILER ERROR: invalid register (%d)\n", reg);
+    return false;
+  }
+
+  return ri->var == TMP_VARIABLE;
+}
+#endif
+
 static void free_tmp_regs(struct fh_compiler *c, struct fh_src_loc loc)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
@@ -421,53 +443,22 @@ static int get_var_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
   return fh_compiler_error(c, loc, "undeclared variable '%s'", get_ast_symbol_name(c, var));
 }
 
-static int get_opcode_for_op(struct fh_compiler *c, struct fh_src_loc loc, uint32_t op)
-{
-  switch (op) {
-  case '+': return OPC_ADD;
-  case '-': return OPC_SUB;
-  case '*': return OPC_MUL;
-  case '/': return OPC_DIV;
-  case '%': return OPC_MOD;
-
-  case AST_OP_UNM: return OPC_NEG;
-  case '!':        return OPC_NOT;
-
-  default:
-    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, op));
-  }
-}
-
-static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var, int dest_reg)
+static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
   // local variable
   int reg = get_var_reg(c, loc, var);
-  if (reg >= 0) {
-    if (dest_reg < 0)
-      return reg;
-    if (reg != dest_reg) {
-      if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, reg)) < 0)
-        return -1;
-    }
-    return dest_reg;
-  }
+  if (reg >= 0)
+    return reg;
 
   // global function
   int k = add_const_global_func(c, loc, var);
-  if (k >= 0) {
-    if (dest_reg < 0) {
-      dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-      if (dest_reg < 0)
-        return -1;
-    }
-    if (add_instr(c, loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-      return -1;
-    return dest_reg;
-  }
+  if (k >= 0)
+    return k + MAX_FUNC_REGS + 1;
 
   return fh_compiler_error(c, loc, "unknown variable or function '%s'", get_ast_symbol_name(c, var));
 }
 
+#if 0
 static int check_is_var(struct fh_p_expr *expr, void *data)
 {
   fh_symbol_id var = *(fh_symbol_id *)data;
@@ -478,207 +469,111 @@ static int expr_contains_var(struct fh_p_expr *expr, fh_symbol_id var)
 {
   return fh_ast_visit_expr_nodes(expr, check_is_var, &var);
 }
+#endif
 
-#define expr_is_simple(e) ((e)->type == EXPR_VAR || (e)->type == EXPR_NUMBER || (e)->type == EXPR_STRING)
-
-static int expr_is_simple_op(struct fh_p_expr *expr)
+static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
 {
-  if (expr->type == EXPR_BIN_OP && expr->data.bin_op.op != AST_OP_OR && expr->data.bin_op.op != AST_OP_AND) {
-    return (expr_is_simple(expr->data.bin_op.left) && expr_is_simple(expr->data.bin_op.right));
+  int left_rk = compile_expr(c, expr->left);
+  if (left_rk < 0)
+    return -1;
+  
+  int right_rk = compile_expr(c, expr->right);
+  if (right_rk < 0)
+    return -1;
+
+  enum fh_bc_opcode opc;
+  switch (expr->op) {
+  case '+': opc = OPC_ADD; break;
+  case '-': opc = OPC_SUB; break;
+  case '*': opc = OPC_MUL; break;
+  case '/': opc = OPC_DIV; break;
+  case '%': opc = OPC_MOD; break;
+  default:
+    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
   }
-  if (expr->type == EXPR_UN_OP) {
-    return expr_is_simple(expr->data.un_op.arg);
-  }
-  return 0;
+  if (add_instr(c, loc, MAKE_INSTR_ABC(opc, dest_reg, left_rk, right_rk)) < 0)
+    return -1;
+
+  return dest_reg;
 }
 
-static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
+static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr)
 {
-  switch (expr->op) {
-  case '=':
+  if (expr->op == '=') {
     if (expr->left->type == EXPR_VAR) {
       int left_reg = get_var_reg(c, loc, expr->left->data.var);
       if (left_reg < 0)
         return -1;
-      /* Optimization: if expr->right is simple enough, we can
-       * directly compile it using the assigned variable register as
-       * the destination. Sadly this doesn't work in most cases where
-       * expr->right contains the variable being assigned
-       * (e.g. "y=(2*x)*y+c" fails to compile correctly with that
-       * optimization).
-       */
-      if (expr_is_simple(expr->right)
-          || expr_is_simple_op(expr->right)
-          || ! expr_contains_var(expr->right, expr->left->data.var)) {
-        if (compile_expr(c, expr->right, left_reg) < 0)
+      return compile_expr_to_reg(c, expr->right, left_reg);
+    }
+
+    if (expr->left->type == EXPR_INDEX) {
+      int container_rk = compile_expr(c, expr->left->data.index.container);
+      if (container_rk < 0)
+        return -1;
+      if (RK_IS_CONST(container_rk)) {  // container must be a register (RA)
+        int tmp_reg = alloc_reg(c, loc, TMP_VARIABLE);
+        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, tmp_reg, container_rk)) < 0)
           return -1;
-        if (dest_reg < 0)
-          return left_reg;
-        if (dest_reg != left_reg) {
-          if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, left_reg)) < 0)
-            return -1;
-        }
-      } else {
-        int tmp_reg = compile_expr(c, expr->right, dest_reg);
-        if (tmp_reg < 0)
-          return -1;
-        if (tmp_reg != left_reg) {
-          if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, left_reg, tmp_reg)) < 0)
-            return -1;
-        }
-        if (dest_reg < 0)
-          return left_reg;
+        container_rk = tmp_reg;
       }
-      return dest_reg;
-    } else if (expr->left->type == EXPR_INDEX) {
-      struct fh_p_expr *container_expr = expr->left->data.index.container;
-      int container_reg;
-      if (dest_reg >= 0 && container_expr->type == EXPR_VAR) {
-        container_reg = get_var_reg(c, container_expr->loc, container_expr->data.var);
-      } else if (container_expr->type == EXPR_NUMBER) {
-        container_reg = add_const_number(c, container_expr->loc, container_expr->data.num);
-        if (container_reg >= 0) container_reg += MAX_FUNC_REGS+1;
-      } else {
-        container_reg = compile_expr(c, container_expr, -1);
-      }
-      if (container_reg < 0)
+
+      int index_rk = compile_expr(c, expr->left->data.index.index);
+      if (index_rk < 0)
+        return -1;
+      int val_rk = compile_expr(c, expr->right);
+      if (val_rk < 0)
         return -1;
 
-      struct fh_p_expr *index_expr = expr->left->data.index.index;
-      int index_reg;
-      if (dest_reg >= 0 && index_expr->type == EXPR_VAR) {
-        index_reg = get_var_reg(c, index_expr->loc, index_expr->data.var);
-      } else if (index_expr->type == EXPR_NUMBER) {
-        index_reg = add_const_number(c, index_expr->loc, index_expr->data.num);
-        if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
-      } else if (expr->right->type == EXPR_STRING) {
-        index_reg = add_const_string(c, index_expr->loc, index_expr->data.str);
-        if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
-      } else {
-        index_reg = compile_expr(c, index_expr, -1);
-      }
-      if (index_reg < 0)
+      if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_SETEL, container_rk, index_rk, val_rk)) < 0)
         return -1;
-
-      int val_reg;
-      if (dest_reg >= 0 && expr->right->type == EXPR_VAR) {
-        val_reg = get_var_reg(c, expr->right->loc, expr->right->data.var);
-      } else if (expr->right->type == EXPR_NUMBER) {
-        val_reg = add_const_number(c, expr->right->loc, expr->right->data.num);
-        if (val_reg >= 0) val_reg += MAX_FUNC_REGS+1;
-      } else if (expr->right->type == EXPR_STRING) {
-        val_reg = add_const_string(c, expr->right->loc, expr->right->data.str);
-        if (val_reg >= 0) val_reg += MAX_FUNC_REGS+1;
-      } else {
-        val_reg = compile_expr(c, expr->right, dest_reg);
-      }
-      if (val_reg < 0)
-        return -1;
-      
-      if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_SETEL, container_reg, index_reg, val_reg)) < 0)
-        return -1;
-      if (dest_reg < 0)
-        return val_reg;
-
-      if (dest_reg != val_reg) {
-        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, val_reg)) < 0)
-          return -1;
-      }
-      return dest_reg;
-    } else {
-      return fh_compiler_error(c, loc, "invalid assignment");
+      return val_rk;
     }
-
-  case '+':
-  case '-':
-  case '*':
-  case '/':
-  case '%': {
-    int left_reg;
-    if (dest_reg >= 0 && expr->left->type == EXPR_VAR) {
-      left_reg = get_var_reg(c, expr->left->loc, expr->left->data.var);
-    } else if (expr->left->type == EXPR_NUMBER) {
-      left_reg = add_const_number(c, loc, expr->left->data.num);
-      if (left_reg >= 0) left_reg += MAX_FUNC_REGS+1;
-    } else {
-      left_reg = compile_expr(c, expr->left, dest_reg);
-    }
-    if (left_reg < 0)
-      return -1;
-    int right_reg;
-    if (dest_reg >= 0 && expr->right->type == EXPR_VAR) {
-      right_reg = get_var_reg(c, expr->right->loc, expr->right->data.var);
-    } else if (expr->right->type == EXPR_NUMBER) {
-      right_reg = add_const_number(c, loc, expr->right->data.num);
-      if (right_reg >= 0) right_reg += MAX_FUNC_REGS+1;
-    } else {
-      right_reg = compile_expr(c, expr->right, -1);
-    }
-    if (right_reg < 0)
-      return -1;
-    int opcode = get_opcode_for_op(c, loc, expr->op);
-    if (opcode < 0)
-      return -1;
-    if (dest_reg < 0) {
-      dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-      if (dest_reg < 0)
-        return -1;
-    }
-    if (add_instr(c, loc, MAKE_INSTR_ABC(opcode, dest_reg, left_reg, right_reg)) < 0)
-      return -1;
-    return dest_reg;
+    
+    return fh_compiler_error(c, loc, "invalid assignment");
   }
 
+  int dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+  if (dest_reg < 0)
+    return -1;
+  return compile_bin_op_to_reg(c, loc, expr, dest_reg);
+}
+
+static int compile_un_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int dest_reg)
+{
+  int arg_rk = compile_expr(c, expr->arg);
+  if (arg_rk < 0)
+    return -1;
+
+  enum fh_bc_opcode opc;
+  switch (expr->op) {
+  case AST_OP_UNM: opc = OPC_NEG; break;
+  case '!':        opc = OPC_NOT; break;
   default:
     return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
   }
+  if (add_instr(c, loc, MAKE_INSTR_AB(opc, dest_reg, arg_rk)) < 0)
+    return -1;
+  return dest_reg;
 }
 
-static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr, int dest_reg)
+static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_un_op *expr)
 {
-  switch (expr->op) {
-  case '!':
-  case AST_OP_UNM: {
-    int reg;
-    if (expr->arg->type == EXPR_VAR) {
-      reg = get_var_reg(c, expr->arg->loc, expr->arg->data.var);
-    } else if (expr->arg->type == EXPR_NUMBER) {
-      reg = add_const_number(c, loc, expr->arg->data.num);
-      if (reg >= 0) reg += MAX_FUNC_REGS+1;
-      if (dest_reg < 0)
-        dest_reg = reg;
-    } else {
-      reg = compile_expr(c, expr->arg, dest_reg);
-    }
-    if (reg < 0)
-      return -1;
-    int opcode = get_opcode_for_op(c, loc, expr->op);
-    if (opcode < 0)
-      return -1;
-    if (dest_reg < 0) {
-      dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-      if (dest_reg < 0)
-        return -1;
-    }
-    if (add_instr(c, loc, MAKE_INSTR_AB(opcode, dest_reg, reg)) < 0)
-      return -1;
-    return dest_reg;
-  }
-
-  default:
-    return fh_compiler_error(c, loc, "compilation for operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
-  }
+  int dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+  if (dest_reg < 0)
+    return -1;
+  return compile_un_op_to_reg(c, loc, expr, dest_reg);
 }
 
-static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr, int req_dest_reg)
+static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr)
 {
   int func_reg = alloc_n_regs(c, loc, expr->n_args+1);
   if (func_reg < 0)
     return -1;
-  if (compile_expr(c, expr->func, func_reg) < 0)
+  if (compile_expr_to_reg(c, expr->func, func_reg) < 0)
     return -1;
   for (int i = 0; i < expr->n_args; i++) {
-    if (compile_expr(c, &expr->args[i], func_reg+i+1) < 0)
+    if (compile_expr_to_reg(c, &expr->args[i], func_reg + 1 + i) < 0)
       return -1;
   }
 
@@ -688,57 +583,39 @@ static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struc
   for (int i = 1; i < expr->n_args+1; i++)
     free_reg(c, loc, func_reg+i);
 
-  if (req_dest_reg < 0)
-    return func_reg;
-  
-  if (func_reg != req_dest_reg) {
-    free_reg(c, loc, func_reg);
-    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, req_dest_reg, func_reg)) < 0)
-      return -1;
-  }
-  return req_dest_reg;
+  return func_reg;
 }
 
-static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_index *expr, int dest_reg)
+static int compile_index_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_index *expr, int dest_reg)
 {
-  int container_reg;
-  if (dest_reg >= 0 && expr->container->type == EXPR_VAR) {
-    container_reg = get_var_reg(c, expr->container->loc, expr->container->data.var);
-  } else {
-    container_reg = compile_expr(c, expr->container, dest_reg);
-  }
-  if (container_reg < 0)
+  int container_rk = compile_expr(c, expr->container);
+  if (container_rk < 0)
     return -1;
   
-  int index_reg;
-  if (dest_reg >= 0 && expr->index->type == EXPR_VAR) {
-    index_reg = get_var_reg(c, expr->index->loc, expr->index->data.var);
-  } else if (expr->index->type == EXPR_NUMBER) {
-    index_reg = add_const_number(c, loc, expr->index->data.num);
-    if (index_reg >= 0) index_reg += MAX_FUNC_REGS+1;
-  } else {
-    index_reg = compile_expr(c, expr->index, -1);
-  }
-  if (index_reg < 0)
+  int index_rk = compile_expr(c, expr->index);
+  if (index_rk < 0)
     return -1;
-  
-  if (dest_reg < 0) {
-    dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-    if (dest_reg < 0)
-      return -1;
-  }
-  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_GETEL, dest_reg, container_reg, index_reg)) < 0)
+
+  if (add_instr(c, loc, MAKE_INSTR_ABC(OPC_GETEL, dest_reg, container_rk, index_rk)) < 0)
     return -1;
   return dest_reg;
 }
 
-static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_array_lit *expr, int req_dest_reg)
+static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_index *expr)
+{
+  int dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+  if (dest_reg < 0)
+    return -1;
+  return compile_index_to_reg(c, loc, expr, dest_reg);
+}
+
+static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_array_lit *expr)
 {
   int array_reg = alloc_n_regs(c, loc, expr->n_elems+1);
   if (array_reg < 0)
     return -1;
   for (int i = 0; i < expr->n_elems; i++) {
-    if (compile_expr(c, &expr->elems[i], array_reg+i+1) < 0)
+    if (compile_expr_to_reg(c, &expr->elems[i], array_reg + 1 + i) < 0)
       return -1;
   }
 
@@ -748,99 +625,81 @@ static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struc
   for (int i = 1; i < expr->n_elems+1; i++)
     free_reg(c, loc, array_reg+i);
 
-  if (req_dest_reg < 0)
-    return array_reg;
-  
-  if (array_reg != req_dest_reg) {
-    free_reg(c, loc, array_reg);
-    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, req_dest_reg, array_reg)) < 0)
-      return -1;
-  }
-  return req_dest_reg;
+  return array_reg;
 }
 
-static int compile_inner_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr, int dest_reg)
+static int compile_inner_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return -1;
-
   struct fh_func *func = new_func(c, loc, NULL, expr->n_params);
   if (! func || fh_add_func(c->prog, func, false) < 0)
     return -1;
   if (compile_func(c, loc, expr, func, fi) < 0)
     return -1;
   int k = add_const_func(c, loc, func);
-  if (k < 0)
-    return -1;
-  if (dest_reg < 0) {
-    dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
-    if (dest_reg < 0)
-      return -1;
-  }
-  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-    return -1;
-  return dest_reg;
+  if (k >= 0)
+    k += MAX_FUNC_REGS + 1;
+  return k;
 }
 
-static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr, int req_dest_reg)
+static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr)
 {
   switch (expr->type) {
-  case EXPR_VAR:       return compile_var(c, expr->loc, expr->data.var, req_dest_reg);
-  case EXPR_BIN_OP:    return compile_bin_op(c, expr->loc, &expr->data.bin_op, req_dest_reg);
-  case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op, req_dest_reg);
-  case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call, req_dest_reg);
-  case EXPR_ARRAY_LIT: return compile_array_lit(c, expr->loc, &expr->data.array_lit, req_dest_reg);
-  case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index, req_dest_reg);
-  case EXPR_FUNC:      return compile_inner_func(c, expr->loc, &expr->data.func, req_dest_reg);
-  default:
-    break;
-  }
+  case EXPR_VAR:       return compile_var(c, expr->loc, expr->data.var);
+  case EXPR_BIN_OP:    return compile_bin_op(c, expr->loc, &expr->data.bin_op);
+  case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op);
+  case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call);
+  case EXPR_ARRAY_LIT: return compile_array_lit(c, expr->loc, &expr->data.array_lit);
+  case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index);
+  case EXPR_FUNC:      return compile_inner_func(c, expr->loc, &expr->data.func);
 
-  int dest_reg = req_dest_reg;
-  if (dest_reg < 0) {
-    dest_reg = alloc_reg(c, expr->loc, TMP_VARIABLE);
-    if (dest_reg < 0)
-      return -1;
-  }
-
-  switch (expr->type) {
   case EXPR_NUMBER:
     {
       int k = add_const_number(c, expr->loc, expr->data.num);
-      if (k < 0)
-        goto err;
-      if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-        goto err;
-      break;
+      if (k >= 0)
+        k += MAX_FUNC_REGS + 1;
+      return k;
     }
-  
+    
   case EXPR_STRING:
     {
       int k = add_const_string(c, expr->loc, expr->data.str);
-      if (k < 0)
-        goto err;
-      if (add_instr(c, expr->loc, MAKE_INSTR_AU(OPC_LDC, dest_reg, k)) < 0)
-        goto err;
-      break;
+      if (k >= 0)
+        k += MAX_FUNC_REGS + 1;
+      return k;
     }
 
   case EXPR_NONE:
-  case EXPR_VAR:
-  case EXPR_BIN_OP:
-  case EXPR_UN_OP:
-  case EXPR_FUNC_CALL:
-  case EXPR_ARRAY_LIT:
-  case EXPR_FUNC:
-  case EXPR_INDEX:
-    break;
+    if (add_instr(c, expr->loc, MAKE_INSTR_AB(OPC_MOV, 0, 0)) < 0) // NOP
+      return -1;
+    return 0;
+  }
+
+  return fh_compiler_error(c, expr->loc, "INTERNAL COMPILER ERROR: invalid expression type %d", expr->type);
+}
+
+static int compile_expr_to_reg(struct fh_compiler *c, struct fh_p_expr *expr, int dest_reg)
+{
+  switch (expr->type) {
+  case EXPR_BIN_OP:    return compile_bin_op_to_reg(c, expr->loc, &expr->data.bin_op, dest_reg);
+  case EXPR_UN_OP:     return compile_un_op_to_reg(c, expr->loc, &expr->data.un_op, dest_reg);
+  case EXPR_INDEX:     return compile_index_to_reg(c, expr->loc, &expr->data.index, dest_reg);
+  default: break;
+  }
+  
+  int tmp_rk = compile_expr(c, expr);
+  if (tmp_rk < 0)
+    return -1;
+  if (tmp_rk <= MAX_FUNC_REGS) {
+    if (add_instr(c, expr->loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, tmp_rk)) < 0)
+      return -1;
+  } else {
+    if (add_instr(c, expr->loc, MAKE_INSTR_AB(OPC_LDC, dest_reg, tmp_rk - MAX_FUNC_REGS - 1)) < 0)
+      return -1;
   }
   return dest_reg;
-
- err:
-  if (req_dest_reg < 0 && dest_reg >= 0)
-    free_reg(c, expr->loc, dest_reg);
-  return -1;
 }
 
 static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_decl *decl)
@@ -849,7 +708,7 @@ static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct
   if (reg < 0)
     return -1;
   if (decl->val) {
-    if (compile_expr(c, decl->val, reg) < 0)
+    if (compile_expr_to_reg(c, decl->val, reg) < 0)
       return -1;
   } else {
     if (add_instr(c, loc, MAKE_INSTR_A(OPC_LDNULL, reg)) < 0)
@@ -890,29 +749,17 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
     case AST_OP_LE:
     case AST_OP_EQ:
     case AST_OP_NEQ: {
-      int left_reg;
-      if (test->data.bin_op.left->type == EXPR_NUMBER) {
-        left_reg = add_const_number(c, test->data.bin_op.left->loc, test->data.bin_op.left->data.num);
-        if (left_reg >= 0) left_reg += MAX_FUNC_REGS+1;
-      } else {
-        left_reg = compile_expr(c, test->data.bin_op.left, -1);
-      }
-      if (left_reg < 0)
+      int left_rk = compile_expr(c, test->data.bin_op.left);
+      if (left_rk < 0)
         return -1;
-      int right_reg;
-      if (test->data.bin_op.right->type == EXPR_NUMBER) {
-        right_reg = add_const_number(c, test->data.bin_op.right->loc, test->data.bin_op.right->data.num);
-        if (right_reg >= 0) right_reg += MAX_FUNC_REGS+1;
-      } else {
-        right_reg = compile_expr(c, test->data.bin_op.right, -1);
-      }
-      if (right_reg < 0)
+      int right_rk = compile_expr(c, test->data.bin_op.right);
+      if (right_rk < 0)
         return -1;
       int invert = 0;
       int opcode = get_opcode_for_test(c, test->loc, test->data.bin_op.op, &invert);
       if (opcode < 0)
         return -1;
-      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_reg, right_reg)) < 0)
+      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_rk, right_rk)) < 0)
         return -1;
       return 0;
     }
@@ -922,16 +769,16 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
     }
   }
 
-  int reg;
+  int rk;
   if (test->type == EXPR_NUMBER) {
-    reg = add_const_number(c, test->loc, test->data.num);
-    if (reg >= 0) reg += MAX_FUNC_REGS+1;
+    rk = add_const_number(c, test->loc, test->data.num);
+    if (rk >= 0) rk += MAX_FUNC_REGS+1;
   } else {
-    reg = compile_expr(c, test, -1);
+    rk = compile_expr(c, test);
   }
-  if (reg < 0)
+  if (rk < 0)
     return -1;
-  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, reg, invert_test)) < 0)
+  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, rk, invert_test)) < 0)
     return -1;
   return 0;
 }
@@ -1041,10 +888,10 @@ static int compile_continue(struct fh_compiler *c, struct fh_src_loc loc)
 static int compile_return(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_return *ret)
 {
   if (ret->val) {
-    int reg = compile_expr(c, ret->val, -1);
-    if (reg < 0)
+    int tmp_rk = compile_expr(c, ret->val);
+    if (tmp_rk < 0)
       return -1;
-    return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, reg, 1));
+    return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 1, tmp_rk));
   }
   return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0));
 }
@@ -1063,7 +910,7 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
     return 0;
 
   case STMT_EXPR:
-    if (compile_expr(c, stmt->data.expr, -1) < 0)
+    if (compile_expr(c, stmt->data.expr) < 0)
       return -1;
     free_tmp_regs(c, stmt->loc);
     return 0;

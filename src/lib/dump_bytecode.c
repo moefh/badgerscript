@@ -113,10 +113,15 @@ void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t ad
   enum fh_bc_opcode opc = GET_INSTR_OP(instr);
   switch (opc) {
   case OPC_RET:
-    if (GET_INSTR_RB(instr) != 0)
-      fh_output(out, "ret       r%d\n", GET_INSTR_RA(instr));
-    else
+    if (GET_INSTR_RA(instr) == 0)
       fh_output(out, "ret\n");
+    else {
+      int b = GET_INSTR_RB(instr);
+      if (b <= MAX_FUNC_REGS)
+        fh_output(out, "ret       r%d\n", b);
+      else
+        fh_output(out, "ret       c[%d]\n", b - MAX_FUNC_REGS - 1);
+    }
     return;
     
   case OPC_CALL:     fh_output(out, "call      r%d, %d\n", GET_INSTR_RA(instr), GET_INSTR_RB(instr)); return;

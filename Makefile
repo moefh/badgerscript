@@ -21,7 +21,7 @@ release:
 	$(MAKE) build TARGET_CFLAGS="-O2" TARGET_LDFLAGS="-s"
 
 ubsan:
-	$(MAKE) build TARGET_CFLAGS="-g -fsanitize=undefined" TARGET_LDFLAGS="-fsanitize=undefined"
+	$(MAKE) build TARGET_CFLAGS="-O1 -g -fsanitize=undefined" TARGET_LDFLAGS="-fsanitize=undefined"
 
 clean:
 	rm -f *~
@@ -38,7 +38,7 @@ build:
 	@echo
 
 check: debug
-	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all src/fh $(CHECK_SCRIPT) arg1 arg2
+	valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all src/fh -d $(CHECK_SCRIPT) arg1 arg2
 
 test: debug
 	src/fh tests/mandel_color.fh

@@ -182,6 +182,28 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
 #define LOAD_REG(index)    (&reg_base[index])
 #define LOAD_CONST(index)  (&const_base[(index)-MAX_FUNC_REGS-1])
 
+static void dump_state(struct fh_vm *vm)
+{
+  struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
+  printf("\n");
+  printf("****************************\n");
+  printf("***** HALTING ON ERROR *****\n");
+  printf("****************************\n");
+  printf("** current stack frame: ");
+  if (frame) {
+    if (frame->func->name)
+      printf("function %s\n", GET_OBJ_STRING_DATA(frame->func->name));
+    else
+      printf("function at %p\n", frame->func);
+  } else
+    printf("no stack frame!\n");
+  dump_regs(vm);
+  printf("** instruction that caused error:\n");
+  int addr = (frame) ? vm->pc - 1 - frame->func->code : -1;
+  fh_dump_bc_instr(vm->prog, NULL, addr, vm->pc[-1]);
+  printf("----------------------------\n");
+}
+
 int fh_run_vm(struct fh_vm *vm)
 {
   struct fh_value *const_base;
@@ -213,16 +235,14 @@ int fh_run_vm(struct fh_vm *vm)
       }
 
       handle_op(OPC_MOV) {
-        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        *ra = *rb;
+        *ra = *LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         break;
       }
       
       handle_op(OPC_RET) {
         struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
-        int has_val = GET_INSTR_RB(instr);
-        if (has_val)
-          vm->stack[frame->base-1] = *ra;
+        if (GET_INSTR_RA(instr))
+          vm->stack[frame->base-1] = *LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         else
           vm->stack[frame->base-1].type = FH_VAL_NULL;
         uint32_t *ret_addr = frame->ret_addr;
@@ -408,8 +428,9 @@ int fh_run_vm(struct fh_vm *vm)
       }
       
       handle_op(OPC_TEST) {
-        int b = GET_INSTR_RB(instr);
-        int test = is_true(ra) ^ b;
+        int a = GET_INSTR_RA(instr);
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        int test = is_true(rb) ^ a;
         if (test) {
           pc++;
           break;
@@ -474,18 +495,10 @@ int fh_run_vm(struct fh_vm *vm)
   }
 
  err:
-  printf("\n");
-  printf("****************************\n");
-  printf("***** HALTING ON ERROR *****\n");
-  printf("****************************\n");
-  printf("** current stack frame:\n");
-  dump_regs(vm);
-  printf("** instruction that caused error:\n");
-  struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
-  int addr = (frame) ? pc - 1 - frame->func->code : -1;
-  fh_dump_bc_instr(vm->prog, NULL, addr, pc[-1]);
-  printf("----------------------------\n");
-
+  vm->pc = pc;
+  dump_state(vm);
+  return -1;
+  
  c_func_err:
   vm->pc = pc;
   return -1;
