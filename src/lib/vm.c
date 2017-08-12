@@ -299,10 +299,14 @@ int fh_run_vm(struct fh_vm *vm)
         int n_elems = GET_INSTR_RU(instr);
 
         struct fh_array *arr = fh_make_array(vm->prog);
-        struct fh_value *first;
-        if (! arr || (first = fh_grow_array_object(vm->prog, arr, n_elems)) == NULL)
+        if (! arr)
           goto err;
-        memcpy(first, ra + 1, n_elems*sizeof(struct fh_value));
+        if (n_elems != 0) {
+          struct fh_value *first = fh_grow_array_object(vm->prog, arr, n_elems);
+          if (! first)
+            goto err;
+          memcpy(first, ra + 1, n_elems*sizeof(struct fh_value));
+        }
         ra->type = FH_VAL_ARRAY;
         ra->data.obj = arr;
         break;
