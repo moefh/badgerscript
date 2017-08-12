@@ -59,7 +59,6 @@ int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func);
 int fh_add_c_funcs(struct fh_program *prog, const struct fh_named_c_func *funcs, int n_funcs);
 int fh_compile_file(struct fh_program *prog, const char *filename);
 void fh_dump_bytecode(struct fh_program *prog);
-int fh_run_function(struct fh_program *prog, const char *func_name);
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret);
 
 const char *fh_get_error(struct fh_program *prog);

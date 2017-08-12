@@ -18,6 +18,7 @@ struct reg_info {
 DECLARE_STACK(reg_stack, struct reg_info);
 
 struct func_info {
+  struct func_info *parent;
   int num_regs;
   struct reg_stack regs;
   struct code_stack code;

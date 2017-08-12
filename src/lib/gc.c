@@ -161,9 +161,9 @@ static void mark(struct fh_program *prog)
 
   gc.container_list = NULL;
   
-  // mark functions
-  DEBUG_LOG("***** marking functions\n");
-  stack_foreach(struct fh_func *, *, pf, &prog->funcs) {
+  // mark global functions
+  DEBUG_LOG("***** marking global functions\n");
+  stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
     MARK_OBJECT(&gc, (struct fh_object *) *pf);
   }
 

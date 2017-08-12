@@ -10,6 +10,7 @@
 #include "ast.h"
 
 static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt_block *block);
+static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_func *func);
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 
@@ -112,7 +113,7 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
   if (tok->type != TOK_OP)
     return 0;
 
-  if (op == NULL)
+  if (! op)
     return 1;
   
   const char *tok_op = fh_get_token_op(&p->t, tok);
@@ -271,7 +272,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       struct fh_p_expr *expr;
       if (expect_opn) {
         expr = parse_expr(p, true, ")");
-        if (expr == NULL)
+        if (! expr)
           goto err;
         expect_opn = false;
       } else {
@@ -369,7 +370,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
         expr->data.index.container = container;
         expr->data.index.index = parse_expr(p, true, "]");
-        if (expr->data.index.index == NULL) {
+        if (! expr->data.index.index) {
           free(expr);
           fh_free_expr(container);
           goto err;
@@ -388,7 +389,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
     if (tok_is_op(p, &tok, NULL)) {
       if (expect_opn) {
         struct fh_operator *op = fh_get_prefix_op(&p->ast->op_table, tok.data.op_name);
-        if (op == NULL) {
+        if (! op) {
           fh_parse_error_expected(p, tok.loc, "expression");
           goto err;
         }
@@ -398,7 +399,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
       } else {
         struct fh_operator *op = fh_get_binary_op(&p->ast->op_table, tok.data.op_name);
-        if (op == NULL) {
+        if (! op) {
           fh_parse_error_expected(p, tok.loc, "'(' or binary operator");
           goto err;
         }
@@ -470,6 +471,29 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       continue;
     }
 
+    /* function */
+    if (tok_is_keyword(&tok, KW_FUNCTION)) {
+      if (! expect_opn) {
+        fh_parse_error_expected(p, tok.loc, "'(' or operator");
+        goto err;
+      }
+      struct fh_p_expr *func = new_expr(p, tok.loc, EXPR_FUNC);
+      if (! func)
+        goto err;
+      if (! parse_func(p, &func->data.func)) {
+        free(func);
+        goto err;
+      }
+      if (! p_expr_stack_push(&opns, &func)) {
+        fh_free_expr(func);
+        fh_parse_error_oom(p, tok.loc);
+        goto err;
+      }
+      expect_opn = false;
+      continue;
+    }
+
+    /* unrecognized token */
     fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
     goto err;
   }
@@ -627,7 +651,7 @@ static struct fh_p_stmt *parse_stmt(struct fh_parser *p)
   // { ... }
   if (tok_is_punct(&tok, '{')) {
     unget_token(p, &tok);
-    if (parse_block(p, &stmt->data.block) == NULL)
+    if (! parse_block(p, &stmt->data.block))
       goto err;
     stmt->type = STMT_BLOCK;
     return stmt;
@@ -681,7 +705,7 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
     unget_token(p, &tok);
 
     struct fh_p_stmt *stmt = parse_stmt(p);
-    if (stmt == NULL)
+    if (! stmt)
       goto err;
     if (! p_stmt_stack_push(&stmts, &stmt)) {
       fh_parse_error_oom(p, tok.loc);
@@ -734,13 +758,13 @@ static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_f
   }
   
   // function body
-  if (parse_block(p, &func->body) == NULL)
+  if (! parse_block(p, &func->body))
     return NULL;
 
   // copy params
   func->n_params = n_params;
   func->params = malloc(n_params * sizeof(params[0]));
-  if (func->params == NULL) {
+  if (! func->params) {
     fh_free_block(func->body);
     return fh_parse_error_oom(p, tok.loc);
   }
@@ -761,7 +785,7 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
   func->name = tok.data.symbol_id;
 
   // rest of function
-  if (parse_func(p, &func->func) == NULL)
+  if (! parse_func(p, &func->func))
     return NULL;
 
   return func;
@@ -787,7 +811,7 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
     
     if (tok_is_keyword(&tok, KW_FUNCTION)) {
       struct fh_p_named_func func;
-      if (parse_named_func(p, &func) == NULL)
+      if (! parse_named_func(p, &func))
         goto err;
       if (! named_func_stack_push(&funcs, &func)) {
         fh_parse_error_oom(p, tok.loc);

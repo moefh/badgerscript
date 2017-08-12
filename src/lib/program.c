@@ -22,7 +22,8 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
-  p_func_stack_init(&prog->funcs);
+  p_func_stack_init(&prog->global_funcs);
+  p_func_stack_init(&prog->all_funcs);
   named_c_func_stack_init(&prog->c_funcs);
 
   fh_init_vm(&prog->vm, prog);
@@ -36,7 +37,8 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
-  p_func_stack_free(&prog->funcs);
+  p_func_stack_free(&prog->global_funcs);
+  p_func_stack_free(&prog->all_funcs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_destroy_compiler(&prog->compiler);
@@ -47,7 +49,8 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
-  p_func_stack_free(&prog->funcs);
+  p_func_stack_free(&prog->global_funcs);
+  p_func_stack_free(&prog->all_funcs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_collect_garbage(prog);
@@ -117,6 +120,48 @@ fh_c_func fh_get_c_func_by_name(struct fh_program *prog, const char *name)
   return NULL;
 }
 
+int fh_add_func(struct fh_program *prog, struct fh_func *func, bool is_global)
+{
+  if (! p_func_stack_push(&prog->all_funcs, &func))
+    return fh_set_error(prog, "out of memory");
+  
+  if (is_global) {
+    stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
+      struct fh_func *cur_func = *pf;
+      if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), GET_OBJ_STRING_DATA(cur_func->name)) == 0) {
+        *pf = func;
+        return 0;
+      }
+    }
+    if (! p_func_stack_push(&prog->global_funcs, &func))
+      return fh_set_error(prog, "out of memory");
+  }
+  return 0;
+}
+
+int fh_get_num_funcs(struct fh_program *prog)
+{
+  return p_func_stack_size(&prog->all_funcs);
+}
+
+struct fh_func *fh_get_func(struct fh_program *prog, int num)
+{
+  struct fh_func **pf = p_func_stack_item(&prog->all_funcs, num);
+  if (! pf)
+    return NULL;
+  return *pf;
+}
+
+struct fh_func *fh_get_global_func(struct fh_program *prog, const char *name)
+{
+  stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
+    struct fh_func *func = *pf;
+    if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), name) == 0)
+      return func;
+  }
+  return NULL;
+}
+
 int fh_compile_file(struct fh_program *prog, const char *filename)
 {
   struct fh_input *in = NULL;
@@ -155,12 +200,8 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
 
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
-  return fh_call_vm_function(&prog->vm, func_name, args, n_args, ret);
+  struct fh_func *func = fh_get_global_func(prog, func_name);
+  if (! func)
+    return fh_set_error(prog, "function '%s' doesn't exist", func_name);
+  return fh_call_vm_function(&prog->vm, func, args, n_args, ret);
 }
-
-int fh_run_function(struct fh_program *prog, const char *func_name)
-{
-  struct fh_value ret;
-  return fh_call_vm_function(&prog->vm, func_name, NULL, 0, &ret);
-}
-

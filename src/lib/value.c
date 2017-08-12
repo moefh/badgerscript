@@ -107,6 +107,13 @@ struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, in
   return fh_grow_array_object(prog, GET_OBJ_ARRAY(val->data.obj), num_items);
 }
 
+const char *fh_get_func_object_name(struct fh_func *func)
+{
+  if (func->type != FH_VAL_FUNC || ! func->name)
+    return NULL;
+  return GET_OBJ_STRING_DATA(func->name);
+}
+
 /*************************************************************************
  * OBJECT CREATION       
  *
@@ -117,7 +124,7 @@ struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, in
 static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_type type, size_t size)
 {
   if (size < sizeof(struct fh_object_header)) {
-    fh_set_error(prog, "trying to create object with small size");
+    fh_set_error(prog, "object size too small");
     return NULL;
   }
   

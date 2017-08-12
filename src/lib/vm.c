@@ -105,12 +105,8 @@ static void dump_regs(struct fh_vm *vm)
   printf("----------------------------\n");
 }
 
-int fh_call_vm_function(struct fh_vm *vm, const char *name, struct fh_value *args, int n_args, struct fh_value *ret)
+int fh_call_vm_function(struct fh_vm *vm, struct fh_func *func, struct fh_value *args, int n_args, struct fh_value *ret)
 {
-  struct fh_func *func = fh_get_bc_func_by_name(vm->prog, name);
-  if (! func)
-    return vm_error(vm, "function '%s' doesn't exist", name);
-  
   if (n_args > func->n_params)
     n_args = func->n_params;
   

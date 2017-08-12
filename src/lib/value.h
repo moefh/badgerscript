@@ -74,5 +74,6 @@ struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, siz
 // object functions
 void fh_free_object(struct fh_object *obj);
 struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items);
+const char *fh_get_func_object_name(struct fh_func *func);
 
 #endif /* VALUE_H_FILE */

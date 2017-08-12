@@ -114,7 +114,7 @@ void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t ad
   switch (opc) {
   case OPC_RET:
     if (GET_INSTR_RB(instr) != 0)
-      fh_output(out, "ret     r%d\n", GET_INSTR_RA(instr));
+      fh_output(out, "ret       r%d\n", GET_INSTR_RA(instr));
     else
       fh_output(out, "ret\n");
     return;
@@ -144,7 +144,7 @@ void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t ad
   case OPC_LDC:      fh_output(out, "ldc       r%d, c[%d]\n",     GET_INSTR_RA(instr), GET_INSTR_RU(instr)); return;
   }
 
-  fh_output(out, "??      "); dump_instr_abc(out, instr); return;
+  fh_output(out, "???       "); dump_instr_abc(out, instr); return;
 }
 
 static void dump_const(struct fh_program *prog, struct fh_value *c, struct fh_output *out)
@@ -182,16 +182,19 @@ static void dump_const(struct fh_program *prog, struct fh_value *c, struct fh_ou
 
 void fh_dump_bytecode(struct fh_program *prog)
 {
-  int n_funcs = fh_get_bc_num_funcs(prog);
+  int n_funcs = fh_get_num_funcs(prog);
 
   struct fh_output *out = NULL;
   
   fh_output(out, "; === BYTECODE ======================================\n");
   for (int i = 0; i < n_funcs; i++) {
-    struct fh_func *func = fh_get_bc_func(prog, i);
-    const char *func_name = fh_get_bc_func_name(prog, i);
+    struct fh_func *func = fh_get_func(prog, i);
+    const char *func_name = fh_get_func_object_name(func);
 
-    fh_output(out, "; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
+    if (func_name)
+      fh_output(out, "; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
+    else
+      fh_output(out, "; function at %p: %u parameters, %d regs\n", func, func->n_params, func->n_regs);
 
     for (int i = 0; i < func->code_size; i++)
       fh_dump_bc_instr(prog, out, i, func->code[i]);
