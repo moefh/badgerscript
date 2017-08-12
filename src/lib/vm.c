@@ -260,19 +260,19 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type == FH_VAL_ARRAY) {
           if (rc->type != FH_VAL_NUMBER) {
-            vm_error(vm, "invalid array access (non-numeric index)D");
-            goto err;
+            vm_error(vm, "invalid array access (non-numeric index)");
+            goto user_err;
           }
           struct fh_value *val = fh_get_array_item(rb, (int) rc->data.num);
           if (! val) {
             vm_error(vm, "invalid array index");
-            goto err;
+            goto user_err;
           }
           *ra = *val;
           break;
         }
         vm_error(vm, "invalid element access (non-container object)");
-        goto err;
+        goto user_err;
       }
 
       handle_op(OPC_SETEL) {
@@ -281,18 +281,18 @@ int fh_run_vm(struct fh_vm *vm)
         if (ra->type == FH_VAL_ARRAY) {
           if (rb->type != FH_VAL_NUMBER) {
             vm_error(vm, "invalid array access (non-numeric index)");
-            goto err;
+            goto user_err;
           }
           struct fh_value *val = fh_get_array_item(ra, (int) rb->data.num);
           if (! val) {
             vm_error(vm, "invalid array index");
-            goto err;
+            goto user_err;
           }
           *val = *rc;
           break;
         }
         vm_error(vm, "invalid element access (non-container object)");
-        goto err;
+        goto user_err;
       }
 
       handle_op(OPC_NEWARRAY) {
@@ -317,7 +317,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric values");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = rb->data.num + rc->data.num;
@@ -329,7 +329,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric values");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = rb->data.num - rc->data.num;
@@ -341,7 +341,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric values");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = rb->data.num * rc->data.num;
@@ -353,7 +353,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric values");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = rb->data.num / rc->data.num;
@@ -365,7 +365,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric values");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = fmod(rb->data.num, rc->data.num);
@@ -376,7 +376,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         if (rb->type != FH_VAL_NUMBER) {
           vm_error(vm, "arithmetic on non-numeric value");
-          goto err;
+          goto user_err;
         }
         ra->type = FH_VAL_NUMBER;
         ra->data.num = -rb->data.num;
@@ -419,11 +419,11 @@ int fh_run_vm(struct fh_vm *vm)
           int ret = call_c_func(vm, c_func, vm->stack + new_frame->base - 1, vm->stack + new_frame->base, GET_INSTR_RB(instr));
           call_frame_stack_pop(&vm->call_stack, NULL);
           if (ret < 0)
-            goto c_func_err;
+            goto user_err;
           goto changed_stack_frame;
         }
         vm_error(vm, "call to non-function value");
-        goto err;
+        goto user_err;
       }
       
       handle_op(OPC_JMP) {
@@ -462,7 +462,7 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
           vm_error(vm, "using < with non-numeric values");
-          goto err;
+          goto user_err;
         }
         int test = (rb->data.num < rc->data.num) ^ inv;
         //printf("(%f < %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
@@ -479,8 +479,8 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         if (rb->type != FH_VAL_NUMBER || rc->type != FH_VAL_NUMBER) {
-          vm_error(vm, "using < with non-numeric values");
-          goto err;
+          vm_error(vm, "using <= with non-numeric values");
+          goto user_err;
         }
         int test = (rb->data.num <= rc->data.num) ^ inv;
         //printf("(%f <= %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
@@ -503,7 +503,7 @@ int fh_run_vm(struct fh_vm *vm)
   dump_state(vm);
   return -1;
   
- c_func_err:
+ user_err:
   vm->pc = pc;
   return -1;
 }
