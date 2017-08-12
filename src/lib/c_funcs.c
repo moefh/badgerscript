@@ -1,6 +1,7 @@
 /* c_funcs.c */
 
 #include <stdlib.h>
+#include <limits.h>
 #include <stdio.h>
 
 #include "fh.h"
@@ -20,14 +21,39 @@ static void print_value(struct fh_value *val)
   printf("<invalid value %d>", val->type);
 }
 
+static int check_n_args(struct fh_program *prog, const char *func_name, int n_expected, int n_received)
+{
+  if (n_expected >= 0 && n_received != n_expected)
+    return fh_set_error(prog, "%s: expected %d argument(s), got %d", func_name, n_expected, n_received);
+  if (n_received != INT_MIN && n_received < -n_expected)
+    return fh_set_error(prog, "%s: expected at least %d argument(s), got %d", func_name, -n_expected, n_received);
+  return 0;
+}
+
 int fh_fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
-  if (n_args != 1)
-    return fh_set_error(prog, "len(): invalid number of arguments: %d", n_args);
+  if (check_n_args(prog, "len()", 1, n_args))
+    return -1;
+  
   struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
   if (! arr)
     return fh_set_error(prog, "len(): argument must be an array");
   *ret = fh_new_number(prog, arr->len);
+  return 0;
+}
+
+int fh_fn_append(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  if (check_n_args(prog, "append()", -2, n_args))
+    return -1;
+  struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
+  if (! arr)
+    return fh_set_error(prog, "append(): argument 1 must be an array");
+  struct fh_value *new_items = fh_grow_array_object(prog, arr, n_args-1);
+  if (! new_items)
+    return fh_set_error(prog, "out of memory");
+  memcpy(new_items, args + 1, sizeof(struct fh_value) * (n_args-1));
+  *ret = args[0];
   return 0;
 }
 

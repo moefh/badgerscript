@@ -6,6 +6,7 @@
 #define DECL_FN(name) int fh_fn_##name(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 
 DECL_FN(len);
+DECL_FN(append);
 DECL_FN(print);
 DECL_FN(printf);
 

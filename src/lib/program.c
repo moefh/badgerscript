@@ -12,6 +12,7 @@ static const struct fh_named_c_func c_funcs[] = {
   DEF_FN(print),
   DEF_FN(printf),
   DEF_FN(len),
+  DEF_FN(append),
 };
 
 struct fh_program *fh_new_program(void)
