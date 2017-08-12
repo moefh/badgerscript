@@ -22,13 +22,12 @@ int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, en
 {
   struct fh_operator opr;
 
-  if (strlen(name) >= 4)
+  if (strlen(name) >= sizeof(opr.name))
     return -1;
 
   opr.op = op;
   opr.prec = prec;
   opr.assoc = assoc;
-  memset(opr.name, 0, 4);
   strcpy(opr.name, name);
 
   if (assoc == FH_ASSOC_PREFIX)

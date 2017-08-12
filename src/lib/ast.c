@@ -17,23 +17,26 @@ static struct {
   { AST_OP_OR,  "||", FH_ASSOC_LEFT,   20 },
   { AST_OP_AND, "&&", FH_ASSOC_LEFT,   30 },
   
-  { AST_OP_EQ,  "==", FH_ASSOC_LEFT,   40 },
-  { AST_OP_NEQ, "!=", FH_ASSOC_LEFT,   40 },
-  { '<',        "<",  FH_ASSOC_LEFT,   50 },
-  { '>',        ">",  FH_ASSOC_LEFT,   50 },
-  { AST_OP_LE,  "<=", FH_ASSOC_LEFT,   50 },
-  { AST_OP_GE,  ">=", FH_ASSOC_LEFT,   50 },
-  
-  { '+',        "+",  FH_ASSOC_LEFT,   60 },
-  { '-',        "-",  FH_ASSOC_LEFT,   60 },
-  { '*',        "*",  FH_ASSOC_LEFT,   70 },
-  { '/',        "/",  FH_ASSOC_LEFT,   70 },
-  { '%',        "%",  FH_ASSOC_LEFT,   70 },
+  { '|',        "|",  FH_ASSOC_LEFT,   40 },
+  { '&',        "&",  FH_ASSOC_LEFT,   50 },
 
-  { AST_OP_UNM, "-",  FH_ASSOC_PREFIX, 80 },
-  { '!',        "!",  FH_ASSOC_PREFIX, 80 },
-  
-  { '^',        "^",  FH_ASSOC_RIGHT,  90 },
+  { AST_OP_EQ,  "==", FH_ASSOC_LEFT,   60 },
+  { AST_OP_NEQ, "!=", FH_ASSOC_LEFT,   60 },
+  { '<',        "<",  FH_ASSOC_LEFT,   70 },
+  { '>',        ">",  FH_ASSOC_LEFT,   70 },
+  { AST_OP_LE,  "<=", FH_ASSOC_LEFT,   70 },
+  { AST_OP_GE,  ">=", FH_ASSOC_LEFT,   70 },
+
+  { '+',        "+",  FH_ASSOC_LEFT,   80 },
+  { '-',        "-",  FH_ASSOC_LEFT,   80 },
+  { '*',        "*",  FH_ASSOC_LEFT,   90 },
+  { '/',        "/",  FH_ASSOC_LEFT,   90 },
+  { '%',        "%",  FH_ASSOC_LEFT,   90 },
+
+  { AST_OP_UNM, "-",  FH_ASSOC_PREFIX, 100 },
+  { '!',        "!",  FH_ASSOC_PREFIX, 100 },
+
+  { '^',        "^",  FH_ASSOC_RIGHT,  110 },
   
   { '.',        ".",  FH_ASSOC_RIGHT,  FUNC_CALL_PREC+10 },
 };

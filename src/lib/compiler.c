@@ -473,10 +473,25 @@ static int expr_contains_var(struct fh_p_expr *expr, fh_symbol_id var)
 
 static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
 {
+  if (expr->op == AST_OP_AND || expr->op == AST_OP_OR) {
+    if (compile_expr_to_reg(c, expr->left, dest_reg) < 0)
+      return -1;
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_TEST, expr->op == AST_OP_OR, dest_reg)) < 0)
+      return -1;
+    int jmp_addr = get_cur_pc(c, loc);
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+      return -1;
+    if (compile_expr_to_reg(c, expr->right, dest_reg) < 0)
+      return -1;
+    if (set_jmp_target(c, loc, jmp_addr, get_cur_pc(c, loc)) < 0)
+      return -1;
+    return dest_reg;
+  }
+  
   int left_rk = compile_expr(c, expr->left);
   if (left_rk < 0)
     return -1;
-  
+
   int right_rk = compile_expr(c, expr->right);
   if (right_rk < 0)
     return -1;
@@ -778,7 +793,7 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
   }
   if (rk < 0)
     return -1;
-  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, rk, invert_test)) < 0)
+  if (add_instr(c, test->loc, MAKE_INSTR_AB(OPC_TEST, invert_test, rk)) < 0)
     return -1;
   return 0;
 }
