@@ -3,7 +3,7 @@
 #ifndef COMPILER_H_FILE
 #define COMPILER_H_FILE
 
-#include "fh_i.h"
+#include "fh_internal.h"
 #include "stack.h"
 #include "value.h"
 

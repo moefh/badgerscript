@@ -3,7 +3,7 @@
 #ifndef AST_H_FILE
 #define AST_H_FILE
 
-#include "fh_i.h"
+#include "fh_internal.h"
 
 #define FUNC_CALL_PREC 1000
 
@@ -180,8 +180,8 @@ void fh_free_expr_children(struct fh_p_expr *expr);
 void fh_free_func(struct fh_p_expr_func func);
 void fh_free_named_func(struct fh_p_named_func func);
 
-void fh_dump_named_func(struct fh_ast *ast, struct fh_output *out, struct fh_p_named_func *func);
-void fh_dump_expr(struct fh_ast *ast, struct fh_output *out, struct fh_p_expr *expr);
+void fh_dump_named_func(struct fh_ast *ast, struct fh_p_named_func *func);
+void fh_dump_expr(struct fh_ast *ast, struct fh_p_expr *expr);
 void fh_dump_ast(struct fh_ast *p);
 
 #endif /* AST_H_FILE */

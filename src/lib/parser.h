@@ -3,7 +3,7 @@
 #ifndef PARSER_H_FILE
 #define PARSER_H_FILE
 
-#include "fh_i.h"
+#include "fh_internal.h"
 #include "tokenizer.h"
 
 struct fh_ast;

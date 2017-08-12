@@ -3,7 +3,6 @@
 #ifndef VM_H_FILE
 #define VM_H_FILE
 
-#include "fh_i.h"
 #include "stack.h"
 
 struct fh_vm_call_frame {
@@ -13,6 +12,8 @@ struct fh_vm_call_frame {
 };
 
 DECLARE_STACK(call_frame_stack, struct fh_vm_call_frame);
+
+struct fh_program;
 
 struct fh_vm {
   struct fh_program *prog;

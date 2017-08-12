@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "fh_i.h"
+#include "fh_internal.h"
 
 struct fh_symtab {
   int num;

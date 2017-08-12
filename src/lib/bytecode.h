@@ -3,10 +3,10 @@
 #ifndef BYTECODE_H_FILE
 #define BYTECODE_H_FILE
 
-#include <stdint.h>
-
-#include "fh_i.h"
+#include "fh_internal.h"
 #include "value.h"
+
+#include <stdint.h>
 
 #define MAX_FUNC_REGS 256
 
@@ -57,6 +57,6 @@ enum fh_bc_opcode {
 #define MAKE_INSTR_AU(op, ra, ru)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RU(ru))
 #define MAKE_INSTR_AS(op, ra, rs)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RS(rs))
 
-void fh_dump_bc_instr(struct fh_program *prog, struct fh_output *out, int32_t addr, uint32_t instr);
+void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr);
 
 #endif /* BYTECODE_H_FILE */

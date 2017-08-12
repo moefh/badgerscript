@@ -174,7 +174,7 @@ static void dump_opn_stack(struct fh_parser *p, struct p_expr_stack *opns)
   int i = 0;
   stack_foreach(struct fh_p_expr *, *, pe, opns) {
     printf("[%d] ", i++);
-    fh_dump_expr(p->ast, NULL, *pe);
+    fh_dump_expr(p->ast, *pe);
     printf("\n");
   }
 }

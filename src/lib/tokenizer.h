@@ -3,7 +3,7 @@
 #ifndef TOKENIZER_H_FILE
 #define TOKENIZER_H_FILE
 
-#include "fh_i.h"
+#include "fh_internal.h"
 
 #define TOKENIZER_BUF_SIZE 1024
 

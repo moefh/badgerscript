@@ -1,13 +1,12 @@
-/* fh_i.h */
+/* fh_internal.h */
 
-#ifndef FH_I_H_FILE
-#define FH_I_H_FILE
-
-#include <stdint.h>
-#include <stdbool.h>
+#ifndef FH_INTERNAL_H_FILE
+#define FH_INTERNAL_H_FILE
 
 #include "fh.h"
 #include "stack.h"
+
+#include <stdbool.h>
 
 #define ARRAY_SIZE(arr)  ((int)(sizeof(arr)/sizeof(arr[0])))
 #define UNUSED(x) ((void)(x))
@@ -92,4 +91,4 @@ int fh_get_num_funcs(struct fh_program *prog);
 struct fh_func *fh_get_func(struct fh_program *prog, int num);
 struct fh_func *fh_get_global_func(struct fh_program *prog, const char *name);
 
-#endif /* FH_I_H_FILE */
+#endif /* FH_INTERNAL_H_FILE */

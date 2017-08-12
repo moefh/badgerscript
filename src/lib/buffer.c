@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <string.h>
 
-#include "fh_i.h"
+#include "fh_internal.h"
 
 void fh_init_buffer(struct fh_buffer *buf)
 {

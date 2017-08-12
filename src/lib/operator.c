@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "fh_i.h"
+#include "fh_internal.h"
 #include "stack.h"
 
 void fh_init_op_table(struct fh_op_table *ops)

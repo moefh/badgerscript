@@ -200,7 +200,7 @@ static void dump_state(struct fh_vm *vm)
   dump_regs(vm);
   printf("** instruction that caused error:\n");
   int addr = (frame) ? vm->pc - 1 - frame->func->code : -1;
-  fh_dump_bc_instr(vm->prog, NULL, addr, vm->pc[-1]);
+  fh_dump_bc_instr(vm->prog, addr, vm->pc[-1]);
   printf("----------------------------\n");
 }
 

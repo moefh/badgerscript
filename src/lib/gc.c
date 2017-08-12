@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 
+#include "fh_internal.h"
 #include "program.h"
-#include "fh_i.h"
 
 //#define DEBUG_GC
 

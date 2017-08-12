@@ -3,13 +3,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "fh_i.h"
-#include "ast.h"
+#include "fh_internal.h"
 #include "bytecode.h"
-
-struct fh_output {
-  FILE *f;
-};
 
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
 {
@@ -92,15 +87,4 @@ int fh_utf8_len(char *str, size_t str_size)
   }
 
   return len;
-}
-
-void fh_output(struct fh_output *out, char *fmt, ...)
-{
-  va_list ap;
-  va_start(ap, fmt);
-  if (out && out->f)
-    vfprintf(out->f, fmt, ap);
-  else
-    vprintf(fmt, ap);
-  va_end(ap);
 }
