@@ -32,18 +32,17 @@ Feature                  | Status
 Parsing to AST           | Works
 Bytecode compilation     | Works
 VM (bytecode execution)  | Works
-Garbage collection       | In progress
+Garbage collection       | Works
+Closures                 | TODO
 
 
 ### TODO
 
-There's a lot of stuff that's not hard to do but would require some kind
-of garbage collection to be useful. Current plans are:
+Current plans:
 
-1. mark-and-sweep garbage collection
-2. dynamic creation of strings
-3. `map` and `vector` values
-4. closures
+- dynamic creation of strings
+- `map` and `array` values
+- closures
 
 
 ### Example Code
