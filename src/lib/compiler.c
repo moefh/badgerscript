@@ -540,6 +540,11 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
         return -1;
       if (dest_reg < 0)
         return val_reg;
+
+      if (dest_reg != val_reg) {
+        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, val_reg)) < 0)
+          return -1;
+      }
       return dest_reg;
     } else {
       return fh_compiler_error(c, loc, "invalid assignment");
