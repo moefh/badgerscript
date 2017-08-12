@@ -12,7 +12,7 @@ function print_array(arr)
 
 function main(args)
 {
-   var x = [1,2,3];
+   var x = [1,[2],3];
 
    printf("BEFORE: ");
    print_array(x);

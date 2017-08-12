@@ -20,7 +20,6 @@ struct fh_vm {
   int stack_size;
   struct call_frame_stack call_stack;
   uint32_t *pc;
-  char *last_err_msg;
 };
 
 void fh_init_vm(struct fh_vm *vm, struct fh_program *prog);

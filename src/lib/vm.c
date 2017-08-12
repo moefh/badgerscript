@@ -29,14 +29,9 @@ static int vm_error(struct fh_vm *vm, char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
-  fh_set_error(vm->prog, fmt, ap);
+  fh_set_verror(vm->prog, fmt, ap);
   va_end(ap);
   return -1;
-}
-
-const char *fh_get_vm_error(struct fh_vm *vm)
-{
-  return vm->last_err_msg;
 }
 
 static int ensure_stack_size(struct fh_vm *vm, int size)

@@ -27,16 +27,18 @@ static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
   switch (obj->obj.header.type) {
   case FH_VAL_STRING:
     printf(" (string) ");
-    fh_dump_string(GET_OBJ_STRING(obj));
+    fh_dump_string(GET_OBJ_STRING_DATA(obj));
     printf("\n");
     break;
 
   case FH_VAL_FUNC:
+    // can't print name, could be freed already
     printf(" (func)\n");
     break;
 
   case FH_VAL_ARRAY:
-    printf(" (array)\n");
+    // can't print elements, could be freed already
+    printf(" (array of len %d)\n", GET_OBJ_ARRAY(obj)->len);
     break;
 
   default:
@@ -176,7 +178,7 @@ static void mark(struct fh_program *prog)
   }
 
   // mark C values
-  DEBUG_LOG1("***** marking %d C tmp values\n", prog->c_vals.num);
+  DEBUG_LOG1("***** marking %d C tmp values\n", value_stack_size(&prog->c_vals));
   stack_foreach(struct fh_value, *, v, &prog->c_vals) {
     MARK_VALUE(&gc, v);
   }

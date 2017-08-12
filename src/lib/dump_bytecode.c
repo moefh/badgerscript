@@ -153,7 +153,7 @@ static void dump_const(struct fh_program *prog, struct fh_value *c, struct fh_ou
   case FH_VAL_NULL:   fh_output(out, "NULL\n"); return;
   case FH_VAL_NUMBER: fh_output(out, "%f\n", c->data.num); return;
   case FH_VAL_STRING: dump_string(out, fh_get_string(c)); fh_output(out, "\n"); return;
-  case FH_VAL_ARRAY:  fh_output(out, "<array of size %d>\n", fh_get_array_len(c)); return;
+  case FH_VAL_ARRAY:  fh_output(out, "<array of length %d>\n", fh_get_array_len(c)); return;
 
   case FH_VAL_FUNC:
     {
