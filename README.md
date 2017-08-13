@@ -1,4 +1,4 @@
-## BadgerScript
+# BadgerScript
 
 A toy language written in C.
 
@@ -9,23 +9,21 @@ $ make
 $ src/fh tests/test.fh
 ```
 
-### Features
+## Features
 
-The code implements a pretty simple and fast register-based VM. Script execution has 3 phases:
+The code implements a pretty simple and fast register-based VM. Script
+execution has 3 phases:
 
 - lexing/parsing converts text to an abstract syntax tree (AST)
 - compilation converts the AST to bytecode
-- execution runs the bytecode in the VM
+- the VM runs the bytecode
 
-There's currently no garbage collection, so the only full first class data type is `number`.
-Strings are supported, but they can't be dynamically created or modified.
-
-The language is dynamically-typed with mandatory variable
-declarations, `while` loops, `if`/`else` and blocks with lexical
-scope.
+There's a simple mark-and-sweep garbage collector, but it currently
+doesn't run automatically.  It can be forced by calling the function
+`gc()` from inside a script.
 
 
-### Status
+## Status
 
 Feature                  | Status
 ------------------------ | ------------------------------------
@@ -36,25 +34,24 @@ Garbage collection       | Works
 Closures                 | TODO
 
 
-### TODO
-
 Current plans:
 
-- dynamic creation of strings
 - `map` and `array` values
 - closures
 
 
-### Example Code
+## Example Code
+
+This script draws the Mandelbrot set in the terminal:
 
 ```javascript
 
-# Calculate the color of the point c=(cx, cy)
+# Calculate the color of the point c=cx + i cy
 function calc_point(cx, cy, max_iter)
 {
     var i = 0;
     
-    # start with z = x+iy = 0
+    # start with z = x + i y = 0
     var x = 0;
     var y = 0;
 
@@ -64,7 +61,7 @@ function calc_point(cx, cy, max_iter)
         y = 2*x*y + cy;
         x = t;
 
-        # stop if |z| > 2
+        # stop when |z| > 2
         if (x*x + y*y > 4)
             break;
         i = i + 1;
@@ -95,10 +92,10 @@ function mandelbrot(x1, y1, x2, y2, size_x, size_y, max_iter)
 
 function main()
 {
-  mandelbrot(-2, -2, 2, 2, 200, 54, 1500);
+  mandelbrot(-2, -2, 2, 2, 150, 50, 1500);
 }
 ```
 
-### License
+## License
 
 MIT License ([LICENSE](https://github.com/ricardo-massaro/badgerscript/blob/master/LICENSE))
