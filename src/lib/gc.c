@@ -31,9 +31,14 @@ static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
     printf("\n");
     break;
 
-  case FH_VAL_FUNC:
+  case FH_VAL_CLOSURE:
     // can't print name, could be freed already
-    printf(" (func)\n");
+    printf(" (closure)\n");
+    break;
+
+  case FH_VAL_FUNC_DEF:
+    // can't print name, could be freed already
+    printf(" (func def)\n");
     break;
 
   case FH_VAL_ARRAY:
@@ -89,8 +94,13 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
   case FH_VAL_STRING:
     return;
     
-  case FH_VAL_FUNC:
-    GET_OBJ_FUNC(obj)->gc_next_container = gc->container_list;
+  case FH_VAL_CLOSURE:
+    GET_OBJ_CLOSURE(obj)->gc_next_container = gc->container_list;
+    gc->container_list = obj;
+    return;
+
+  case FH_VAL_FUNC_DEF:
+    GET_OBJ_FUNC_DEF(obj)->gc_next_container = gc->container_list;
     gc->container_list = obj;
     return;
 
@@ -109,12 +119,17 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
   fprintf(stderr, "GC ERROR: marking invalid object type %d\n", obj->obj.header.type);
 }
 
-static void mark_func_children(struct fh_gc_state *gc, struct fh_func *func)
+static void mark_func_def_children(struct fh_gc_state *gc, struct fh_func_def *func_def)
 {
-  if (func->name)
-    MARK_OBJECT(gc, func->name);
-  for (int i = 0; i < func->n_consts; i++)
-    MARK_VALUE(gc, &func->consts[i]);
+  if (func_def->name)
+    MARK_OBJECT(gc, (struct fh_object *) func_def->name);
+  for (int i = 0; i < func_def->n_consts; i++)
+    MARK_VALUE(gc, &func_def->consts[i]);
+}
+
+static void mark_closure_children(struct fh_gc_state *gc, struct fh_closure *closure)
+{
+  MARK_OBJECT(gc, (struct fh_object *) closure->func_def);
 }
 
 static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
@@ -127,14 +142,22 @@ static void mark_container_children(struct fh_gc_state *gc)
 {
   while (gc->container_list) {
     switch (gc->container_list->obj.header.type) {
-    case FH_VAL_FUNC:
+    case FH_VAL_CLOSURE:
       {
-        struct fh_func *f = GET_OBJ_FUNC(gc->container_list);
-        gc->container_list = f->gc_next_container;
-        mark_func_children(gc, f);
+        struct fh_closure *c = GET_OBJ_CLOSURE(gc->container_list);
+        gc->container_list = c->gc_next_container;
+        mark_closure_children(gc, c);
       }
       continue;
 
+    case FH_VAL_FUNC_DEF:
+      {
+        struct fh_func_def *f = GET_OBJ_FUNC_DEF(gc->container_list);
+        gc->container_list = f->gc_next_container;
+        mark_func_def_children(gc, f);
+      }
+      continue;
+      
     case FH_VAL_ARRAY:
       {
         struct fh_array *a = GET_OBJ_ARRAY(gc->container_list);
@@ -163,14 +186,14 @@ static void mark(struct fh_program *prog)
   
   // mark global functions
   DEBUG_LOG("***** marking global functions\n");
-  stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
-    MARK_OBJECT(&gc, (struct fh_object *) *pf);
+  stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
+    MARK_OBJECT(&gc, (struct fh_object *) *pc);
   }
 
   // mark stack
   struct fh_vm_call_frame *cur_frame = call_frame_stack_top(&prog->vm.call_stack);
   if (cur_frame) {
-    int stack_size = cur_frame->base + ((cur_frame->func) ? cur_frame->func->n_regs : 0);
+    int stack_size = cur_frame->base + ((cur_frame->closure) ? cur_frame->closure->func_def->n_regs : 0);
     struct fh_value *stack = prog->vm.stack;
     DEBUG_LOG1("***** marking %d stack values\n", stack_size);
     for (int i = 0; i < stack_size; i++)

@@ -1,9 +1,19 @@
 
-function test(f)
+function call_with_goodbye(f)
 {
   function(x) {
     x("goodbye");
   }(f);
+}
+
+function test()
+{
+  var i = 0;
+  while (i < 10) {
+    function(x) { print(x, "\n"); }(i);
+    i = i + 1;
+  }
+  gc();  # check release of all created closures
 }
 
 function main(args)
@@ -12,6 +22,6 @@ function main(args)
     printf("%s from inner function\n", x);
   };
   f("hello");
-  test(f)
+  call_with_goodbye(f);
+  test();
 }
-

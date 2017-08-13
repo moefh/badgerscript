@@ -23,8 +23,7 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
-  p_func_stack_init(&prog->global_funcs);
-  p_func_stack_init(&prog->all_funcs);
+  p_closure_stack_init(&prog->global_funcs);
   named_c_func_stack_init(&prog->c_funcs);
 
   fh_init_vm(&prog->vm, prog);
@@ -38,8 +37,7 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
-  p_func_stack_free(&prog->global_funcs);
-  p_func_stack_free(&prog->all_funcs);
+  p_closure_stack_free(&prog->global_funcs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_destroy_compiler(&prog->compiler);
@@ -50,8 +48,7 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
-  p_func_stack_free(&prog->global_funcs);
-  p_func_stack_free(&prog->all_funcs);
+  p_closure_stack_free(&prog->global_funcs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_collect_garbage(prog);
@@ -121,44 +118,39 @@ fh_c_func fh_get_c_func_by_name(struct fh_program *prog, const char *name)
   return NULL;
 }
 
-int fh_add_func(struct fh_program *prog, struct fh_func *func, bool is_global)
+int fh_add_global_func(struct fh_program *prog, struct fh_closure *closure)
 {
-  if (! p_func_stack_push(&prog->all_funcs, &func))
-    return fh_set_error(prog, "out of memory");
-  
-  if (is_global) {
-    stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
-      struct fh_func *cur_func = *pf;
-      if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), GET_OBJ_STRING_DATA(cur_func->name)) == 0) {
-        *pf = func;
-        return 0;
-      }
+  stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
+    struct fh_closure *cur_closure = *pc;
+    if (closure->func_def->name != NULL && strcmp(GET_OBJ_STRING_DATA(closure->func_def->name), GET_OBJ_STRING_DATA(cur_closure->func_def->name)) == 0) {
+      *pc = closure;  // replace with new function
+      return 0;
     }
-    if (! p_func_stack_push(&prog->global_funcs, &func))
-      return fh_set_error(prog, "out of memory");
   }
+  if (! p_closure_stack_push(&prog->global_funcs, &closure))
+    return fh_set_error(prog, "out of memory");
   return 0;
 }
 
-int fh_get_num_funcs(struct fh_program *prog)
+int fh_get_num_global_funcs(struct fh_program *prog)
 {
-  return p_func_stack_size(&prog->all_funcs);
+  return p_closure_stack_size(&prog->global_funcs);
 }
 
-struct fh_func *fh_get_func(struct fh_program *prog, int num)
+struct fh_closure *fh_get_global_func_by_index(struct fh_program *prog, int index)
 {
-  struct fh_func **pf = p_func_stack_item(&prog->all_funcs, num);
-  if (! pf)
+  struct fh_closure **pc = p_closure_stack_item(&prog->global_funcs, index);
+  if (! pc)
     return NULL;
-  return *pf;
+  return *pc;
 }
 
-struct fh_func *fh_get_global_func(struct fh_program *prog, const char *name)
+struct fh_closure *fh_get_global_func_by_name(struct fh_program *prog, const char *name)
 {
-  stack_foreach(struct fh_func *, *, pf, &prog->global_funcs) {
-    struct fh_func *func = *pf;
-    if (func->name != NULL && strcmp(GET_OBJ_STRING_DATA(func->name), name) == 0)
-      return func;
+  stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
+    struct fh_closure *closure = *pc;
+    if (closure->func_def->name != NULL && strcmp(GET_OBJ_STRING_DATA(closure->func_def->name), name) == 0)
+      return closure;
   }
   return NULL;
 }
@@ -201,8 +193,8 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
 
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret)
 {
-  struct fh_func *func = fh_get_global_func(prog, func_name);
-  if (! func)
+  struct fh_closure *closure = fh_get_global_func_by_name(prog, func_name);
+  if (! closure)
     return fh_set_error(prog, "function '%s' doesn't exist", func_name);
-  return fh_call_vm_function(&prog->vm, func, args, n_args, ret);
+  return fh_call_vm_function(&prog->vm, closure, args, n_args, ret);
 }

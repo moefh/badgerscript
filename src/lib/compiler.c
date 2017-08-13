@@ -20,7 +20,7 @@ static int compile_expr_to_reg(struct fh_compiler *c, struct fh_p_expr *expr, in
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block);
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr);
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func *bc_func, struct func_info *parent);
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent);
 
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
 {
@@ -106,27 +106,27 @@ int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, .
   return -1;
 }
 
-static struct fh_func *new_func(struct fh_compiler *c, struct fh_src_loc loc, const char *name, int n_params)
+static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc loc, const char *name, int n_params)
 {
   UNUSED(loc); // TODO: record source location
 
-  struct fh_func *func = fh_make_func(c->prog);
-  if (! func)
+  struct fh_func_def *func_def = fh_make_func_def(c->prog);
+  if (! func_def)
     return NULL;
   if (! name)
-    func->name = NULL;
+    func_def->name = NULL;
   else {
-    func->name = fh_make_string(c->prog, name);
-    if (! func->name)
+    func_def->name = fh_make_string(c->prog, name);
+    if (! func_def->name)
       return NULL;
   }
-  func->n_params = n_params;
-  func->n_regs = 0;
-  func->code = NULL;
-  func->code_size = 0;
-  func->consts = NULL;
-  func->n_consts = 0;
-  return func;
+  func_def->n_params = n_params;
+  func_def->n_regs = 0;
+  func_def->code = NULL;
+  func_def->code_size = 0;
+  func_def->consts = NULL;
+  func_def->n_consts = 0;
+  return func_def;
 }
 
 static int add_instr(struct fh_compiler *c, struct fh_src_loc loc, uint32_t instr)
@@ -220,13 +220,13 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   struct fh_value *val = add_const(c, loc);
   if (! c)
     return -1;
-  struct fh_object *obj = fh_make_string(c->prog, str);
-  if (! obj) {
+  struct fh_string *str_obj = fh_make_string(c->prog, str);
+  if (! str_obj) {
     value_stack_pop(&fi->consts, NULL);
     return -1;
   }
   val->type = FH_VAL_STRING;
-  val->data.obj = obj;
+  val->data.obj = str_obj;
   return k;
 }
 
@@ -238,12 +238,12 @@ static int add_const_global_func(struct fh_compiler *c, struct fh_src_loc loc, f
 
   const char *name = fh_get_ast_symbol(c->ast, func);
   
-  // bytecode function
-  struct fh_func *bc_func = fh_get_global_func(c->prog, name);
-  if (bc_func) {
+  // closure
+  struct fh_closure *closure = fh_get_global_func_by_name(c->prog, name);
+  if (closure) {
     int k = 0;
     stack_foreach(struct fh_value, *, c, &fi->consts) {
-      if (c->type == FH_VAL_FUNC && c->data.obj == bc_func)
+      if (c->type == FH_VAL_CLOSURE && c->data.obj == closure)
         return k;
       k++;
     }
@@ -252,8 +252,8 @@ static int add_const_global_func(struct fh_compiler *c, struct fh_src_loc loc, f
     struct fh_value *val = add_const(c, loc);
     if (! val)
       return -1;
-    val->type = FH_VAL_FUNC;
-    val->data.obj = bc_func;
+    val->type = FH_VAL_CLOSURE;
+    val->data.obj = closure;
     return k;
   }
 
@@ -278,7 +278,7 @@ static int add_const_global_func(struct fh_compiler *c, struct fh_src_loc loc, f
   return fh_compiler_error(c, loc, "undefined function '%s'", get_ast_symbol_name(c, func));
 }
 
-static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_func *func)
+static int add_const_func_def(struct fh_compiler *c, struct fh_src_loc loc, struct fh_func_def *func_def)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
@@ -287,8 +287,8 @@ static int add_const_func(struct fh_compiler *c, struct fh_src_loc loc, struct f
   struct fh_value *val = add_const(c, loc);
   if (! c)
     return -1;
-  val->type = FH_VAL_FUNC;
-  val->data.obj = func;
+  val->type = FH_VAL_FUNC_DEF;
+  val->data.obj = func_def;
   return k;
 }
 
@@ -310,14 +310,10 @@ static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id 
 
   if (new_reg < 0) {
     new_reg = reg_stack_size(&fi->regs);
-    if (new_reg >= MAX_FUNC_REGS) {
-      fh_compiler_error(c, loc, "too many registers used");
-      return -1;
-    }
-    if (! reg_stack_push(&fi->regs, NULL)) {
-      fh_compiler_error(c, loc, "out of memory");
-      return -1;
-    }
+    if (new_reg >= MAX_FUNC_REGS)
+      return fh_compiler_error(c, loc, "too many registers used");
+    if (! reg_stack_push(&fi->regs, NULL))
+      return fh_compiler_error(c, loc, "out of memory");
   }
 
   struct reg_info *ri = reg_stack_item(&fi->regs, new_reg);
@@ -362,17 +358,13 @@ static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
   }
 
   int first_reg = last_alloc + 1;
-  if (first_reg+n >= MAX_FUNC_REGS) {
-    fh_compiler_error(c, loc, "too many registers used");
-    return -1;
-  }
+  if (first_reg+n >= MAX_FUNC_REGS)
+    return fh_compiler_error(c, loc, "too many registers used");
   for (int i = 0; i < n; i++) {
     int reg = first_reg + i;
     if (reg_stack_size(&fi->regs) <= reg) {
-      if (! reg_stack_push(&fi->regs, NULL)) {
-        fh_compiler_error(c, loc, "out of memory");
-        return -1;
-      }
+      if (! reg_stack_push(&fi->regs, NULL))
+        return fh_compiler_error(c, loc, "out of memory");
     }
     struct reg_info *ri = reg_stack_item(&fi->regs, reg);
     ri->alloc = true;
@@ -643,20 +635,38 @@ static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struc
   return array_reg;
 }
 
-static int compile_inner_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr)
+static int compile_inner_func_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr, int dest_reg)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
   if (! fi)
     return -1;
-  struct fh_func *func = new_func(c, loc, NULL, expr->n_params);
-  if (! func || fh_add_func(c->prog, func, false) < 0)
+  struct fh_func_def *func_def = new_func_def(c, loc, NULL, expr->n_params);
+  if (! func_def)
     return -1;
-  if (compile_func(c, loc, expr, func, fi) < 0)
+  if (compile_func(c, loc, expr, func_def, fi) < 0)
     return -1;
-  int k = add_const_func(c, loc, func);
+
+  /*
+   * TODO: if func_def doesn't reference variables outside its body,
+   * we can optimize this by creating the closure now and adding it as
+   * a constant instead of writing the following code that creates it.
+   */
+  
+  int k = add_const_func_def(c, loc, func_def);
   if (k >= 0)
     k += MAX_FUNC_REGS + 1;
-  return k;
+  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_CLOSURE, dest_reg, k)) < 0)
+    return -1;
+  
+  return dest_reg;
+}
+
+static int compile_inner_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr)
+{
+  int dest_reg = alloc_reg(c, loc, TMP_VARIABLE);
+  if (dest_reg < 0)
+    return -1;
+  return compile_inner_func_to_reg(c, loc, expr, dest_reg);
 }
 
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr)
@@ -701,6 +711,7 @@ static int compile_expr_to_reg(struct fh_compiler *c, struct fh_p_expr *expr, in
   case EXPR_BIN_OP:    return compile_bin_op_to_reg(c, expr->loc, &expr->data.bin_op, dest_reg);
   case EXPR_UN_OP:     return compile_un_op_to_reg(c, expr->loc, &expr->data.un_op, dest_reg);
   case EXPR_INDEX:     return compile_index_to_reg(c, expr->loc, &expr->data.index, dest_reg);
+  case EXPR_FUNC:      return compile_inner_func_to_reg(c, expr->loc, &expr->data.func, dest_reg);
   default: break;
   }
   
@@ -979,7 +990,7 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   return ret;
 }
 
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func *bc_func, struct func_info *parent)
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent)
 {
   struct func_info *fi = new_func_info(c, parent);
   if (! fi) {
@@ -987,7 +998,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
     goto err;
   }
 
-  for (int i = 0; i < func->n_params; i++) {
+  for (int i = 0; i < func_def->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
       goto err;
   }
@@ -1005,14 +1016,14 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
     goto err;
   }
     
-  bc_func->n_regs = fi->num_regs;
+  func_def->n_regs = fi->num_regs;
   
-  bc_func->code_size = code_stack_size(&fi->code);
-  bc_func->code = code_stack_data(&fi->code);
+  func_def->code_size = code_stack_size(&fi->code);
+  func_def->code = code_stack_data(&fi->code);
   code_stack_init(&fi->code);
   
-  bc_func->n_consts = value_stack_size(&fi->consts);
-  bc_func->consts = value_stack_data(&fi->consts);
+  func_def->n_consts = value_stack_size(&fi->consts);
+  func_def->consts = value_stack_data(&fi->consts);
   value_stack_init(&fi->consts);
   
   pop_func_info(c);
@@ -1023,9 +1034,9 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   return -1;
 }
 
-static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func *bc_func)
+static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func_def *func_def)
 {
-  if (compile_func(c, func->loc, &func->func, bc_func, NULL) < 0)
+  if (compile_func(c, func->loc, &func->func, func_def, NULL) < 0)
     return -1;
 
   if (func_info_stack_size(&c->funcs) > 0)
@@ -1054,27 +1065,31 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
     if (! name)
       return -1;
     
-    if (fh_get_global_func(c->prog, name)) {
-      fh_compiler_error(c, f->loc, "function '%s' already exists", name);
-      return -1;
-    }
-    struct fh_func *func = new_func(c, f->loc, name, f->func.n_params);
-    if (! func || fh_add_func(c->prog, func, true) < 0) {
-      fh_compiler_error(c, f->loc, "out of memory");
-      return -1;
-    }
+    if (fh_get_global_func_by_name(c->prog, name))
+      return fh_compiler_error(c, f->loc, "function '%s' already exists", name);
+    
+    struct fh_func_def *func_def = new_func_def(c, f->loc, name, f->func.n_params);
+    if (! func_def)
+      return fh_compiler_error(c, f->loc, "out of memory");
+    
+    struct fh_closure *closure = fh_make_closure(c->prog);
+    if (! closure)
+      return fh_compiler_error(c, f->loc, "out of memory");
+    closure->func_def = func_def;
+    if (fh_add_global_func(c->prog, closure) < 0)
+      return fh_compiler_error(c, f->loc, "out of memory");
   }
 
   stack_foreach(struct fh_p_named_func, *, f, &c->ast->funcs) {
     const char *name = get_func_name(c, f);
     if (! name)
       return -1;
-    struct fh_func *func = fh_get_global_func(c->prog, name);
-    if (! func) {
+    struct fh_closure *closure = fh_get_global_func_by_name(c->prog, name);
+    if (! closure) {
       fh_compiler_error(c, f->loc, "INTERNAL COMPILER ERROR: can't find function '%s'", name);
       return -1;
     }
-    if (compile_named_func(c, f, func) < 0)
+    if (compile_named_func(c, f, closure->func_def) < 0)
       return -1;
   }
 

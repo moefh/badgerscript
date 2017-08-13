@@ -6,7 +6,7 @@
 #include "stack.h"
 
 struct fh_vm_call_frame {
-  struct fh_func *func;
+  struct fh_closure *closure;
   int base;
   uint32_t *ret_addr;
 };
@@ -25,7 +25,7 @@ struct fh_vm {
 
 void fh_init_vm(struct fh_vm *vm, struct fh_program *prog);
 void fh_destroy_vm(struct fh_vm *vm);
-int fh_call_vm_function(struct fh_vm *vm, struct fh_func *func, struct fh_value *args, int n_args, struct fh_value *ret);
+int fh_call_vm_function(struct fh_vm *vm, struct fh_closure *closure, struct fh_value *args, int n_args, struct fh_value *ret);
 int fh_run_vm(struct fh_vm *vm);
 
 #endif /* VM_H_FILE */

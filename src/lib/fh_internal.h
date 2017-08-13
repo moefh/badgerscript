@@ -47,8 +47,8 @@ typedef int fh_string_id;
 
 struct fh_value;
 struct fh_vm;
-struct fh_func;
-struct fh_output;
+struct fh_func_def;
+struct fh_closure;
 struct fh_symtab;
 struct fh_tokenizer;
 struct fh_parser;
@@ -57,7 +57,6 @@ struct fh_program;
 
 int fh_utf8_len(char *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
-void fh_output(struct fh_output *out, char *fmt, ...) __attribute__((format (printf, 2, 3)));
 void fh_dump_value(const struct fh_value *val);
 void fh_dump_string(const char *str);
 
@@ -86,9 +85,9 @@ void fh_free_program_objects(struct fh_program *prog);
 fh_c_func fh_get_c_func_by_name(struct fh_program *prog, const char *name);
 const char *fh_get_c_func_name(struct fh_program *prog, fh_c_func func);
 
-int fh_add_func(struct fh_program *prog, struct fh_func *func, bool is_global);
-int fh_get_num_funcs(struct fh_program *prog);
-struct fh_func *fh_get_func(struct fh_program *prog, int num);
-struct fh_func *fh_get_global_func(struct fh_program *prog, const char *name);
+int fh_add_global_func(struct fh_program *prog, struct fh_closure *closure);
+int fh_get_num_global_funcs(struct fh_program *prog);
+struct fh_closure *fh_get_global_func_by_index(struct fh_program *prog, int index);
+struct fh_closure *fh_get_global_func_by_name(struct fh_program *prog, const char *name);
 
 #endif /* FH_INTERNAL_H_FILE */

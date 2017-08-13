@@ -17,7 +17,7 @@ struct named_c_func {
 };
 
 DECLARE_STACK(named_c_func_stack, struct named_c_func);
-DECLARE_STACK(p_func_stack, struct fh_func *);
+DECLARE_STACK(p_closure_stack, struct fh_closure *);
 
 struct fh_program {
   char last_error_msg[256];
@@ -25,11 +25,10 @@ struct fh_program {
   struct fh_parser parser;
   struct fh_compiler compiler;
   struct named_c_func_stack c_funcs;
-  struct p_func_stack all_funcs;
-  struct fh_vm vm;                   // GC roots (VM stack)
-  struct p_func_stack global_funcs;  // GC roots (global functions)
-  struct value_stack c_vals;         // GC roots (values held by running C functions)
-  struct fh_object *objects;         // all created objects
+  struct fh_vm vm;                       // GC roots (VM stack)
+  struct p_closure_stack global_funcs;   // GC roots (global functions)
+  struct value_stack c_vals;             // GC roots (values held by running C functions)
+  struct fh_object *objects;             // all created objects
 };
 
 #endif /* PROGRAM_H_FILE */

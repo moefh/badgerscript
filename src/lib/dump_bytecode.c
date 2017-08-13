@@ -27,6 +27,20 @@ static void dump_string(const char *str)
   printf("\"");
 }
 
+static void dump_instr_ret(uint32_t instr)
+{
+  if (GET_INSTR_RA(instr) == 0) {
+    printf("\n");
+    return;
+  }
+  
+  int b = GET_INSTR_RB(instr);
+  if (b <= MAX_FUNC_REGS)
+    printf("r%d\n", b);
+  else
+    printf("c[%d]\n", b - MAX_FUNC_REGS - 1);
+}
+
 static void dump_instr_abc(uint32_t instr)
 {
   int a = GET_INSTR_RA(instr);
@@ -98,6 +112,15 @@ static void dump_instr_ra_rkb(uint32_t instr)
   printf("\n");
 }
 
+static void dump_instr_ra_b(uint32_t instr)
+{
+  int a = GET_INSTR_RA(instr);
+  int b = GET_INSTR_RB(instr);
+
+  printf("r%d, ", a);
+  printf("%d\n", b);
+}
+
 static void dump_instr_ra_u(uint32_t instr)
 {
   int a = GET_INSTR_RA(instr);
@@ -117,19 +140,9 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
   printf("%08x     ", instr);
   enum fh_bc_opcode opc = GET_INSTR_OP(instr);
   switch (opc) {
-  case OPC_RET:
-    if (GET_INSTR_RA(instr) == 0)
-      printf("ret\n");
-    else {
-      int b = GET_INSTR_RB(instr);
-      if (b <= MAX_FUNC_REGS)
-        printf("ret       r%d\n", b);
-      else
-        printf("ret       c[%d]\n", b - MAX_FUNC_REGS - 1);
-    }
-    return;
-    
-  case OPC_CALL:     printf("call      r%d, %d\n", GET_INSTR_RA(instr), GET_INSTR_RB(instr)); return;
+  case OPC_RET:      printf("ret       "); dump_instr_ret(instr); return;
+  case OPC_CALL:     printf("call      "); dump_instr_ra_b(instr); return;
+  case OPC_CLOSURE:  printf("closure   "); dump_instr_ra_rkb(instr); return;
 
   case OPC_ADD:      printf("add       "); dump_instr_ra_rkb_rkc(instr); return;
   case OPC_SUB:      printf("sub       "); dump_instr_ra_rkb_rkc(instr); return;
@@ -165,11 +178,22 @@ static void dump_const(struct fh_program *prog, struct fh_value *c)
   case FH_VAL_STRING: dump_string(fh_get_string(c)); printf("\n"); return;
   case FH_VAL_ARRAY:  printf("<array of length %d>\n", fh_get_array_len(c)); return;
 
-  case FH_VAL_FUNC:
+  case FH_VAL_CLOSURE:
     {
-      struct fh_func *func = GET_OBJ_FUNC(c->data.obj);
-      if (func->name) {
-        printf("<function %s>\n", GET_OBJ_STRING_DATA(func->name));
+      struct fh_closure *closure = GET_OBJ_CLOSURE(c->data.obj);
+      if (closure->func_def->name) {
+        printf("<closure %p of %s>\n", closure, GET_OBJ_STRING_DATA(closure->func_def->name));
+      } else {
+        printf("<closure %p of function %p>\n", closure, closure->func_def);
+      }
+      return;
+    }
+
+  case FH_VAL_FUNC_DEF:
+    {
+      struct fh_func_def *func_def = GET_OBJ_FUNC_DEF(c->data.obj);
+      if (func_def->name) {
+        printf("<function %s>\n", GET_OBJ_STRING_DATA(func_def->name));
       } else {
         printf("<function at %p>\n", c->data.obj);
       }
@@ -190,29 +214,40 @@ static void dump_const(struct fh_program *prog, struct fh_value *c)
   printf("<INVALID CONSTANT TYPE: %d>\n", c->type);
 }
 
+static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
+{
+  const char *func_name = fh_get_func_def_name(func_def);
+  
+  if (func_name)
+    printf("; function %s(): %u parameters, %d regs\n", func_name, func_def->n_params, func_def->n_regs);
+  else
+    printf("; function at %p: %u parameters, %d regs\n", func_def, func_def->n_params, func_def->n_regs);
+  
+  for (int i = 0; i < func_def->code_size; i++)
+    fh_dump_bc_instr(prog, i, func_def->code[i]);
+  
+  printf("; %d constants:\n", func_def->n_consts);
+  for (int j = 0; j < func_def->n_consts; j++) {
+      printf("c[%d] = ", j);
+      dump_const(prog, &func_def->consts[j]);
+  }
+  
+  printf("; ===================================================\n");
+
+  // dump child function definitions
+  for (int i = 0; i < func_def->n_consts; i++) {
+    if (func_def->consts[i].type == FH_VAL_FUNC_DEF) {
+      dump_func_def(prog, GET_VAL_FUNC_DEF(&func_def->consts[i]));
+    }
+  }
+}
+
 void fh_dump_bytecode(struct fh_program *prog)
 {
-  int n_funcs = fh_get_num_funcs(prog);
-
   printf("; === BYTECODE ======================================\n");
+  int n_funcs = fh_get_num_global_funcs(prog);
   for (int i = 0; i < n_funcs; i++) {
-    struct fh_func *func = fh_get_func(prog, i);
-    const char *func_name = fh_get_func_object_name(func);
-
-    if (func_name)
-      printf("; function %s(): %u parameters, %d regs\n", func_name, func->n_params, func->n_regs);
-    else
-      printf("; function at %p: %u parameters, %d regs\n", func, func->n_params, func->n_regs);
-
-    for (int i = 0; i < func->code_size; i++)
-      fh_dump_bc_instr(prog, i, func->code[i]);
-
-    printf("; %d constants:\n", func->n_consts);
-    for (int j = 0; j < func->n_consts; j++) {
-      printf("c[%d] = ", j);
-      dump_const(prog, &func->consts[j]);
-    }
-
-    printf("; ===================================================\n");
+    struct fh_closure *closure = fh_get_global_func_by_index(prog, i);
+    dump_func_def(prog, closure->func_def);
   }
 }

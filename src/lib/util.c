@@ -45,13 +45,14 @@ void fh_dump_value(const struct fh_value *val)
 #if 0
     printf("[");
     for (int i = 0; i < fh_get_array_len(val); i++) {
-      fh_dump_value(fh_get_array_item((struct fh_value*)val, i));
+      fh_dump_value(fh_get_array_item((struct fh_value*) val, i));
       printf(",");
     }
     printf("]");
 #endif
     return;
-  case FH_VAL_FUNC: printf("FUNC(%p)", (void *) GET_VAL_FUNC(val)); return;
+  case FH_VAL_CLOSURE: printf("CLOSURE(%p)", val->data.obj); return;
+  case FH_VAL_FUNC_DEF: printf("FUNC_DEF(%p)", val->data.obj); return;
   case FH_VAL_C_FUNC: printf("C_FUNC"); return;
   }
   printf("INVALID_VALUE(type=%d)", val->type);

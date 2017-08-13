@@ -7,13 +7,18 @@
 #include "program.h"
 #include "value.h"
 
-static void free_func(struct fh_func *func)
+static void free_func_def(struct fh_func_def *func_def)
 {
-  if (func->consts)
-    free(func->consts);
-  if (func->code)
-    free(func->code);
-  free(func);
+  if (func_def->consts)
+    free(func_def->consts);
+  if (func_def->code)
+    free(func_def->code);
+  free(func_def);
+}
+
+static void free_closure(struct fh_closure *closure)
+{
+  free(closure);
 }
 
 static void free_array(struct fh_array *arr)
@@ -37,8 +42,12 @@ void fh_free_object(struct fh_object *obj)
     free(obj);
     return;
     
-  case FH_VAL_FUNC:
-    free_func(GET_OBJ_FUNC(obj));
+  case FH_VAL_CLOSURE:
+    free_closure(GET_OBJ_CLOSURE(obj));
+    return;
+
+  case FH_VAL_FUNC_DEF:
+    free_func_def(GET_OBJ_FUNC_DEF(obj));
     return;
 
   case FH_VAL_ARRAY:
@@ -107,11 +116,11 @@ struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, in
   return fh_grow_array_object(prog, GET_OBJ_ARRAY(val->data.obj), num_items);
 }
 
-const char *fh_get_func_object_name(struct fh_func *func)
+const char *fh_get_func_def_name(struct fh_func_def *func_def)
 {
-  if (func->type != FH_VAL_FUNC || ! func->name)
+  if (func_def->type != FH_VAL_FUNC_DEF || ! func_def->name)
     return NULL;
-  return GET_OBJ_STRING_DATA(func->name);
+  return GET_OBJ_STRING_DATA(func_def->name);
 }
 
 /*************************************************************************
@@ -140,13 +149,22 @@ static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_t
   return obj;
 }
 
-struct fh_func *fh_make_func(struct fh_program *prog)
+struct fh_closure *fh_make_closure(struct fh_program *prog)
 {
-  struct fh_func *func = (struct fh_func *) fh_make_object(prog, FH_VAL_FUNC, sizeof(struct fh_func));
-  if (! func)
+  struct fh_closure *closure = (struct fh_closure *) fh_make_object(prog, FH_VAL_CLOSURE, sizeof(struct fh_closure));
+  if (! closure)
     return NULL;
-  func->gc_next_container = NULL;
-  return func;
+  closure->gc_next_container = NULL;
+  return closure;
+}
+
+struct fh_func_def *fh_make_func_def(struct fh_program *prog)
+{
+  struct fh_func_def *func_def = (struct fh_func_def *) fh_make_object(prog, FH_VAL_FUNC_DEF, sizeof(struct fh_func_def));
+  if (! func_def)
+    return NULL;
+  func_def->gc_next_container = NULL;
+  return func_def;
 }
 
 struct fh_array *fh_make_array(struct fh_program *prog)
@@ -161,19 +179,19 @@ struct fh_array *fh_make_array(struct fh_program *prog)
   return arr;
 }
 
-struct fh_object *fh_make_string(struct fh_program *prog, const char *str)
+struct fh_string *fh_make_string(struct fh_program *prog, const char *str)
 {
   return fh_make_string_n(prog, str, strlen(str)+1);
 }
 
-struct fh_object *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len)
+struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len)
 {
-  struct fh_object *obj = fh_make_object(prog, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
-  if (! obj)
+  struct fh_string *s = (struct fh_string *) fh_make_object(prog, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
+  if (! s)
     return NULL;
-  memcpy(GET_OBJ_STRING_DATA(obj), str, str_len);
-  GET_OBJ_STRING(obj)->size = str_len;
-  return obj;
+  memcpy(GET_OBJ_STRING_DATA(s), str, str_len);
+  s->size = str_len;
+  return s;
 }
 
 /*************************************************************************
@@ -214,13 +232,13 @@ struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
-  struct fh_object *obj = fh_make_string_n(prog, str, str_len);
-  if (! obj) {
+  struct fh_string *s = fh_make_string_n(prog, str, str_len);
+  if (! s) {
     value_stack_pop(&prog->c_vals, NULL);
     return prog->null_value;
   }
   val->type = FH_VAL_STRING;
-  val->data.obj = obj;
+  val->data.obj = s;
   return *val;
 }
 
