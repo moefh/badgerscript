@@ -8,6 +8,8 @@
 #include <stdarg.h>
 
 struct fh_input;
+struct fh_program;
+struct fh_value;
 
 struct fh_input_funcs {
   int (*read)(struct fh_input *in, char *line, int max_len);
@@ -27,10 +29,6 @@ enum fh_value_type {
   FH_VAL_CLOSURE,
   FH_VAL_FUNC_DEF,
 };
-
-struct fh_program;
-struct fh_value;
-struct fh_object;
 
 typedef int (*fh_c_func)(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args);
 
@@ -67,20 +65,18 @@ int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((f
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 void fh_collect_garbage(struct fh_program *prog);
 
-// misc values
-#define fh_new_null(prog) ((prog)->null_value)
-struct fh_value fh_new_c_func(struct fh_program *prog, fh_c_func func);
+#define fh_new_null()     ((struct fh_value) { .type = FH_VAL_NULL })
 
-// number
-struct fh_value fh_new_number(struct fh_program *prog, double num);
-#define fh_get_number(val) ((val)->data.num)
+#define fh_new_c_func(f)  ((struct fh_value) { .type = FH_VAL_C_FUNC, .data = { .c_func = (f) }})
+#define fh_get_c_func(v)  ((v)->data.c_func)
 
-// string
+#define fh_new_number(n)  ((struct fh_value) { .type = FH_VAL_NUMBER, .data = { .num = (n) }})
+#define fh_get_number(v)  ((v)->data.num)
+
 struct fh_value fh_new_string(struct fh_program *prog, const char *str);
 struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t str_len);
 const char *fh_get_string(const struct fh_value *str);
 
-// array
 struct fh_value fh_new_array(struct fh_program *prog);
 int fh_get_array_len(const struct fh_value *arr);
 struct fh_value *fh_get_array_item(struct fh_value *arr, int index);

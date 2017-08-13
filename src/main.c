@@ -16,7 +16,7 @@ static int fn_gc(struct fh_program *prog, struct fh_value *ret, struct fh_value 
   (void)n_args;
 
   fh_collect_garbage(prog);
-  *ret = fh_new_number(prog, 0);
+  *ret = fh_new_number(0);
   return 0;
 }
 
@@ -30,12 +30,13 @@ static int fn_add_garbage(struct fh_program *prog, struct fh_value *ret, struct 
   snprintf(str, sizeof(str), "garbage %d", i++);
   fh_new_string(prog, str);
   
-  *ret = fh_new_number(prog, 0);
+  *ret = fh_new_null();
   return 0;
 }
 
 static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
+  (void)prog;
   (void)args;
   (void)n_args;
 
@@ -43,11 +44,11 @@ static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, stru
   struct winsize term_size;
 
   if (ioctl(0, TIOCGWINSZ, &term_size) < 0)
-    *ret = fh_new_number(prog, 25.0);
+    *ret = fh_new_number(25.0);
   else
-    *ret = fh_new_number(prog, (double) term_size.ws_row);
+    *ret = fh_new_number(term_size.ws_row);
 #else
-  fh_new_number(prog, ret, 25);
+  *ret = fh_new_number(25);
 #endif
   return 0;
 }

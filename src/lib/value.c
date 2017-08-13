@@ -202,24 +202,6 @@ struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, siz
  * while the C function is running.
  *************************************************************************/
 
-struct fh_value fh_new_number(struct fh_program *prog, double num)
-{
-  UNUSED(prog);
-  struct fh_value val;
-  val.type = FH_VAL_NUMBER;
-  val.data.num = num;
-  return val;
-}
-
-struct fh_value fh_new_c_func(struct fh_program *prog, fh_c_func func)
-{
-  UNUSED(prog);
-  struct fh_value val;
-  val.type = FH_VAL_C_FUNC;
-  val.data.c_func = func;
-  return val;
-}
-
 struct fh_value fh_new_string(struct fh_program *prog, const char *str)
 {
   return fh_new_string_n(prog, str, strlen(str) + 1);

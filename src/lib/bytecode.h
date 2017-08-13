@@ -6,8 +6,6 @@
 #include "fh_internal.h"
 #include "value.h"
 
-#include <stdint.h>
-
 #define MAX_FUNC_REGS 256
 
 enum fh_bc_opcode {

@@ -39,7 +39,7 @@ int fh_fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value *ar
   struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
   if (! arr)
     return fh_set_error(prog, "len(): argument must be an array");
-  *ret = fh_new_number(prog, arr->len);
+  *ret = fh_new_number(arr->len);
   return 0;
 }
 
@@ -60,9 +60,11 @@ int fh_fn_append(struct fh_program *prog, struct fh_value *ret, struct fh_value 
 
 int fh_fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
+  (void)prog;
+  
   for (int i = 0; i < n_args; i++)
     print_value(&args[i]);
-  *ret = fh_new_number(prog, 0);
+  *ret = fh_new_null();
   return 0;
 }
 
@@ -117,7 +119,7 @@ int fh_fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value 
   }
   
  end:
-  *ret = fh_new_number(prog, 0);
+  *ret = fh_new_null();
   return 0;
 }
 

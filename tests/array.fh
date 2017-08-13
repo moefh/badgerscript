@@ -16,8 +16,6 @@ function main(args)
 
    append(x, "four", "五");
 
-   x[5] = "error";
-
    printf("BEFORE: ");
    print_array(x);
 
