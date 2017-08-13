@@ -44,24 +44,24 @@ Current plans:
 
 This script draws the Mandelbrot set in the terminal:
 
-```javascript
+```php
 
-# Calculate the color of the point c=cx + i cy
+# check point c = (cx, cy) in the complex plane
 function calc_point(cx, cy, max_iter)
 {
     var i = 0;
     
-    # start with z = x + i y = 0
+    # start at the critical point z = (x, y) = 0
     var x = 0;
     var y = 0;
 
     while (i < max_iter) {
-        # z = z^2 + c
+        # calculate next iteration: z = z^2 + c
         var t = x*x - y*y + cx;
         y = 2*x*y + cy;
         x = t;
 
-        # stop when |z| > 2
+        # stop if |z| > 2
         if (x*x + y*y > 4)
             break;
         i = i + 1;
@@ -80,9 +80,9 @@ function mandelbrot(x1, y1, x2, y2, size_x, size_y, max_iter)
         while (x <= x2) {
             var c = calc_point(x, y, max_iter);
             if (c == max_iter)
-                printf(".");
+                printf(".");         # in Mandelbrot set
             else
-                printf("%d", c%10);
+                printf("%d", c%10);  # outside
             x = x + step_x;
         }
         y = y + step_y;
