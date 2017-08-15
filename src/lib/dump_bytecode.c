@@ -50,6 +50,28 @@ static void dump_instr_jmp(uint32_t instr, int32_t addr)
     printf("%d\n", addr + 1 + GET_INSTR_RS(instr));
 }
 
+static void dump_instr_up_rkb(uint32_t instr)
+{
+  int a = GET_INSTR_RA(instr);
+  int b = GET_INSTR_RB(instr);
+
+  printf("u[%d], ", a);
+  if (b <= MAX_FUNC_REGS)
+    printf("r%d", b);
+  else
+    printf("c[%d]", b-MAX_FUNC_REGS-1);
+  printf("\n");
+}
+
+static void dump_instr_ra_up(uint32_t instr)
+{
+  int a = GET_INSTR_RA(instr);
+  int b = GET_INSTR_RB(instr);
+
+  printf("r%d, ", a);
+  printf("u[%d]\n", b);
+}
+
 static void dump_instr_abc(uint32_t instr)
 {
   int a = GET_INSTR_RA(instr);
@@ -152,6 +174,8 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
   case OPC_RET:      printf("ret       "); dump_instr_ret(instr); return;
   case OPC_CALL:     printf("call      "); dump_instr_ra_b(instr); return;
   case OPC_CLOSURE:  printf("closure   "); dump_instr_ra_rkb(instr); return;
+  case OPC_GETUPVAL: printf("getupval  "); dump_instr_ra_up(instr); return;
+  case OPC_SETUPVAL: printf("setupval  "); dump_instr_up_rkb(instr); return;
 
   case OPC_ADD:      printf("add       "); dump_instr_ra_rkb_rkc(instr); return;
   case OPC_SUB:      printf("sub       "); dump_instr_ra_rkb_rkc(instr); return;

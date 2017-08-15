@@ -1,0 +1,34 @@
+
+function make_counters(c)
+{
+  var x = [];
+  var i = 0;
+  while (i < 3) {
+    var k = i;
+    append(x, function() {
+      return c+k;
+    });
+    i = i + 1;
+    if (i == 2) continue;
+    print(i, "\n");
+  }
+  return x;
+}
+
+function make_counter(c)
+{
+  return function() {
+    return c;
+  };
+}
+
+function main()
+{
+  var c1 = make_counters(0);
+  var c2 = make_counters(100);
+
+  printf("%d\n", c1[0]());
+  printf("%d\n", c1[1]());
+  printf("%d\n", c2[0]());
+  printf("%d\n", c2[1]());
+}

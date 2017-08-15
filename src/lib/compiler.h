@@ -10,9 +10,24 @@
 DECLARE_STACK(int_stack, int);
 DECLARE_STACK(code_stack, uint32_t);
 
+enum compiler_block_type {
+  COMP_BLOCK_PLAIN,
+  COMP_BLOCK_FUNC,
+  COMP_BLOCK_WHILE,
+};
+
+struct block_info {
+  enum compiler_block_type type;
+  int32_t start_addr;
+  int parent_num_regs;
+};
+
+DECLARE_STACK(block_info_stack, struct block_info);
+
 struct reg_info {
   fh_symbol_id var;
   bool alloc;
+  bool used_by_inner_func;
 };
 
 DECLARE_STACK(reg_stack, struct reg_info);
@@ -21,11 +36,10 @@ struct func_info {
   struct func_info *parent;
   int num_regs;
   struct reg_stack regs;
+  struct int_stack break_addrs;
+  struct block_info_stack blocks;
   struct code_stack code;
   struct value_stack consts;
-
-  int continue_target_addr;
-  struct int_stack fix_break_addrs;
 };
 
 DECLARE_STACK(func_info_stack, struct func_info);
