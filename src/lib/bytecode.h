@@ -51,6 +51,13 @@ enum fh_bc_opcode {
 #define PLACE_INSTR_RU(ru)    (((uint32_t)(ru)&0x3ffff)<<14)
 #define PLACE_INSTR_RS(rs)    PLACE_INSTR_RU((rs)+(1<<17))
 
+#define INSTR_OP_MASK           0x3f
+#define INSTR_RA_MASK         ( 0xff<<6)
+#define INSTR_RB_MASK         (0x1ff<<14)
+#define INSTR_RC_MASK         (0x1ff<<23)
+#define INSTR_RU_MASK         ((uint32_t)0x3ffff<<14)
+#define INSTR_RS_MASK         INSTR_RU_MASK
+
 #define MAKE_INSTR_A(op, ra)            (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra))
 #define MAKE_INSTR_AB(op, ra, rb)       (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RB(rb))
 #define MAKE_INSTR_ABC(op, ra, rb, rc)  (PLACE_INSTR_OP(op) | PLACE_INSTR_RA(ra) | PLACE_INSTR_RB(rb) | PLACE_INSTR_RC(rc))
