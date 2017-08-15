@@ -41,6 +41,15 @@ static void dump_instr_ret(uint32_t instr)
     printf("c[%d]\n", b - MAX_FUNC_REGS - 1);
 }
 
+static void dump_instr_jmp(uint32_t instr, int32_t addr)
+{
+  int n_close = GET_INSTR_RA(instr);
+  if (n_close)
+    printf("<%d> %d\n", n_close, addr + 1 + GET_INSTR_RS(instr));
+  else
+    printf("%d\n", addr + 1 + GET_INSTR_RS(instr));
+}
+
 static void dump_instr_abc(uint32_t instr)
 {
   int a = GET_INSTR_RA(instr);
@@ -161,7 +170,7 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
   case OPC_CMP_LT:   printf("cmp.lt    "); dump_instr_a_rkb_rkc(instr); return;
   case OPC_CMP_LE:   printf("cmp.le    "); dump_instr_a_rkb_rkc(instr); return;
   case OPC_TEST:     printf("test      "); dump_instr_a_rkb(instr); return;
-  case OPC_JMP:      printf("jmp       %-12d  ; to %d\n",  GET_INSTR_RS(instr), addr + 1 + GET_INSTR_RS(instr)); return;
+  case OPC_JMP:      printf("jmp       "); dump_instr_jmp(instr, addr); return;
     
   case OPC_LDNULL:   printf("ldnull    r%d\n",            GET_INSTR_RA(instr)); return;
   case OPC_LDC:      printf("ldc       r%d, c[%d]\n",     GET_INSTR_RA(instr), GET_INSTR_RU(instr)); return;
