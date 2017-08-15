@@ -6,6 +6,11 @@
 #include "fh.h"
 #include "stack.h"
 
+enum fh_upval_def_type {
+  FH_UPVAL_TYPE_REG,
+  FH_UPVAL_TYPE_UPVAL,
+};
+
 DECLARE_STACK(value_stack, struct fh_value);
 
 #define OBJ_HEADER  \
@@ -30,6 +35,11 @@ struct fh_array {
   int cap;
 };
 
+struct fh_upval_def {
+  enum fh_upval_def_type type;
+  int num;
+};
+
 struct fh_func_def {
   OBJ_HEADER;
   struct fh_object *gc_next_container;
@@ -40,6 +50,8 @@ struct fh_func_def {
   int code_size;
   struct fh_value *consts;
   int n_consts;
+  struct fh_upval_def *upvals;
+  int n_upvals;
 };
 
 struct fh_closure {

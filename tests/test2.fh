@@ -1,13 +1,29 @@
 
-function f() {}
+function print_array(a)
+{
+  var i = 0;
+  print("[\n");
+  while (i < len(a)) {
+    printf("  %s,\n", a[i]);
+    i = i + 1;
+  }
+  print("]\n");
+}
+
+function f() { return 0; }
 
 function main()
 {
-  var x;
-  f();
-  f();
-  f();
-  printf("%x\n", -1);
-  printf("%s\n", x);
-  printf("%s\n", f);
+  var r = [0,0,0];
+  {
+    var i = 0+f(3,4);
+    while (i < 3) {
+      var a = 0;
+      var b;
+      r[i] = function() { return 0; };
+      i = i + 1;
+    }
+    i = i + 2;
+  }
+  print_array(r);
 }

@@ -258,11 +258,21 @@ static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
   
   for (int i = 0; i < func_def->code_size; i++)
     fh_dump_bc_instr(prog, i, func_def->code[i]);
-  
-  printf("; %d constants:\n", func_def->n_consts);
-  for (int j = 0; j < func_def->n_consts; j++) {
-      printf("c[%d] = ", j);
-      dump_const(prog, &func_def->consts[j]);
+
+  if (func_def->n_consts) {
+    printf("; %d constants:\n", func_def->n_consts);
+    for (int i = 0; i < func_def->n_consts; i++) {
+      printf("c[%d] = ", i);
+      dump_const(prog, &func_def->consts[i]);
+    }
+  }
+
+  if (func_def->n_upvals) {
+    printf("; %d upvals:\n", func_def->n_upvals);
+    for (int i = 0; i < func_def->n_upvals; i++) {
+      struct fh_upval_def *ud = &func_def->upvals[i];
+      printf("u[%d]: parent's %s %d\n", i, (ud->type == FH_UPVAL_TYPE_UPVAL) ? "upvalue" : "reg", ud->num);
+    }
   }
   
   printf("; ===================================================\n");

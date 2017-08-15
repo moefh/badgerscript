@@ -52,6 +52,7 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct func_info *
   fi->num_regs = 0;
   code_stack_init(&fi->code);
   value_stack_init(&fi->consts);
+  upval_def_stack_init(&fi->upvals);
   reg_stack_init(&fi->regs);
   int_stack_init(&fi->break_addrs);
   block_info_stack_init(&fi->blocks);
@@ -105,6 +106,7 @@ static void pop_func_info(struct fh_compiler *c)
   int_stack_free(&fi.break_addrs);
   code_stack_free(&fi.code);
   value_stack_free(&fi.consts);
+  upval_def_stack_free(&fi.upvals);
   block_info_stack_free(&fi.blocks);
 }
 
@@ -156,6 +158,8 @@ static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc
   func_def->code_size = 0;
   func_def->consts = NULL;
   func_def->n_consts = 0;
+  func_def->upvals = NULL;
+  func_def->n_upvals = 0;
   return func_def;
 }
 
@@ -322,6 +326,26 @@ static int add_const_func_def(struct fh_compiler *c, struct fh_src_loc loc, stru
   return k;
 }
 
+static int add_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *fi, enum fh_upval_def_type type, int num)
+{
+  int upval = 0;
+  stack_foreach(struct fh_upval_def, *, uv, &fi->upvals) {
+    if (uv->type == type && num == uv->num)
+      return upval;
+    upval++;
+  }
+
+  upval = upval_def_stack_size(&fi->upvals);
+  struct fh_upval_def *uv = upval_def_stack_push(&fi->upvals, NULL);
+  if (! uv) {
+    fh_compiler_error(c, loc, "out of memory");
+    return -1;
+  }
+  uv->type = type;
+  uv->num = num;
+  return upval;
+}
+
 static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
@@ -483,6 +507,44 @@ static int get_var_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
   return get_func_var_reg(fi, var);
 }
 
+static int add_func_var_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *fi, fh_symbol_id var, int *ret_upval)
+{
+  if (! fi->parent) {
+    *ret_upval = -1;
+    return 0;
+  }
+  
+  int reg = get_func_var_reg(fi->parent, var);
+  if (reg >= 0) {
+    struct reg_info *ri = reg_stack_item(&fi->parent->regs, reg);
+    ri->used_by_inner_func = true;
+    
+    int upval = add_upval(c, loc, fi, FH_UPVAL_TYPE_REG, reg);
+    if (upval < 0)
+      return -1;
+    *ret_upval = upval;
+    return 0;
+  }
+    
+  if (add_func_var_upval(c, loc, fi->parent, var, ret_upval) < 0)
+    return -1;
+  if (*ret_upval < 0)
+    return 0;
+  int upval = add_upval(c, loc, fi, FH_UPVAL_TYPE_UPVAL, *ret_upval);
+  if (upval < 0)
+    return -1;
+  *ret_upval = upval;
+  return 0;
+}
+
+static int add_var_upval(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var, int *ret_upval)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+  return add_func_var_upval(c, loc, fi, var, ret_upval);
+}
+
 static int get_top_var_reg(struct fh_compiler *c, struct fh_src_loc loc)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
@@ -515,33 +577,6 @@ static int get_num_open_upvals(struct fh_compiler *c, struct fh_src_loc loc, int
   return num_open_upvals;
 }
 
-static int get_var_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *fi, fh_symbol_id var)
-{
-  //UNUSED(c);
-  //UNUSED(loc);
-
-  if (! fi->parent)
-    return -1;
-  
-  int reg = get_func_var_reg(fi->parent, var);
-  if (reg < 0) {
-    int upval = get_var_upval(c, loc, fi->parent, var);
-    if (upval >= 0) {
-      // TODO: add upvalue of parent upvalue 'upval' to function 'fi'
-    }
-    return upval;
-  }
-
-  struct reg_info *ri = reg_stack_item(&fi->parent->regs, reg);
-  ri->used_by_inner_func = true;
-  
-  // TODO: add upvalue of parent register 'reg' to function 'fi', set
-  // 'upval' to index of created upvalue
-  int upval = reg;
-
-  return upval;
-}
-
 static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
   // local variable
@@ -550,11 +585,8 @@ static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
     return reg;
 
   // parent function variable
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-  int upval = get_var_upval(c, loc, fi, var);
-  if (upval >= 0) {
+  int upval;
+  if (add_var_upval(c, loc, var, &upval) >= 0 && upval >= 0) {
     int reg = alloc_reg(c, loc, TMP_VARIABLE);
     if (reg < 0)
       return -1;
@@ -629,12 +661,26 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
 {
   if (expr->op == '=') {
     if (expr->left->type == EXPR_VAR) {
+      // local var
       int left_reg = get_var_reg(c, loc, expr->left->data.var);
-      if (left_reg < 0) {
-        // TODO: handle upvalue
-        return fh_compiler_error(c, loc, "undeclared variable: '%s'", fh_get_ast_symbol(c->ast, expr->left->data.var));
+      if (left_reg >= 0)
+        return compile_expr_to_reg(c, expr->right, left_reg);
+      
+      // var local to parent function
+      int upval;
+      if (add_var_upval(c, loc, expr->left->data.var, &upval) >= 0 && upval >= 0) {
+        left_reg = alloc_reg(c, loc, TMP_VARIABLE);
+        if (left_reg < 0)
+          return -1;
+        if (compile_expr_to_reg(c, expr->right, left_reg) < 0)
+          return -1;
+        if (add_instr(c, loc, MAKE_INSTR_AB(OPC_SETUPVAL, upval, left_reg)) < 0)
+          return -1;
+        return left_reg;
       }
-      return compile_expr_to_reg(c, expr->right, left_reg);
+
+      // no such variable
+      return fh_compiler_error(c, loc, "undeclared variable: '%s'", fh_get_ast_symbol(c->ast, expr->left->data.var));
     }
 
     if (expr->left->type == EXPR_INDEX) {
@@ -1157,6 +1203,10 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   func_def->n_consts = value_stack_size(&fi->consts);
   func_def->consts = value_stack_data(&fi->consts);
   value_stack_init(&fi->consts);
+
+  func_def->n_upvals = upval_def_stack_size(&fi->upvals);
+  func_def->upvals = upval_def_stack_data(&fi->upvals);
+  upval_def_stack_init(&fi->upvals);
   
   pop_func_info(c);
   return 0;

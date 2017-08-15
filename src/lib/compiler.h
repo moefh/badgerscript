@@ -10,6 +10,8 @@
 DECLARE_STACK(int_stack, int);
 DECLARE_STACK(code_stack, uint32_t);
 
+DECLARE_STACK(upval_def_stack, struct fh_upval_def);
+
 enum compiler_block_type {
   COMP_BLOCK_PLAIN,
   COMP_BLOCK_FUNC,
@@ -40,6 +42,7 @@ struct func_info {
   struct block_info_stack blocks;
   struct code_stack code;
   struct value_stack consts;
+  struct upval_def_stack upvals;
 };
 
 DECLARE_STACK(func_info_stack, struct func_info);
