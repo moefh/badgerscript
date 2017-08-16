@@ -54,11 +54,22 @@ struct fh_func_def {
   int n_upvals;
 };
 
+struct fh_upval {
+  OBJ_HEADER;
+  struct fh_object *gc_next_container;
+  struct fh_value *val;
+  union {
+    struct fh_value storage;
+    struct fh_upval *next;
+  } data;
+};
+
 struct fh_closure {
   OBJ_HEADER;
   struct fh_object *gc_next_container;
   struct fh_func_def *func_def;
-  /* TODO: environment */
+  int n_upvals;
+  struct fh_upval **upvals;
 };
 
 struct fh_object {
@@ -74,6 +85,7 @@ struct fh_object {
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
 
 #define GET_OBJ_CLOSURE(o)     ((struct fh_closure *) (o))
+#define GET_OBJ_UPVAL(o)       ((struct fh_upval *) (o))
 #define GET_OBJ_FUNC_DEF(o)    ((struct fh_func_def *) (o))
 #define GET_OBJ_ARRAY(o)       ((struct fh_array *) (o))
 #define GET_OBJ_STRING(o)      ((struct fh_string *) (o))
@@ -83,6 +95,8 @@ struct fh_object {
 #define GET_VAL_FUNC_DEF(v)  (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
 #define GET_VAL_ARRAY(v)     (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)
 
+#define UPVAL_IS_OPEN(uv)    ((uv)->val != (uv)->data.storage)
+
 // non-object types
 #define fh_make_null   fh_new_null
 #define fh_make_number fh_new_number
@@ -91,6 +105,7 @@ struct fh_object {
 // object types
 struct fh_func_def *fh_make_func_def(struct fh_program *prog);
 struct fh_closure *fh_make_closure(struct fh_program *prog);
+struct fh_upval *fh_make_upval(struct fh_program *prog);
 struct fh_array *fh_make_array(struct fh_program *prog);
 struct fh_string *fh_make_string(struct fh_program *prog, const char *str);
 struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len);

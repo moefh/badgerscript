@@ -51,6 +51,7 @@ void fh_dump_value(const struct fh_value *val)
     printf("]");
 #endif
     return;
+  case FH_VAL_UPVAL: printf("UPVAL("); fh_dump_value(GET_OBJ_UPVAL(val->data.obj)->val); printf(")"); return;
   case FH_VAL_CLOSURE: printf("CLOSURE(%p)", val->data.obj); return;
   case FH_VAL_FUNC_DEF: printf("FUNC_DEF(%p)", val->data.obj); return;
   case FH_VAL_C_FUNC: printf("C_FUNC"); return;

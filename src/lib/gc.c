@@ -46,6 +46,10 @@ static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
     printf(" (array of len %d)\n", GET_OBJ_ARRAY(obj)->len);
     break;
 
+  case FH_VAL_UPVAL:
+    printf(" (upval)\n");
+    break;
+    
   default:
     printf(" (UNEXPECTED TYPE)\n");
   }
@@ -99,6 +103,11 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
     gc->container_list = obj;
     return;
 
+  case FH_VAL_UPVAL:
+    GET_OBJ_UPVAL(obj)->gc_next_container = gc->container_list;
+    gc->container_list = obj;
+    return;
+    
   case FH_VAL_FUNC_DEF:
     GET_OBJ_FUNC_DEF(obj)->gc_next_container = gc->container_list;
     gc->container_list = obj;
@@ -130,6 +139,15 @@ static void mark_func_def_children(struct fh_gc_state *gc, struct fh_func_def *f
 static void mark_closure_children(struct fh_gc_state *gc, struct fh_closure *closure)
 {
   MARK_OBJECT(gc, (struct fh_object *) closure->func_def);
+  for (int i = 0; i < closure->n_upvals; i++)
+    MARK_OBJECT(gc, (struct fh_object *) closure->upvals[i]);
+}
+
+static void mark_upval_children(struct fh_gc_state *gc, struct fh_upval *upval)
+{
+  MARK_VALUE(gc, upval->val);
+  if (upval->val != &upval->data.storage && upval->data.next != NULL)
+    MARK_OBJECT(gc, (struct fh_object *) upval->data.next);
 }
 
 static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
@@ -150,6 +168,14 @@ static void mark_container_children(struct fh_gc_state *gc)
       }
       continue;
 
+    case FH_VAL_UPVAL:
+      {
+        struct fh_upval *uv = GET_OBJ_UPVAL(gc->container_list);
+        gc->container_list = uv->gc_next_container;
+        mark_upval_children(gc, uv);
+      }
+      continue;
+      
     case FH_VAL_FUNC_DEF:
       {
         struct fh_func_def *f = GET_OBJ_FUNC_DEF(gc->container_list);
@@ -178,16 +204,12 @@ static void mark_container_children(struct fh_gc_state *gc)
   }
 }
 
-static void mark(struct fh_program *prog)
+static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
 {
-  struct fh_gc_state gc;
-
-  gc.container_list = NULL;
-  
   // mark global functions
   DEBUG_LOG("***** marking global functions\n");
   stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
-    MARK_OBJECT(&gc, (struct fh_object *) *pc);
+    MARK_OBJECT(gc, (struct fh_object *) *pc);
   }
 
   // mark stack
@@ -197,15 +219,29 @@ static void mark(struct fh_program *prog)
     struct fh_value *stack = prog->vm.stack;
     DEBUG_LOG1("***** marking %d stack values\n", stack_size);
     for (int i = 0; i < stack_size; i++)
-      MARK_VALUE(&gc, &stack[i]);
+      MARK_VALUE(gc, &stack[i]);
   }
 
+  // mark open upvals
+  DEBUG_LOG("***** marking first open upval\n");
+  if (prog->vm.open_upvals)
+    MARK_OBJECT(gc, (struct fh_object *) prog->vm.open_upvals);
+  
   // mark C values
   DEBUG_LOG1("***** marking %d C tmp values\n", value_stack_size(&prog->c_vals));
   stack_foreach(struct fh_value, *, v, &prog->c_vals) {
-    MARK_VALUE(&gc, v);
+    MARK_VALUE(gc, v);
   }
+}
 
+static void mark(struct fh_program *prog)
+{
+  struct fh_gc_state gc;
+
+  gc.container_list = NULL;
+  
+  mark_roots(&gc, prog);
+  
   DEBUG_LOG("***** marking container children\n");
   mark_container_children(&gc);
 }

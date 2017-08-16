@@ -12,11 +12,13 @@ function main()
   var c1 = make_counter(0);
   var c2 = make_counter(100);
 
-  c1[0](1);
-  printf("c1=%d\n", c1[1]());
+  c1[1](1);
+  c1[1](1);
+  printf("c1=%d\n", c1[0]());
 
-  c2[0](20);
-  printf("c2=%d\n", c2[1]());
+  c2[1](15);
+  printf("c2=%d\n", c2[0]());
 
-  printf("c1=%d\n", c1[1]());
+  c1[1](1);
+  printf("c1=%d\n", c1[0]());
 }

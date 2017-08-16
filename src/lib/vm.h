@@ -19,6 +19,7 @@ struct fh_vm {
   struct fh_program *prog;
   struct fh_value *stack;
   int stack_size;
+  struct fh_upval *open_upvals;
   struct call_frame_stack call_stack;
   uint32_t *pc;
 };

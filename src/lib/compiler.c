@@ -1262,6 +1262,8 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
     if (! closure)
       return fh_compiler_error(c, f->loc, "out of memory");
     closure->func_def = func_def;
+    closure->n_upvals = 0;
+    closure->upvals = NULL;
     if (fh_add_global_func(c->prog, closure) < 0)
       return fh_compiler_error(c, f->loc, "out of memory");
   }

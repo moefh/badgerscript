@@ -20,7 +20,14 @@ static void free_func_def(struct fh_func_def *func_def)
 
 static void free_closure(struct fh_closure *closure)
 {
+  if (closure->upvals)
+    free(closure->upvals);
   free(closure);
+}
+
+static void free_upval(struct fh_upval *upval)
+{
+  free(upval);
 }
 
 static void free_array(struct fh_array *arr)
@@ -46,6 +53,10 @@ void fh_free_object(struct fh_object *obj)
     
   case FH_VAL_CLOSURE:
     free_closure(GET_OBJ_CLOSURE(obj));
+    return;
+
+  case FH_VAL_UPVAL:
+    free_upval(GET_OBJ_UPVAL(obj));
     return;
 
   case FH_VAL_FUNC_DEF:
@@ -149,6 +160,15 @@ static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_t
   obj->obj.header.type = type;
   obj->obj.header.gc_mark = 0;
   return obj;
+}
+
+struct fh_upval *fh_make_upval(struct fh_program *prog)
+{
+  struct fh_upval *uv = (struct fh_upval *) fh_make_object(prog, FH_VAL_UPVAL, sizeof(struct fh_upval));
+  if (! uv)
+    return NULL;
+  uv->gc_next_container = NULL;
+  return uv;
 }
 
 struct fh_closure *fh_make_closure(struct fh_program *prog)

@@ -26,6 +26,7 @@ enum fh_value_type {
   // objects
   FH_VAL_STRING,
   FH_VAL_ARRAY,
+  FH_VAL_UPVAL,
   FH_VAL_CLOSURE,
   FH_VAL_FUNC_DEF,
 };

@@ -210,6 +210,7 @@ static void dump_const(struct fh_program *prog, struct fh_value *c)
   case FH_VAL_NUMBER: printf("%f\n", c->data.num); return;
   case FH_VAL_STRING: dump_string(fh_get_string(c)); printf("\n"); return;
   case FH_VAL_ARRAY:  printf("<array of length %d>\n", fh_get_array_len(c)); return;
+  case FH_VAL_UPVAL:  printf("<upval>\n"); return;
 
   case FH_VAL_CLOSURE:
     {

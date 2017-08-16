@@ -10,12 +10,16 @@
 
 static void print_value(struct fh_value *val)
 {
+  if (val->type == FH_VAL_UPVAL)
+    val = GET_OBJ_UPVAL(val->data.obj)->val;
+  
   switch (val->type) {
   case FH_VAL_NULL: printf("null"); return;
   case FH_VAL_NUMBER: printf("%g", val->data.num); return;
   case FH_VAL_STRING: printf("%s", fh_get_string(val));  return;
   case FH_VAL_ARRAY: printf("<array of length %d>", fh_get_array_len(val)); return;
   case FH_VAL_CLOSURE: printf("<closure %p>", val->data.obj); return;
+  case FH_VAL_UPVAL: printf("<internal error (upval)>"); return;
   case FH_VAL_FUNC_DEF: printf("<func def %p>", val->data.obj); return;
   case FH_VAL_C_FUNC: printf("<C function %p>", val->data.c_func); return;
   }

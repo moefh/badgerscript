@@ -15,6 +15,7 @@ void fh_init_vm(struct fh_vm *vm, struct fh_program *prog)
   vm->prog = prog;
   vm->stack = NULL;
   vm->stack_size = 0;
+  vm->open_upvals = NULL;
   call_frame_stack_init(&vm->call_stack);
 }
 
@@ -151,8 +152,28 @@ static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, s
   return r;
 }
 
+static struct fh_closure *new_closure(struct fh_vm *vm, struct fh_func_def *func_def)
+{
+  struct fh_closure *c = fh_make_closure(vm->prog);
+  if (! c)
+    return NULL;
+  c->func_def = func_def;
+  c->n_upvals = func_def->n_upvals;
+  if (c->n_upvals > 0)
+    c->upvals = malloc(c->n_upvals * sizeof(struct fh_upval *));
+  else
+    c->upvals = NULL;
+  if (! c->upvals) {
+    vm_error(vm, "out of memory");
+    return NULL;
+  }
+  return c;
+}
+
 static int is_true(struct fh_value *val)
 {
+  if (val->type == FH_VAL_UPVAL)
+    val = GET_OBJ_UPVAL(val)->val;
   switch (val->type) {
   case FH_VAL_NULL:      return 0;
   case FH_VAL_NUMBER:    return val->data.num != 0.0;
@@ -161,12 +182,18 @@ static int is_true(struct fh_value *val)
   case FH_VAL_CLOSURE:   return 1;
   case FH_VAL_FUNC_DEF:  return 1;
   case FH_VAL_C_FUNC:    return 1;
+  case FH_VAL_UPVAL:     return 0;
   }
   return 0;
 }
 
 static int vals_equal(struct fh_value *v1, struct fh_value *v2)
 {
+  if (v1->type == FH_VAL_UPVAL)
+    v1 = GET_OBJ_UPVAL(v1)->val;
+  if (v2->type == FH_VAL_UPVAL)
+    v2 = GET_OBJ_UPVAL(v2)->val;
+
   if (v1->type != v2->type)
     return 0;
   switch (v1->type) {
@@ -177,14 +204,34 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
   case FH_VAL_ARRAY:     return v1->data.obj == v2->data.obj;
   case FH_VAL_CLOSURE:   return v1->data.obj == v2->data.obj;
   case FH_VAL_FUNC_DEF:  return v1->data.obj == v2->data.obj;
+  case FH_VAL_UPVAL:     return 0;
   }
   return 0;
 }
 
-#define handle_op(op) case op:
-#define LOAD_REG_OR_CONST(index)  (((index) <= MAX_FUNC_REGS) ? &reg_base[index] : &const_base[(index)-MAX_FUNC_REGS-1])
-#define LOAD_REG(index)    (&reg_base[index])
-#define LOAD_CONST(index)  (&const_base[(index)-MAX_FUNC_REGS-1])
+static struct fh_upval *find_or_add_upval(struct fh_vm *vm, struct fh_value *val)
+{
+  struct fh_upval **cur = &vm->open_upvals;
+  while (*cur != NULL && (*cur)->val >= val) {
+    if ((*cur)->val == val)
+      return *cur;
+    cur = &(*cur)->data.next;
+  }
+  struct fh_upval *uv = fh_make_upval(vm->prog);
+  uv->val = val;
+  uv->data.next = *cur;
+  *cur = uv;
+  return uv;
+}
+
+static void close_upval(struct fh_vm *vm)
+{
+  struct fh_upval *uv = vm->open_upvals;
+  //printf("CLOSING UPVAL %p (", uv); fh_dump_value(uv->val); printf(")\n");
+  vm->open_upvals = uv->data.next;
+  uv->data.storage = *uv->val;
+  uv->val = &uv->data.storage;
+}
 
 static void dump_state(struct fh_vm *vm)
 {
@@ -208,6 +255,11 @@ static void dump_state(struct fh_vm *vm)
   printf("----------------------------\n");
 }
 
+#define handle_op(op) case op:
+#define LOAD_REG_OR_CONST(index)  (((index) <= MAX_FUNC_REGS) ? &reg_base[index] : &const_base[(index)-MAX_FUNC_REGS-1])
+#define LOAD_REG(index)    (&reg_base[index])
+#define LOAD_CONST(index)  (&const_base[(index)-MAX_FUNC_REGS-1])
+
 int fh_run_vm(struct fh_vm *vm)
 {
   struct fh_value *const_base;
@@ -223,7 +275,7 @@ int fh_run_vm(struct fh_vm *vm)
   }
   while (1) {
     //dump_regs(vm);
-    //fh_dump_bc_instr(vm->prog, NULL, -1, *pc);
+    //fh_dump_bc_instr(vm->prog, -1, *pc);
     
     uint32_t instr = *pc++;
     struct fh_value *ra = &reg_base[GET_INSTR_RA(instr)];
@@ -249,6 +301,11 @@ int fh_run_vm(struct fh_vm *vm)
           vm->stack[frame->base-1] = *LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         else
           vm->stack[frame->base-1].type = FH_VAL_NULL;
+
+        // close function upvalues
+        while (vm->open_upvals != NULL && vm->open_upvals->val >= vm->stack + frame->base)
+          close_upval(vm);
+        
         uint32_t *ret_addr = frame->ret_addr;
         call_frame_stack_pop(&vm->call_stack, NULL);
         if (call_frame_stack_size(&vm->call_stack) == 0 || ! ret_addr) {
@@ -322,15 +379,39 @@ int fh_run_vm(struct fh_vm *vm)
           vm_error(vm, "invalid value for closure (not a func_def)");
           goto err;
         }
-        struct fh_closure *c = fh_make_closure(vm->prog);
+        struct fh_func_def *func_def = GET_VAL_FUNC_DEF(rb);
+        struct fh_closure *c = new_closure(vm, func_def);
         if (! c)
           goto err;
-        c->func_def = GET_VAL_FUNC_DEF(rb);
+        struct fh_vm_call_frame *frame = NULL;
+        for (int i = 0; i < func_def->n_upvals; i++) {
+          if (func_def->upvals[i].type == FH_UPVAL_TYPE_UPVAL) {
+            if (frame == NULL)
+              frame = call_frame_stack_top(&vm->call_stack);
+            c->upvals[i] = frame->closure->upvals[func_def->upvals[i].num];
+          } else
+            c->upvals[i] = find_or_add_upval(vm, &reg_base[func_def->upvals[i].num]);
+        }
         ra->type = FH_VAL_CLOSURE;
         ra->data.obj = c;
         break;
       }
 
+      handle_op(OPC_GETUPVAL) {
+        int b = GET_INSTR_RB(instr);
+        struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
+        *ra = *frame->closure->upvals[b]->val;
+        break;
+      }
+
+      handle_op(OPC_SETUPVAL) {
+        int a = GET_INSTR_RA(instr);
+        struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
+        struct fh_vm_call_frame *frame = call_frame_stack_top(&vm->call_stack);
+        *frame->closure->upvals[a]->val = *rb;
+        break;
+      }
+      
       handle_op(OPC_ADD) {
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
@@ -446,6 +527,9 @@ int fh_run_vm(struct fh_vm *vm)
       }
       
       handle_op(OPC_JMP) {
+        int a = GET_INSTR_RA(instr);
+        for (int i = 0; i < a; i++)
+          close_upval(vm);
         pc += GET_INSTR_RS(instr);
         break;
       }
@@ -524,5 +608,6 @@ int fh_run_vm(struct fh_vm *vm)
   
  user_err:
   vm->pc = pc;
+  //dump_state(vm);
   return -1;
 }
