@@ -586,7 +586,9 @@ static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_i
 
   // parent function variable
   int upval;
-  if (add_var_upval(c, loc, var, &upval) >= 0 && upval >= 0) {
+  if (add_var_upval(c, loc, var, &upval) < 0)
+    return -1;
+  if (upval >= 0) {
     int reg = alloc_reg(c, loc, TMP_VARIABLE);
     if (reg < 0)
       return -1;
@@ -668,7 +670,9 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
       
       // var local to parent function
       int upval;
-      if (add_var_upval(c, loc, expr->left->data.var, &upval) >= 0 && upval >= 0) {
+      if (add_var_upval(c, loc, expr->left->data.var, &upval) < 0)
+        return -1;
+      if (upval >= 0) {
         left_reg = alloc_reg(c, loc, TMP_VARIABLE);
         if (left_reg < 0)
           return -1;
