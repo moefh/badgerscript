@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 #include "fh.h"
-#include "c_funcs.h"
 #include "value.h"
 
 static void print_value(struct fh_value *val)
@@ -35,19 +34,33 @@ static int check_n_args(struct fh_program *prog, const char *func_name, int n_ex
   return 0;
 }
 
-int fh_fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+
+static int fn_error(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  (void)ret;
+  
+  if (check_n_args(prog, "error()", 1, n_args))
+    return -1;
+
+  const char *str = GET_VAL_STRING_DATA(&args[0]);
+  if (! str)
+    return fh_set_error(prog, "error(): argument 1 must be a string");
+  return fh_set_error(prog, "%s", str);
+}
+
+static int fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   if (check_n_args(prog, "len()", 1, n_args))
     return -1;
   
   struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
   if (! arr)
-    return fh_set_error(prog, "len(): argument must be an array");
+    return fh_set_error(prog, "len(): argument 1 must be an array");
   *ret = fh_new_number(arr->len);
   return 0;
 }
 
-int fh_fn_append(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int fn_append(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   if (check_n_args(prog, "append()", -2, n_args))
     return -1;
@@ -62,7 +75,7 @@ int fh_fn_append(struct fh_program *prog, struct fh_value *ret, struct fh_value 
   return 0;
 }
 
-int fh_fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   (void)prog;
   
@@ -72,7 +85,7 @@ int fh_fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_value *
   return 0;
 }
 
-int fh_fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   if (n_args == 0 || args[0].type != FH_VAL_STRING)
     goto end;
@@ -127,3 +140,12 @@ int fh_fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value 
   return 0;
 }
 
+#define DEF_FN(name)  { #name, fn_##name }
+const struct fh_named_c_func fh_std_c_funcs[] = {
+  DEF_FN(error),
+  DEF_FN(print),
+  DEF_FN(printf),
+  DEF_FN(len),
+  DEF_FN(append),
+};
+const int fh_std_c_funcs_len = sizeof(fh_std_c_funcs)/sizeof(fh_std_c_funcs[0]);

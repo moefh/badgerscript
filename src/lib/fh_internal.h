@@ -55,6 +55,9 @@ struct fh_parser;
 struct fh_compiler;
 struct fh_program;
 
+extern const struct fh_named_c_func fh_std_c_funcs[];
+extern const int fh_std_c_funcs_len;
+
 int fh_utf8_len(char *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 void fh_dump_value(const struct fh_value *val);

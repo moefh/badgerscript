@@ -272,7 +272,11 @@ static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
     printf("; %d upvals:\n", func_def->n_upvals);
     for (int i = 0; i < func_def->n_upvals; i++) {
       struct fh_upval_def *ud = &func_def->upvals[i];
-      printf("u[%d]: parent's %s %d\n", i, (ud->type == FH_UPVAL_TYPE_UPVAL) ? "upvalue" : "reg", ud->num);
+      printf("u[%d]: parent's ", i);
+      if (ud->type == FH_UPVAL_TYPE_UPVAL)
+        printf("u[%d]\n", ud->num);
+      else
+        printf("r%d\n", ud->num);
     }
   }
   

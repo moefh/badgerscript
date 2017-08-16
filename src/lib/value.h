@@ -99,9 +99,11 @@ struct fh_object {
 #define GET_OBJ_STRING(o)      ((struct fh_string *) (o))
 #define GET_OBJ_STRING_DATA(o) (((char *) o) + sizeof(struct fh_string))
 
-#define GET_VAL_CLOSURE(v)   (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)
-#define GET_VAL_FUNC_DEF(v)  (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
-#define GET_VAL_ARRAY(v)     (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)
+#define GET_VAL_CLOSURE(v)     (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)
+#define GET_VAL_FUNC_DEF(v)    (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
+#define GET_VAL_ARRAY(v)       (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)
+#define GET_VAL_STRING(v)      (((v)->type == FH_VAL_STRING  ) ? ((struct fh_string   *) ((v)->data.obj)) : NULL)
+#define GET_VAL_STRING_DATA(v) (((v)->type == FH_VAL_STRING  ) ? ((const char *) ((v)->data.obj) + sizeof(struct fh_string)) : NULL)
 
 #define UPVAL_IS_OPEN(uv)    ((uv)->val != (uv)->data.storage)
 

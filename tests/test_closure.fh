@@ -1,0 +1,37 @@
+
+function add3(a)
+{
+  return function(b) {
+    return function(c) {
+      return a + b + c;
+    };
+  };
+}
+
+function make_counter(c)
+{
+  return [
+    function() { return c; },
+    function(n) { c = c + n; }
+  ];
+}
+
+function main()
+{
+  var c1 = make_counter(0);
+  var c2 = make_counter(100);
+
+  c1[1](1);
+  c1[1](1);
+  if (c1[0]() != 2) error("nope");
+
+  c2[1](15);
+  if (c2[0]() != 115) error("nope");
+
+  c1[1](1);
+  if (c1[0]() != 3) error("nope");
+
+  if (add3(1)(2)(3) != 6) error("nope");
+
+  print("ok\n");
+}

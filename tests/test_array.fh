@@ -1,0 +1,27 @@
+
+function print_array(arr)
+{
+  var arr_len = len(arr);
+  printf("array has %d elements:\n", arr_len);
+  var i = 0;
+  while (i < arr_len) {
+    printf("  [%d] = %s\n", i, arr[i]);
+    i = i + 1;
+  }
+}
+
+function main(args)
+{
+   var x = [1,[2],3];
+   append(x, "four", "五");
+
+   if (len(x) != 5) error("nope");
+
+   x[0] = "hello, world!";
+
+   if (len(x) != 5) error("nope");
+   if (x[0] != "hello, world!") error("nope");
+   
+   print("ok\n");
+}
+

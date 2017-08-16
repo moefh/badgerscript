@@ -4,16 +4,6 @@
 #include <stdio.h>
 
 #include "program.h"
-#include "c_funcs.h"
-
-#define DEF_FN(name)  { #name, fh_fn_##name }
-
-static const struct fh_named_c_func c_funcs[] = {
-  DEF_FN(print),
-  DEF_FN(printf),
-  DEF_FN(len),
-  DEF_FN(append),
-};
 
 struct fh_program *fh_new_program(void)
 {
@@ -34,7 +24,7 @@ struct fh_program *fh_new_program(void)
   value_stack_init(&prog->c_vals);
   p_object_stack_init(&prog->pinned_objs);
 
-  if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
+  if (fh_add_c_funcs(prog, fh_std_c_funcs, fh_std_c_funcs_len) < 0)
     goto err;
 
   return prog;
