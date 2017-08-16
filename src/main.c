@@ -123,12 +123,15 @@ int main(int argc, char **argv)
     print_usage(argv[0]);
     return 0;
   }
+
+  //for (int i = 0; i < 40; i++) printf("===\n");
   
   struct fh_program *prog = fh_new_program();
   if (! prog) {
     printf("ERROR: can't create program\n");
     return 1;
   }
+  //fh_set_gc_frequency(prog, -1); // disable GC
 
   static const struct fh_named_c_func c_funcs[] = {
     { "get_term_lines", fn_get_term_lines },

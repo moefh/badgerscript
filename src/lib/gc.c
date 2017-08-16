@@ -62,9 +62,9 @@ static void sweep(struct fh_program *prog)
   struct fh_object **objs = &prog->objects;
   struct fh_object *cur;
   while ((cur = *objs) != NULL) {
-    if (cur->obj.header.gc_mark) {
+    if (cur->obj.header.gc_bits & (GC_BIT_MARK|GC_BIT_PIN)) {
       objs = &cur->obj.header.next;
-      cur->obj.header.gc_mark = 0;
+      cur->obj.header.gc_bits &= ~GC_BIT_MARK;
       DEBUG_OBJ("-> keeping", cur);
     } else {
       *objs = cur->obj.header.next;
@@ -87,13 +87,13 @@ void fh_free_program_objects(struct fh_program *prog)
 }
 
 #define MARK_VALUE(gc, v) do { if (VAL_IS_OBJECT(v)) MARK_OBJECT((gc), (struct fh_object *)((v)->data.obj)); } while (0)
-#define MARK_OBJECT(gc, o) do { if ((o)->obj.header.gc_mark == 0) mark_object((gc), (o)); } while (0)
+#define MARK_OBJECT(gc, o) do { if (((o)->obj.header.gc_bits&GC_BIT_MARK) == 0) mark_object((gc), (o)); } while (0)
 
 static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
 {
   DEBUG_OBJ("-> marking", obj);
   
-  obj->obj.header.gc_mark = 1;
+  GC_SET_BIT(obj, GC_BIT_MARK);
   switch (obj->obj.header.type) {
   case FH_VAL_STRING:
     return;
@@ -227,6 +227,12 @@ static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
   if (prog->vm.open_upvals)
     MARK_OBJECT(gc, (struct fh_object *) prog->vm.open_upvals);
   
+  // mark pinned values
+  DEBUG_LOG1("***** marking %d pinned values\n", p_object_stack_size(&prog->pinned_objs));
+  stack_foreach(struct fh_object *, *, o, &prog->pinned_objs) {
+    MARK_OBJECT(gc, *o);
+  }
+
   // mark C values
   DEBUG_LOG1("***** marking %d C tmp values\n", value_stack_size(&prog->c_vals));
   stack_foreach(struct fh_value, *, v, &prog->c_vals) {
@@ -251,5 +257,6 @@ void fh_collect_garbage(struct fh_program *prog)
   DEBUG_LOG("== STARTING GC ==================\n");
   mark(prog);
   sweep(prog);
+  prog->n_created_objs_since_last_gc = 0;
   DEBUG_LOG("== GC DONE ======================\n");
 }

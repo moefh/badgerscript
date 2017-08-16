@@ -13,9 +13,17 @@ enum fh_upval_def_type {
 
 DECLARE_STACK(value_stack, struct fh_value);
 
+#define GC_BIT_MARK  (1<<0)
+#define GC_BIT_PIN   (1<<1)
+
+#define GC_SET_BIT(o,b)   (((struct fh_object *)o)->obj.header.gc_bits|=(b))
+#define GC_CLEAR_BIT(o,b) (((struct fh_object *)o)->obj.header.gc_bits&=~(b))
+#define GC_PIN_OBJ(o)        GC_SET_BIT(o, GC_BIT_PIN)
+#define GC_UNPIN_OBJ(o)      GC_CLEAR_BIT(o, GC_BIT_PIN)
+
 #define OBJ_HEADER  \
   struct fh_object *next;  \
-  uint8_t gc_mark;         \
+  uint8_t gc_bits;         \
   enum fh_value_type type
 
 struct fh_object_header {
@@ -103,12 +111,12 @@ struct fh_object {
 #define fh_make_c_func fh_new_c_func
 
 // object types
-struct fh_func_def *fh_make_func_def(struct fh_program *prog);
-struct fh_closure *fh_make_closure(struct fh_program *prog);
-struct fh_upval *fh_make_upval(struct fh_program *prog);
-struct fh_array *fh_make_array(struct fh_program *prog);
-struct fh_string *fh_make_string(struct fh_program *prog, const char *str);
-struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len);
+struct fh_func_def *fh_make_func_def(struct fh_program *prog, bool pinned);
+struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned);
+struct fh_upval *fh_make_upval(struct fh_program *prog, bool pinned);
+struct fh_array *fh_make_array(struct fh_program *prog, bool pinned);
+struct fh_string *fh_make_string(struct fh_program *prog, bool pinned, const char *str);
+struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len);
 
 // object functions
 void fh_free_object(struct fh_object *obj);

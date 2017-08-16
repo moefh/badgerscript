@@ -11,33 +11,33 @@ $ src/fh tests/test.fh
 
 ## Features
 
-The code implements a pretty simple and fast register-based VM. Script
-execution has 3 phases:
+The code implements a parser and bytecode compiler for a dynamically
+typed toy language with closures, and a pretty fast register-based VM
+that follows [Lua](https://www.lua.org/) 5's design.
+
+Script execution has 3 phases:
 
 - lexing/parsing converts text to an abstract syntax tree (AST)
 - compilation converts the AST to bytecode
 - the VM runs the bytecode
 
-There's a simple mark-and-sweep garbage collector, but it currently
-doesn't run automatically.  It can be forced by calling the function
-`gc()` from inside a script.
+There's a very simple mark-and-sweep garbage collector.
 
 
 ## Status
 
 Feature                  | Status
 ------------------------ | ------------------------------------
-Parsing to AST           | Works
-Bytecode compilation     | Works
-VM (bytecode execution)  | Works
-Garbage collection       | Works
-Closures                 | TODO
+Parsing to AST           | Working
+Bytecode compilation     | Working
+VM (bytecode execution)  | Working
+Garbage collection       | Working
+Closures                 | Working
 
 
 Current plans:
 
-- `map` and `array` values
-- closures
+- `map` objects
 
 
 ## Example Code

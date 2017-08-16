@@ -1,0 +1,11 @@
+
+function main()
+{
+  var i = 0;
+  while (i < 10000000000) {
+    var x = [1,2,3];
+    x[2] = x;
+    i = i + 1;
+    if (i%100000 == 0) print(i,"\n");
+  }
+}

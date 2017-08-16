@@ -143,55 +143,66 @@ const char *fh_get_func_def_name(struct fh_func_def *func_def)
  * of program objects.
  *************************************************************************/
 
-static struct fh_object *fh_make_object(struct fh_program *prog, enum fh_value_type type, size_t size)
+static struct fh_object *fh_make_object(struct fh_program *prog, bool pinned, enum fh_value_type type, size_t size)
 {
   if (size < sizeof(struct fh_object_header)) {
     fh_set_error(prog, "object size too small");
     return NULL;
   }
+
+  if (prog->gc_frequency >= 0 && ++prog->n_created_objs_since_last_gc > prog->gc_frequency)
+    fh_collect_garbage(prog);
   
   struct fh_object *obj = malloc(size);
   if (! obj) {
     fh_set_error(prog, "out of memory");
     return NULL;
   }
+  if (pinned) {
+    if (! p_object_stack_push(&prog->pinned_objs, &obj)) {
+      free(obj);
+      fh_set_error(prog, "out of memory");
+      return NULL;
+    }
+  }
+
   obj->obj.header.next = prog->objects;
   prog->objects = obj;
   obj->obj.header.type = type;
-  obj->obj.header.gc_mark = 0;
+  obj->obj.header.gc_bits = 0;
   return obj;
 }
 
-struct fh_upval *fh_make_upval(struct fh_program *prog)
+struct fh_upval *fh_make_upval(struct fh_program *prog, bool pinned)
 {
-  struct fh_upval *uv = (struct fh_upval *) fh_make_object(prog, FH_VAL_UPVAL, sizeof(struct fh_upval));
+  struct fh_upval *uv = (struct fh_upval *) fh_make_object(prog, pinned, FH_VAL_UPVAL, sizeof(struct fh_upval));
   if (! uv)
     return NULL;
   uv->gc_next_container = NULL;
   return uv;
 }
 
-struct fh_closure *fh_make_closure(struct fh_program *prog)
+struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned)
 {
-  struct fh_closure *closure = (struct fh_closure *) fh_make_object(prog, FH_VAL_CLOSURE, sizeof(struct fh_closure));
+  struct fh_closure *closure = (struct fh_closure *) fh_make_object(prog, pinned, FH_VAL_CLOSURE, sizeof(struct fh_closure));
   if (! closure)
     return NULL;
   closure->gc_next_container = NULL;
   return closure;
 }
 
-struct fh_func_def *fh_make_func_def(struct fh_program *prog)
+struct fh_func_def *fh_make_func_def(struct fh_program *prog, bool pinned)
 {
-  struct fh_func_def *func_def = (struct fh_func_def *) fh_make_object(prog, FH_VAL_FUNC_DEF, sizeof(struct fh_func_def));
+  struct fh_func_def *func_def = (struct fh_func_def *) fh_make_object(prog, pinned, FH_VAL_FUNC_DEF, sizeof(struct fh_func_def));
   if (! func_def)
     return NULL;
   func_def->gc_next_container = NULL;
   return func_def;
 }
 
-struct fh_array *fh_make_array(struct fh_program *prog)
+struct fh_array *fh_make_array(struct fh_program *prog, bool pinned)
 {
-  struct fh_array *arr = (struct fh_array *) fh_make_object(prog, FH_VAL_ARRAY, sizeof(struct fh_array));
+  struct fh_array *arr = (struct fh_array *) fh_make_object(prog, pinned, FH_VAL_ARRAY, sizeof(struct fh_array));
   if (! arr)
     return NULL;
   arr->gc_next_container = NULL;
@@ -201,19 +212,19 @@ struct fh_array *fh_make_array(struct fh_program *prog)
   return arr;
 }
 
-struct fh_string *fh_make_string(struct fh_program *prog, const char *str)
+struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len)
 {
-  return fh_make_string_n(prog, str, strlen(str)+1);
-}
-
-struct fh_string *fh_make_string_n(struct fh_program *prog, const char *str, size_t str_len)
-{
-  struct fh_string *s = (struct fh_string *) fh_make_object(prog, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
+  struct fh_string *s = (struct fh_string *) fh_make_object(prog, pinned, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
   if (! s)
     return NULL;
   memcpy(GET_OBJ_STRING_DATA(s), str, str_len);
   s->size = str_len;
   return s;
+}
+
+struct fh_string *fh_make_string(struct fh_program *prog, bool pinned, const char *str)
+{
+  return fh_make_string_n(prog, pinned, str, strlen(str)+1);
 }
 
 /*************************************************************************
@@ -236,7 +247,7 @@ struct fh_value fh_new_string_n(struct fh_program *prog, const char *str, size_t
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
-  struct fh_string *s = fh_make_string_n(prog, str, str_len);
+  struct fh_string *s = fh_make_string_n(prog, false, str, str_len);
   if (! s) {
     value_stack_pop(&prog->c_vals, NULL);
     return prog->null_value;
@@ -253,7 +264,7 @@ struct fh_value fh_new_array(struct fh_program *prog)
     fh_set_error(prog, "out of memory");
     return prog->null_value;
   }
-  struct fh_array *arr = fh_make_array(prog);
+  struct fh_array *arr = fh_make_array(prog, false);
   if (! arr) {
     value_stack_pop(&prog->c_vals, NULL);
     return prog->null_value;

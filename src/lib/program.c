@@ -20,6 +20,8 @@ struct fh_program *fh_new_program(void)
   struct fh_program *prog = malloc(sizeof(struct fh_program));
   if (! prog)
     return NULL;
+  prog->gc_frequency = 100;     // collect every `gc_frequency` object creations
+  prog->n_created_objs_since_last_gc = 0;
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
@@ -30,6 +32,7 @@ struct fh_program *fh_new_program(void)
   fh_init_parser(&prog->parser, prog);
   fh_init_compiler(&prog->compiler, prog);
   value_stack_init(&prog->c_vals);
+  p_object_stack_init(&prog->pinned_objs);
 
   if (fh_add_c_funcs(prog, c_funcs, ARRAY_SIZE(c_funcs)) < 0)
     goto err;
@@ -38,6 +41,7 @@ struct fh_program *fh_new_program(void)
 
  err:
   p_closure_stack_free(&prog->global_funcs);
+  p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_destroy_compiler(&prog->compiler);
@@ -48,7 +52,11 @@ struct fh_program *fh_new_program(void)
 
 void fh_free_program(struct fh_program *prog)
 {
+  if (p_object_stack_size(&prog->pinned_objs) > 0)
+    fprintf(stderr, "*** WARNING: %d pinned object(s) on exit\n", p_object_stack_size(&prog->pinned_objs));
+
   p_closure_stack_free(&prog->global_funcs);
+  p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
   fh_collect_garbage(prog);
@@ -59,6 +67,11 @@ void fh_free_program(struct fh_program *prog)
   fh_destroy_parser(&prog->parser);
 
   free(prog);
+}
+
+void fh_set_gc_frequency(struct fh_program *prog, int frequency)
+{
+  prog->gc_frequency = frequency;
 }
 
 const char *fh_get_error(struct fh_program *prog)
@@ -80,6 +93,20 @@ int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap)
 {
   vsnprintf(prog->last_error_msg, sizeof(prog->last_error_msg), fmt, ap);
   return -1;
+}
+
+int fh_get_pin_state(struct fh_program *prog)
+{
+  return p_object_stack_size(&prog->pinned_objs);
+}
+
+void fh_restore_pin_state(struct fh_program *prog, int state)
+{
+  if (state > p_object_stack_size(&prog->pinned_objs)) {
+    fprintf(stderr, "ERROR: invalid pin state\n");
+    return;
+  }
+  p_object_stack_set_size(&prog->pinned_objs, state);
 }
 
 int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func)

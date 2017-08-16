@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdarg.h>
 
 struct fh_input;
@@ -55,6 +56,7 @@ int fh_input_read(struct fh_input *in, char *line, int max_len);
 
 struct fh_program *fh_new_program(void);
 void fh_free_program(struct fh_program *prog);
+void fh_set_gc_frequency(struct fh_program *prog, int frequency);
 int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func);
 int fh_add_c_funcs(struct fh_program *prog, const struct fh_named_c_func *funcs, int n_funcs);
 int fh_compile_file(struct fh_program *prog, const char *filename);

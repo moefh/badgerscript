@@ -142,16 +142,10 @@ static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc
 {
   UNUSED(loc); // TODO: record source location
 
-  struct fh_func_def *func_def = fh_make_func_def(c->prog);
+  struct fh_func_def *func_def = fh_make_func_def(c->prog, true);
   if (! func_def)
     return NULL;
-  if (! name)
-    func_def->name = NULL;
-  else {
-    func_def->name = fh_make_string(c->prog, name);
-    if (! func_def->name)
-      return NULL;
-  }
+  func_def->name = NULL;
   func_def->n_params = n_params;
   func_def->n_regs = 0;
   func_def->code = NULL;
@@ -160,6 +154,11 @@ static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc
   func_def->n_consts = 0;
   func_def->upvals = NULL;
   func_def->n_upvals = 0;
+  if (name) {
+    func_def->name = fh_make_string(c->prog, true, name);
+    if (! func_def->name)
+      return NULL;
+  }
   return func_def;
 }
 
@@ -254,7 +253,7 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
   struct fh_value *val = add_const(c, loc);
   if (! c)
     return -1;
-  struct fh_string *str_obj = fh_make_string(c->prog, str);
+  struct fh_string *str_obj = fh_make_string(c->prog, true, str);
   if (! str_obj) {
     value_stack_pop(&fi->consts, NULL);
     return -1;
@@ -1245,41 +1244,54 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
 {
   reset_compiler(c);
   c->ast = ast;
+
+  int pin_state = fh_get_pin_state(c->prog);
   
   stack_foreach(struct fh_p_named_func, *, f, &c->ast->funcs) {
     const char *name = get_func_name(c, f);
     if (! name)
-      return -1;
+      goto err;
     
     if (fh_get_global_func_by_name(c->prog, name))
       return fh_compiler_error(c, f->loc, "function '%s' already exists", name);
-    
+
     struct fh_func_def *func_def = new_func_def(c, f->loc, name, f->func.n_params);
-    if (! func_def)
-      return fh_compiler_error(c, f->loc, "out of memory");
+    if (! func_def) {
+      fh_compiler_error(c, f->loc, "out of memory");
+      goto err;
+    }
     
-    struct fh_closure *closure = fh_make_closure(c->prog);
-    if (! closure)
-      return fh_compiler_error(c, f->loc, "out of memory");
+    struct fh_closure *closure = fh_make_closure(c->prog, true);
+    if (! closure) {
+      fh_compiler_error(c, f->loc, "out of memory");
+      goto err;
+    }
     closure->func_def = func_def;
     closure->n_upvals = 0;
     closure->upvals = NULL;
-    if (fh_add_global_func(c->prog, closure) < 0)
-      return fh_compiler_error(c, f->loc, "out of memory");
+    if (fh_add_global_func(c->prog, closure) < 0) {
+      fh_compiler_error(c, f->loc, "out of memory");
+      goto err;
+    }
   }
 
   stack_foreach(struct fh_p_named_func, *, f, &c->ast->funcs) {
     const char *name = get_func_name(c, f);
     if (! name)
-      return -1;
+      goto err;
     struct fh_closure *closure = fh_get_global_func_by_name(c->prog, name);
     if (! closure) {
       fh_compiler_error(c, f->loc, "INTERNAL COMPILER ERROR: can't find function '%s'", name);
-      return -1;
+      goto err;
     }
     if (compile_named_func(c, f, closure->func_def) < 0)
-      return -1;
+      goto err;
   }
 
+  fh_restore_pin_state(c->prog, pin_state);
   return 0;
+
+ err:
+  fh_restore_pin_state(c->prog, pin_state);
+  return -1;
 }

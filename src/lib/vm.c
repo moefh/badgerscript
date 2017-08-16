@@ -154,19 +154,19 @@ static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, s
 
 static struct fh_closure *new_closure(struct fh_vm *vm, struct fh_func_def *func_def)
 {
-  struct fh_closure *c = fh_make_closure(vm->prog);
+  struct fh_closure *c = fh_make_closure(vm->prog, false);
   if (! c)
     return NULL;
   c->func_def = func_def;
   c->n_upvals = func_def->n_upvals;
-  if (c->n_upvals > 0)
+  if (c->n_upvals > 0) {
     c->upvals = malloc(c->n_upvals * sizeof(struct fh_upval *));
-  else
+    if (! c->upvals) {
+      vm_error(vm, "out of memory");
+      return NULL;
+    }
+  } else
     c->upvals = NULL;
-  if (! c->upvals) {
-    vm_error(vm, "out of memory");
-    return NULL;
-  }
   return c;
 }
 
@@ -217,7 +217,7 @@ static struct fh_upval *find_or_add_upval(struct fh_vm *vm, struct fh_value *val
       return *cur;
     cur = &(*cur)->data.next;
   }
-  struct fh_upval *uv = fh_make_upval(vm->prog);
+  struct fh_upval *uv = fh_make_upval(vm->prog, false);
   uv->val = val;
   uv->data.next = *cur;
   *cur = uv;
@@ -359,13 +359,17 @@ int fh_run_vm(struct fh_vm *vm)
       handle_op(OPC_NEWARRAY) {
         int n_elems = GET_INSTR_RU(instr);
 
-        struct fh_array *arr = fh_make_array(vm->prog);
+        struct fh_array *arr = fh_make_array(vm->prog, false);
         if (! arr)
           goto err;
         if (n_elems != 0) {
+          GC_PIN_OBJ(arr);
           struct fh_value *first = fh_grow_array_object(vm->prog, arr, n_elems);
-          if (! first)
+          if (! first) {
+            GC_UNPIN_OBJ(arr);
             goto err;
+          }
+          GC_UNPIN_OBJ(arr);
           memcpy(first, ra + 1, n_elems*sizeof(struct fh_value));
         }
         ra->type = FH_VAL_ARRAY;
@@ -383,17 +387,23 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_closure *c = new_closure(vm, func_def);
         if (! c)
           goto err;
+        GC_PIN_OBJ(c);
         struct fh_vm_call_frame *frame = NULL;
         for (int i = 0; i < func_def->n_upvals; i++) {
           if (func_def->upvals[i].type == FH_UPVAL_TYPE_UPVAL) {
             if (frame == NULL)
               frame = call_frame_stack_top(&vm->call_stack);
             c->upvals[i] = frame->closure->upvals[func_def->upvals[i].num];
-          } else
+          } else {
             c->upvals[i] = find_or_add_upval(vm, &reg_base[func_def->upvals[i].num]);
+            GC_PIN_OBJ(c->upvals[i]);
+          }
         }
         ra->type = FH_VAL_CLOSURE;
         ra->data.obj = c;
+        for (int i = 0; i < func_def->n_upvals; i++)
+          GC_UNPIN_OBJ(c->upvals[i]);
+        GC_UNPIN_OBJ(c);
         break;
       }
 
