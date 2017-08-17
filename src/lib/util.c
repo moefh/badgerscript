@@ -39,6 +39,7 @@ void fh_dump_value(const struct fh_value *val)
 {
   switch (val->type) {
   case FH_VAL_NULL:     printf("NULL"); return;
+  case FH_VAL_BOOL:     printf("BOOL(%s)", (val->data.b) ? "true" : "false"); return;
   case FH_VAL_NUMBER:   printf("NUMBER(%f)", val->data.num); return;
   case FH_VAL_STRING:   printf("STRING("); fh_dump_string(fh_get_string(val)); printf(")"); return;
   case FH_VAL_ARRAY:    printf("ARRAY(len=%d)", fh_get_array_len(val)); return;

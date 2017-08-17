@@ -56,6 +56,14 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
     printf("%s", fh_get_ast_symbol(ast, expr->data.var));
     return;
 
+  case EXPR_NULL:
+    printf("null");
+    return;
+
+  case EXPR_BOOL:
+    printf("%s", (expr->data.b) ? "true" : "false");
+    return;
+
   case EXPR_NUMBER:
     printf("%g", expr->data.num);
     return;

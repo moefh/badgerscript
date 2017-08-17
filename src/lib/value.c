@@ -48,6 +48,7 @@ void fh_free_object(struct fh_object *obj)
 {
   switch (obj->obj.header.type) {
   case FH_VAL_NULL:
+  case FH_VAL_BOOL:
   case FH_VAL_NUMBER:
   case FH_VAL_C_FUNC:
     fprintf(stderr, "**** ERROR: freeing object of NON-OBJECT type %d\n", obj->obj.header.type);

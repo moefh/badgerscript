@@ -116,6 +116,8 @@ void fh_free_expr_children(struct fh_p_expr *expr)
   switch (expr->type) {
   case EXPR_NONE: return;
   case EXPR_VAR: return;
+  case EXPR_NULL: return;
+  case EXPR_BOOL: return;
   case EXPR_NUMBER: return;
   case EXPR_STRING: return;
 
@@ -239,6 +241,8 @@ int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_exp
   switch (expr->type) {
   case EXPR_NONE: return 0;
   case EXPR_VAR: return 0;
+  case EXPR_NULL: return 0;
+  case EXPR_BOOL: return 0;
   case EXPR_NUMBER: return 0;
   case EXPR_STRING: return 0;
   case EXPR_FUNC: return 0;

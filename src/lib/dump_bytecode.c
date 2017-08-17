@@ -206,7 +206,8 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
 static void dump_const(struct fh_program *prog, struct fh_value *c)
 {
   switch (c->type) {
-  case FH_VAL_NULL:   printf("NULL\n"); return;
+  case FH_VAL_NULL:   printf("null\n"); return;
+  case FH_VAL_BOOL:   printf("%s\n", (c->data.b) ? "true" : "false"); return;
   case FH_VAL_NUMBER: printf("%f\n", c->data.num); return;
   case FH_VAL_STRING: dump_string(fh_get_string(c)); printf("\n"); return;
   case FH_VAL_ARRAY:  printf("<array of length %d>\n", fh_get_array_len(c)); return;

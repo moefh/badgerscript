@@ -26,6 +26,7 @@ struct fh_input_funcs {
 enum fh_value_type {
   // non-object values (completely contained inside struct fh_value)
   FH_VAL_NULL,
+  FH_VAL_BOOL,
   FH_VAL_NUMBER,
   FH_VAL_C_FUNC,
   
@@ -51,6 +52,7 @@ struct fh_value {
     void *obj;
     fh_c_func c_func;
     double num;
+    bool b;
   } data;
   enum fh_value_type type;
 };
@@ -74,6 +76,9 @@ const char *fh_get_error(struct fh_program *prog);
 int fh_set_error(struct fh_program *prog, const char *fmt, ...) FH_PRINTF_FORMAT(2,3);
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 void fh_collect_garbage(struct fh_program *prog);
+
+bool fh_val_is_true(struct fh_value *val);
+bool fh_vals_are_equal(struct fh_value *v1, struct fh_value *v2);
 
 #define fh_new_null()     ((struct fh_value) { .type = FH_VAL_NULL })
 

@@ -170,25 +170,26 @@ static struct fh_closure *new_closure(struct fh_vm *vm, struct fh_func_def *func
   return c;
 }
 
-static int is_true(struct fh_value *val)
+bool fh_val_is_true(struct fh_value *val)
 {
   if (val->type == FH_VAL_UPVAL)
     val = GET_OBJ_UPVAL(val)->val;
   switch (val->type) {
-  case FH_VAL_NULL:      return 0;
+  case FH_VAL_NULL:      return false;
+  case FH_VAL_BOOL:      return val->data.b;
   case FH_VAL_NUMBER:    return val->data.num != 0.0;
-  case FH_VAL_STRING:    return fh_get_string(val)[0] != '\0';
-  case FH_VAL_ARRAY:     return 1;
-  case FH_VAL_MAP:       return 1;
-  case FH_VAL_CLOSURE:   return 1;
-  case FH_VAL_FUNC_DEF:  return 1;
-  case FH_VAL_C_FUNC:    return 1;
-  case FH_VAL_UPVAL:     return 0;
+  case FH_VAL_STRING:    return GET_VAL_STRING_DATA(val)[0] != '\0';
+  case FH_VAL_ARRAY:     return true;
+  case FH_VAL_MAP:       return true;
+  case FH_VAL_CLOSURE:   return true;
+  case FH_VAL_FUNC_DEF:  return true;
+  case FH_VAL_C_FUNC:    return true;
+  case FH_VAL_UPVAL:     return false;
   }
-  return 0;
+  return false;
 }
 
-static int vals_equal(struct fh_value *v1, struct fh_value *v2)
+bool fh_vals_are_equal(struct fh_value *v1, struct fh_value *v2)
 {
   if (v1->type == FH_VAL_UPVAL)
     v1 = GET_OBJ_UPVAL(v1)->val;
@@ -196,9 +197,10 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
     v2 = GET_OBJ_UPVAL(v2)->val;
 
   if (v1->type != v2->type)
-    return 0;
+    return false;
   switch (v1->type) {
-  case FH_VAL_NULL:      return 1;
+  case FH_VAL_NULL:      return true;
+  case FH_VAL_BOOL:      return v1->data.b == v2->data.b;
   case FH_VAL_NUMBER:    return v1->data.num == v2->data.num;
   case FH_VAL_C_FUNC:    return v1->data.c_func == v2->data.c_func;
   case FH_VAL_STRING:    return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
@@ -206,9 +208,9 @@ static int vals_equal(struct fh_value *v1, struct fh_value *v2)
   case FH_VAL_MAP:       return v1->data.obj == v2->data.obj;
   case FH_VAL_CLOSURE:   return v1->data.obj == v2->data.obj;
   case FH_VAL_FUNC_DEF:  return v1->data.obj == v2->data.obj;
-  case FH_VAL_UPVAL:     return 0;
+  case FH_VAL_UPVAL:     return false;
   }
-  return 0;
+  return false;
 }
 
 static struct fh_upval *find_or_add_upval(struct fh_vm *vm, struct fh_value *val)
@@ -498,7 +500,7 @@ int fh_run_vm(struct fh_vm *vm)
       handle_op(OPC_NOT) {
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         ra->type = FH_VAL_NUMBER;
-        ra->data.num = (is_true(rb)) ? 0.0 : 1.0;
+        ra->data.num = (fh_val_is_true(rb)) ? 0.0 : 1.0;
         break;
       }
 
@@ -549,7 +551,7 @@ int fh_run_vm(struct fh_vm *vm)
       handle_op(OPC_TEST) {
         int a = GET_INSTR_RA(instr);
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        int test = is_true(rb) ^ a;
+        int test = fh_val_is_true(rb) ^ a;
         if (test) {
           pc++;
           break;
@@ -562,7 +564,7 @@ int fh_run_vm(struct fh_vm *vm)
         int inv = GET_INSTR_RA(instr);
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
-        int test = vals_equal(rb, rc) ^ inv;
+        int test = fh_vals_are_equal(rb, rc) ^ inv;
         if (test) {
           pc++;
           break;

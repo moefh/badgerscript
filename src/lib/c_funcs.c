@@ -15,8 +15,9 @@ static void print_value(struct fh_value *val)
   
   switch (val->type) {
   case FH_VAL_NULL:      printf("null"); return;
+  case FH_VAL_BOOL:      printf("%s", (val->data.b) ? "true" : "false"); return;
   case FH_VAL_NUMBER:    printf("%g", val->data.num); return;
-  case FH_VAL_STRING:    fh_dump_string(GET_VAL_STRING_DATA(val)); return;
+  case FH_VAL_STRING:    printf("%s", GET_VAL_STRING_DATA(val)); return;
   case FH_VAL_ARRAY:     printf("<array of length %d>", fh_get_array_len(val)); return;
   case FH_VAL_MAP:       printf("<map of length %d, capacity %d>", GET_VAL_MAP(val)->len, GET_VAL_MAP(val)->cap);
   case FH_VAL_CLOSURE:   printf("<closure %p>", val->data.obj); return;

@@ -215,6 +215,47 @@ static struct fh_value *add_const(struct fh_compiler *c, struct fh_src_loc loc)
   return val;
 }
 
+static int add_const_null(struct fh_compiler *c, struct fh_src_loc loc)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+  int k = 0;
+  stack_foreach(struct fh_value, *, c, &fi->consts) {
+    if (c->type == FH_VAL_NULL)
+      return k;
+    k++;
+  }
+
+  k = value_stack_size(&fi->consts);
+  struct fh_value *val = add_const(c, loc);
+  if (! val)
+    return -1;
+  val->type = FH_VAL_NULL;
+  return k;
+}
+
+static int add_const_bool(struct fh_compiler *c, struct fh_src_loc loc, bool b)
+{
+  struct func_info *fi = get_cur_func_info(c, loc);
+  if (! fi)
+    return -1;
+  int k = 0;
+  stack_foreach(struct fh_value, *, c, &fi->consts) {
+    if (c->type == FH_VAL_BOOL && c->data.b == b)
+      return k;
+    k++;
+  }
+
+  k = value_stack_size(&fi->consts);
+  struct fh_value *val = add_const(c, loc);
+  if (! val)
+    return -1;
+  val->type = FH_VAL_BOOL;
+  val->data.b = b;
+  return k;
+}
+
 static int add_const_number(struct fh_compiler *c, struct fh_src_loc loc, double num)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
@@ -852,6 +893,22 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr)
   case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index);
   case EXPR_FUNC:      return compile_inner_func(c, expr->loc, &expr->data.func);
 
+  case EXPR_NULL:
+    {
+      int k = add_const_null(c, expr->loc);
+      if (k >= 0)
+        k += MAX_FUNC_REGS + 1;
+      return k;
+    }
+    
+  case EXPR_BOOL:
+    {
+      int k = add_const_bool(c, expr->loc, expr->data.b);
+      if (k >= 0)
+        k += MAX_FUNC_REGS + 1;
+      return k;
+    }
+    
   case EXPR_NUMBER:
     {
       int k = add_const_number(c, expr->loc, expr->data.num);

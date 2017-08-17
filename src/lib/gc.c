@@ -107,6 +107,7 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
     return;
 
   case FH_VAL_NULL:
+  case FH_VAL_BOOL:
   case FH_VAL_NUMBER:
   case FH_VAL_C_FUNC:
     fprintf(stderr, "GC ERROR: marking non-object type %d\n", obj->obj.header.type);
@@ -199,6 +200,7 @@ static void mark_container_children(struct fh_gc_state *gc)
       continue;
 
     case FH_VAL_NULL:
+    case FH_VAL_BOOL:
     case FH_VAL_NUMBER:
     case FH_VAL_C_FUNC:
     case FH_VAL_STRING:

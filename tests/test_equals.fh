@@ -1,0 +1,84 @@
+
+function assert_eq(x, y)
+{
+  if (! (x == y))
+    error("nope");
+  if (x != y)
+    error("nope");
+}
+
+function assert_neq(x, y)
+{
+  if (x == y)
+    error("nope");
+  if (! (x != y))
+    error("nope");
+}
+
+function hello()
+{
+  return "hello";
+}
+
+function main(args)
+{
+  var x;
+
+  x = null;
+  assert_eq(x, x);
+  assert_neq(x, false);
+  assert_neq(x, true);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = false;
+  assert_eq(x, x);
+  assert_neq(x, true);
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = true;
+  assert_eq(x, x);
+  assert_neq(x, false);
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = 42;
+  assert_eq(x, x);
+  assert_eq(x, 42);
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = "hello";
+  assert_eq(x, x);
+  assert_eq(x, "hello");
+  assert_eq(x, hello());   # force it to be a different string object
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = [1];
+  assert_eq(x, x);
+  assert_neq(x, [1]);
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+
+  x = function(){};
+  assert_eq(x, x);
+  assert_neq(x, null);
+  assert_neq(x, 0);
+  assert_neq(x, []);
+  assert_neq(x, function(){});
+  
+  print("ok\n");
+}

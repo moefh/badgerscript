@@ -79,6 +79,8 @@ struct fh_p_stmt {
 enum fh_expr_type {
   EXPR_NONE,
   EXPR_VAR,
+  EXPR_NULL,
+  EXPR_BOOL,
   EXPR_NUMBER,
   EXPR_STRING,
   EXPR_BIN_OP,
@@ -128,6 +130,7 @@ struct fh_p_expr {
   union {
     fh_symbol_id var;
     double num;
+    bool b;
     fh_string_id str;
     struct fh_p_expr_bin_op bin_op;
     struct fh_p_expr_un_op un_op;

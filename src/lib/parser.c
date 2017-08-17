@@ -452,18 +452,35 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       continue;
     }
 
-    /* variable */
+    /* symbol */
     if (tok_is_symbol(&tok)) {
       if (! expect_opn) {
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *var = new_expr(p, tok.loc, EXPR_VAR);
-      if (! var)
+      const char *sym_name = fh_get_ast_symbol(p->ast, tok.data.symbol_id);
+      if (! sym_name) {
+        fh_parse_error(p, tok.loc, "invalid symbol '%s'", fh_dump_token(&p->t, &tok));
         goto err;
-      var->data.var = tok.data.symbol_id;
-      if (! p_expr_stack_push(&opns, &var)) {
-        fh_free_expr(var);
+      }
+
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_NONE);
+      if (! expr)
+        goto err;
+      if (strcmp(sym_name, "null") == 0) {
+        expr->type = EXPR_NULL;
+      } else if (strcmp(sym_name, "true") == 0) {
+        expr->type = EXPR_BOOL;
+        expr->data.b = true;
+      } else if (strcmp(sym_name, "false") == 0) {
+        expr->type = EXPR_BOOL;
+        expr->data.b = false;
+      } else {
+        expr->type = EXPR_VAR;
+        expr->data.var = tok.data.symbol_id;
+      }
+      if (! p_expr_stack_push(&opns, &expr)) {
+        fh_free_expr(expr);
         fh_parse_error_oom(p, tok.loc);
         goto err;
       }
