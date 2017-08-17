@@ -56,7 +56,7 @@ struct fh_compiler {
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog);
 void fh_destroy_compiler(struct fh_compiler *c);
 int fh_compile(struct fh_compiler *c, struct fh_ast *ast);
-int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) __attribute__((format(printf, 3, 4)));
+int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) FH_PRINTF_FORMAT(3, 4);
 uint32_t *fh_get_compiler_instructions(struct fh_compiler *c, int32_t *len);
 
 #endif /* COMPILER_H_FILE */

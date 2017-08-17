@@ -66,7 +66,8 @@ int fh_stack_ensure_cap(struct fh_stack *s, int n_items, size_t item_size);
   }                                                                     \
   static inline type *name##_push(struct name *n, type *item) {         \
     return fh_push(&n->s, item, sizeof(type));                          \
-  }
+  }                                                                     \
+  struct name  /* keep some compilers happy about extra ';' */
 #else
 /*
  * Inlining push, pop, item, top makes a considerable difference for
@@ -121,7 +122,8 @@ int fh_stack_ensure_cap(struct fh_stack *s, int n_items, size_t item_size);
     if (item) *dest = *item; else memset(dest, 0, sizeof(type));        \
     n->s.num++;                                                         \
     return dest;                                                        \
-  }
+  }                                                                     \
+  struct name  /* keep some compilers happy about extra ';' */
 #endif
 
 #define stack_foreach(type, star, v, st)                             \

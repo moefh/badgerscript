@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <fh.h>
 
-#define HAVE_TIOCGWINSZ
-
-#ifdef HAVE_TIOCGWINSZ
+#if defined (__linux__)
 #include <sys/ioctl.h>
+#elif defined (_WIN32)
+#include <windows.h>
 #endif
 
 static int fn_gc(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
@@ -40,16 +40,21 @@ static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, stru
   (void)args;
   (void)n_args;
 
-#ifdef HAVE_TIOCGWINSZ
+#if defined (__linux__)
   struct winsize term_size;
-
-  if (ioctl(0, TIOCGWINSZ, &term_size) < 0)
-    *ret = fh_new_number(25.0);
-  else
+  if (ioctl(0, TIOCGWINSZ, &term_size) >= 0) {
     *ret = fh_new_number(term_size.ws_row);
-#else
-  *ret = fh_new_number(25);
+    return 0;
+  }
+#elif defined (_WIN32)
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) != 0) {
+    *ret = fh_new_number(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+    return 0;
+  }
 #endif
+
+  *ret = fh_new_number(25);
   return 0;
 }
 
@@ -124,8 +129,6 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  //for (int i = 0; i < 40; i++) printf("===\n");
-  
   struct fh_program *prog = fh_new_program();
   if (! prog) {
     printf("ERROR: can't create program\n");

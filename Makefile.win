@@ -1,0 +1,29 @@
+
+CC = cl
+CFLAGS = -O2
+
+SRC = src/main.c \
+      src/lib/util.c \
+      src/lib/input.c \
+      src/lib/buffer.c \
+      src/lib/stack.c \
+      src/lib/symtab.c \
+      src/lib/operator.c \
+      src/lib/tokenizer.c \
+      src/lib/parser.c \
+      src/lib/ast.c \
+      src/lib/dump_ast.c \
+      src/lib/compiler.c \
+      src/lib/dump_bytecode.c \
+      src/lib/vm.c \
+      src/lib/gc.c \
+      src/lib/value.c \
+      src/lib/program.c \
+      src/lib/c_funcs.c
+
+fh.exe: $(SRC)
+	$(CC) $(LDFLAGS) $(CFLAGS) -Isrc/lib -Fe$@ $(SRC)
+
+clean:
+	del *.obj
+	del fh.exe

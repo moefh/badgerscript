@@ -8,6 +8,12 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#if defined(__GNUC__)
+#define FH_PRINTF_FORMAT(x,y) __attribute__((format (printf, (x), (y))))
+#else
+#define FH_PRINTF_FORMAT(x,y)
+#endif
+
 struct fh_input;
 struct fh_program;
 struct fh_value;
@@ -64,7 +70,7 @@ void fh_dump_bytecode(struct fh_program *prog);
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret);
 
 const char *fh_get_error(struct fh_program *prog);
-int fh_set_error(struct fh_program *prog, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
+int fh_set_error(struct fh_program *prog, const char *fmt, ...) FH_PRINTF_FORMAT(2,3);
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap);
 void fh_collect_garbage(struct fh_program *prog);
 
