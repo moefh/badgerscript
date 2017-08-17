@@ -37,6 +37,13 @@ static void free_array(struct fh_array *arr)
   free(arr);
 }
 
+static void free_map(struct fh_map *map)
+{
+  if (map->entries)
+    free(map->entries);
+  free(map);
+}
+
 void fh_free_object(struct fh_object *obj)
 {
   switch (obj->obj.header.type) {
@@ -47,25 +54,12 @@ void fh_free_object(struct fh_object *obj)
     free(obj);
     return;
 
-  case FH_VAL_STRING:
-    free(obj);
-    return;
-    
-  case FH_VAL_CLOSURE:
-    free_closure(GET_OBJ_CLOSURE(obj));
-    return;
-
-  case FH_VAL_UPVAL:
-    free_upval(GET_OBJ_UPVAL(obj));
-    return;
-
-  case FH_VAL_FUNC_DEF:
-    free_func_def(GET_OBJ_FUNC_DEF(obj));
-    return;
-
-  case FH_VAL_ARRAY:
-    free_array(GET_OBJ_ARRAY(obj));
-    return;
+  case FH_VAL_STRING:    free(obj); return;
+  case FH_VAL_CLOSURE:   free_closure(GET_OBJ_CLOSURE(obj)); return;
+  case FH_VAL_UPVAL:     free_upval(GET_OBJ_UPVAL(obj)); return;
+  case FH_VAL_FUNC_DEF:  free_func_def(GET_OBJ_FUNC_DEF(obj)); return;
+  case FH_VAL_ARRAY:     free_array(GET_OBJ_ARRAY(obj)); return;
+  case FH_VAL_MAP:       free_map(GET_OBJ_MAP(obj)); return;
   }
 
   fprintf(stderr, "**** ERROR: freeing object of INVALID type %d\n", obj->obj.header.type);
@@ -212,6 +206,18 @@ struct fh_array *fh_make_array(struct fh_program *prog, bool pinned)
   return arr;
 }
 
+struct fh_map *fh_make_map(struct fh_program *prog, bool pinned)
+{
+  struct fh_map *map = (struct fh_map *) fh_make_object(prog, pinned, FH_VAL_MAP, sizeof(struct fh_map));
+  if (! map)
+    return NULL;
+  map->gc_next_container = NULL;
+  map->len = 0;
+  map->cap = 0;
+  map->entries = NULL;
+  return map;
+}
+
 struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len)
 {
   struct fh_string *s = (struct fh_string *) fh_make_object(prog, pinned, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
@@ -271,5 +277,22 @@ struct fh_value fh_new_array(struct fh_program *prog)
   }
   val->type = FH_VAL_ARRAY;
   val->data.obj = arr;
+  return *val;
+}
+
+struct fh_value fh_new_map(struct fh_program *prog)
+{
+  struct fh_value *val = value_stack_push(&prog->c_vals, NULL);
+  if (! val) {
+    fh_set_error(prog, "out of memory");
+    return prog->null_value;
+  }
+  struct fh_map *map = fh_make_map(prog, false);
+  if (! map) {
+    value_stack_pop(&prog->c_vals, NULL);
+    return prog->null_value;
+  }
+  val->type = FH_VAL_MAP;
+  val->data.obj = map;
   return *val;
 }

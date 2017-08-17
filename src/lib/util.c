@@ -38,23 +38,15 @@ void fh_dump_string(const char *str)
 void fh_dump_value(const struct fh_value *val)
 {
   switch (val->type) {
-  case FH_VAL_NULL: printf("NULL"); return;
-  case FH_VAL_NUMBER: printf("NUMBER(%f)", val->data.num); return;
-  case FH_VAL_STRING: printf("STRING("); fh_dump_string(fh_get_string(val)); printf(")"); return;
-  case FH_VAL_ARRAY: printf("ARRAY(size=%d)", fh_get_array_len(val));
-#if 0
-    printf("[");
-    for (int i = 0; i < fh_get_array_len(val); i++) {
-      fh_dump_value(fh_get_array_item((struct fh_value*) val, i));
-      printf(",");
-    }
-    printf("]");
-#endif
-    return;
-  case FH_VAL_UPVAL: printf("UPVAL("); fh_dump_value(GET_OBJ_UPVAL(val->data.obj)->val); printf(")"); return;
-  case FH_VAL_CLOSURE: printf("CLOSURE(%p)", val->data.obj); return;
+  case FH_VAL_NULL:     printf("NULL"); return;
+  case FH_VAL_NUMBER:   printf("NUMBER(%f)", val->data.num); return;
+  case FH_VAL_STRING:   printf("STRING("); fh_dump_string(fh_get_string(val)); printf(")"); return;
+  case FH_VAL_ARRAY:    printf("ARRAY(len=%d)", fh_get_array_len(val)); return;
+  case FH_VAL_MAP:      printf("MAP(len=%d,cap=%d)", GET_OBJ_MAP(val->data.obj)->len, GET_OBJ_MAP(val->data.obj)->cap);
+  case FH_VAL_UPVAL:    printf("UPVAL("); fh_dump_value(GET_OBJ_UPVAL(val->data.obj)->val); printf(")"); return;
+  case FH_VAL_CLOSURE:  printf("CLOSURE(%p)", val->data.obj); return;
   case FH_VAL_FUNC_DEF: printf("FUNC_DEF(%p)", val->data.obj); return;
-  case FH_VAL_C_FUNC: printf("C_FUNC"); return;
+  case FH_VAL_C_FUNC:   printf("C_FUNC"); return;
   }
   printf("INVALID_VALUE(type=%d)", val->type);
 }

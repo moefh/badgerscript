@@ -6,6 +6,7 @@
 
 #include "fh.h"
 #include "value.h"
+#include "fh_internal.h"
 
 static void print_value(struct fh_value *val)
 {
@@ -13,14 +14,15 @@ static void print_value(struct fh_value *val)
     val = GET_OBJ_UPVAL(val->data.obj)->val;
   
   switch (val->type) {
-  case FH_VAL_NULL: printf("null"); return;
-  case FH_VAL_NUMBER: printf("%g", val->data.num); return;
-  case FH_VAL_STRING: printf("%s", fh_get_string(val));  return;
-  case FH_VAL_ARRAY: printf("<array of length %d>", fh_get_array_len(val)); return;
-  case FH_VAL_CLOSURE: printf("<closure %p>", val->data.obj); return;
-  case FH_VAL_UPVAL: printf("<internal error (upval)>"); return;
-  case FH_VAL_FUNC_DEF: printf("<func def %p>", val->data.obj); return;
-  case FH_VAL_C_FUNC: printf("<C function %p>", val->data.c_func); return;
+  case FH_VAL_NULL:      printf("null"); return;
+  case FH_VAL_NUMBER:    printf("%g", val->data.num); return;
+  case FH_VAL_STRING:    fh_dump_string(GET_VAL_STRING_DATA(val)); return;
+  case FH_VAL_ARRAY:     printf("<array of length %d>", fh_get_array_len(val)); return;
+  case FH_VAL_MAP:       printf("<map of length %d, capacity %d>", GET_VAL_MAP(val)->len, GET_VAL_MAP(val)->cap);
+  case FH_VAL_CLOSURE:   printf("<closure %p>", val->data.obj); return;
+  case FH_VAL_UPVAL:     printf("<internal error (upval)>"); return;
+  case FH_VAL_FUNC_DEF:  printf("<func def %p>", val->data.obj); return;
+  case FH_VAL_C_FUNC:    printf("<C function %p>", (void *) val->data.c_func); return;
   }
   printf("<invalid value %d>", val->type);
 }

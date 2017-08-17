@@ -43,6 +43,20 @@ struct fh_array {
   int cap;
 };
 
+struct fh_map_entry {
+  bool used;
+  struct fh_value key;
+  struct fh_value val;
+};
+
+struct fh_map {
+  OBJ_HEADER;
+  struct fh_object *gc_next_container;
+  struct fh_map_entry *entries;
+  int len;
+  int cap;
+};
+
 struct fh_upval_def {
   enum fh_upval_def_type type;
   int num;
@@ -86,7 +100,10 @@ struct fh_object {
     struct fh_object_header header;
     struct fh_string str;
     struct fh_func_def func_def;
+    struct fh_upval upval;
     struct fh_closure closure;
+    struct fh_array array;
+    struct fh_map map;
   } obj;
 };
 
@@ -96,12 +113,14 @@ struct fh_object {
 #define GET_OBJ_UPVAL(o)       ((struct fh_upval *) (o))
 #define GET_OBJ_FUNC_DEF(o)    ((struct fh_func_def *) (o))
 #define GET_OBJ_ARRAY(o)       ((struct fh_array *) (o))
+#define GET_OBJ_MAP(o)         ((struct fh_map *) (o))
 #define GET_OBJ_STRING(o)      ((struct fh_string *) (o))
 #define GET_OBJ_STRING_DATA(o) (((char *) o) + sizeof(struct fh_string))
 
 #define GET_VAL_CLOSURE(v)     (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)
 #define GET_VAL_FUNC_DEF(v)    (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
 #define GET_VAL_ARRAY(v)       (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)
+#define GET_VAL_MAP(v)         (((v)->type == FH_VAL_MAP     ) ? ((struct fh_map      *) ((v)->data.obj)) : NULL)
 #define GET_VAL_STRING(v)      (((v)->type == FH_VAL_STRING  ) ? ((struct fh_string   *) ((v)->data.obj)) : NULL)
 #define GET_VAL_STRING_DATA(v) (((v)->type == FH_VAL_STRING  ) ? ((const char *) ((v)->data.obj) + sizeof(struct fh_string)) : NULL)
 
@@ -117,6 +136,7 @@ struct fh_func_def *fh_make_func_def(struct fh_program *prog, bool pinned);
 struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned);
 struct fh_upval *fh_make_upval(struct fh_program *prog, bool pinned);
 struct fh_array *fh_make_array(struct fh_program *prog, bool pinned);
+struct fh_map *fh_make_map(struct fh_program *prog, bool pinned);
 struct fh_string *fh_make_string(struct fh_program *prog, bool pinned, const char *str);
 struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len);
 

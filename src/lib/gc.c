@@ -21,35 +21,18 @@ struct fh_gc_state {
 };
 
 #ifdef DEBUG_GC
+/* NOTE: we can't access any objects referenced by the object being
+ * dumped, as they might already be free */
 static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
 {
   printf("%s object %p of type %d", prefix, obj, obj->obj.header.type);
   switch (obj->obj.header.type) {
-  case FH_VAL_STRING:
-    printf(" (string) ");
-    fh_dump_string(GET_OBJ_STRING_DATA(obj));
-    printf("\n");
-    break;
-
-  case FH_VAL_CLOSURE:
-    // can't print name, could be freed already
-    printf(" (closure)\n");
-    break;
-
-  case FH_VAL_FUNC_DEF:
-    // can't print name, could be freed already
-    printf(" (func def)\n");
-    break;
-
-  case FH_VAL_ARRAY:
-    // can't print elements, could be freed already
-    printf(" (array of len %d)\n", GET_OBJ_ARRAY(obj)->len);
-    break;
-
-  case FH_VAL_UPVAL:
-    printf(" (upval)\n");
-    break;
-    
+  case FH_VAL_STRING:    printf(" (string) "); fh_dump_string(GET_OBJ_STRING_DATA(obj)); printf("\n"); break;
+  case FH_VAL_UPVAL:     printf(" (upval)\n"); break;
+  case FH_VAL_CLOSURE:   printf(" (closure)\n"); break;
+  case FH_VAL_FUNC_DEF:  printf(" (func def)\n"); break;
+  case FH_VAL_ARRAY:     printf(" (array of len %d)\n", GET_OBJ_ARRAY(obj)->len); break;
+  case FH_VAL_MAP:       printf(" (map of len %d, cap %d)\n", GET_OBJ_MAP(obj)->len, GET_OBJ_MAP(obj)->cap); break;
   default:
     printf(" (UNEXPECTED TYPE)\n");
   }
@@ -118,6 +101,11 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
     gc->container_list = obj;
     return;
 
+  case FH_VAL_MAP:
+    GET_OBJ_MAP(obj)->gc_next_container = gc->container_list;
+    gc->container_list = obj;
+    return;
+
   case FH_VAL_NULL:
   case FH_VAL_NUMBER:
   case FH_VAL_C_FUNC:
@@ -156,6 +144,16 @@ static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
     MARK_VALUE(gc, &arr->items[i]);
 }
 
+static void mark_map_children(struct fh_gc_state *gc, struct fh_map *map)
+{
+  for (int i = 0; i < map->cap; i++) {
+    if (map->entries[i].used) {
+      MARK_VALUE(gc, &map->entries[i].key);
+      MARK_VALUE(gc, &map->entries[i].val);
+    }
+  }
+}
+
 static void mark_container_children(struct fh_gc_state *gc)
 {
   while (gc->container_list) {
@@ -189,6 +187,14 @@ static void mark_container_children(struct fh_gc_state *gc)
         struct fh_array *a = GET_OBJ_ARRAY(gc->container_list);
         gc->container_list = a->gc_next_container;
         mark_array_children(gc, a);
+      }
+      continue;
+
+    case FH_VAL_MAP:
+      {
+        struct fh_map *m = GET_OBJ_MAP(gc->container_list);
+        gc->container_list = m->gc_next_container;
+        mark_map_children(gc, m);
       }
       continue;
 

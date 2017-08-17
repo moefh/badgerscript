@@ -33,6 +33,7 @@ enum fh_value_type {
   // objects
   FH_VAL_STRING,
   FH_VAL_ARRAY,
+  FH_VAL_MAP,
   FH_VAL_UPVAL,
   FH_VAL_CLOSURE,
   FH_VAL_FUNC_DEF,
@@ -90,5 +91,10 @@ struct fh_value fh_new_array(struct fh_program *prog);
 int fh_get_array_len(const struct fh_value *arr);
 struct fh_value *fh_get_array_item(struct fh_value *arr, int index);
 struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items);
+
+struct fh_value fh_new_map(struct fh_program *prog);
+int fh_get_map_value(struct fh_value *map, struct fh_value *key, struct fh_value *val);
+int fh_add_map_entry(struct fh_value *map, struct fh_value *key, struct fh_value *val);
+int fh_delete_map_entry(struct fh_value *map, struct fh_value *key);
 
 #endif /* FH_H_FILE */

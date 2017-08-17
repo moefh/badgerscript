@@ -18,6 +18,7 @@ SRC = src/main.c \
       src/lib/vm.c \
       src/lib/gc.c \
       src/lib/value.c \
+      src/lib/map.c \
       src/lib/program.c \
       src/lib/c_funcs.c
 
