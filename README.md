@@ -6,7 +6,14 @@ Test with:
 
 ```text
 $ make
-$ src/fh tests/test.fh
+$ src/fh tests/mandelbrot.fh
+```
+
+Or, with Visual Studio on Windows:
+
+```text
+> nmake -f Makefile.win
+> fh tests\mandelbrot.fh
 ```
 
 ## Features
