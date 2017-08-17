@@ -44,7 +44,6 @@ struct fh_array {
 };
 
 struct fh_map_entry {
-  bool used;
   struct fh_value key;
   struct fh_value val;
 };
