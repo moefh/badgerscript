@@ -1,0 +1,21 @@
+
+function main(args)
+{
+   var x = {
+     "hello" : "world",
+     true : "yes",
+     false : "no",
+     4 : "four"
+   };
+
+   if (len(x) != 4) error("nope");
+
+   x[5] = "五";
+
+   if (len(x) != 5) error("nope");
+   if (x[5] != "五") error("nope");
+   if (x[true] != "yes") error("nope");
+   
+   print("ok\n");
+}
+

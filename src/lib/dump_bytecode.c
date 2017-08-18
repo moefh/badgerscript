@@ -189,6 +189,7 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
   case OPC_GETEL:    printf("getel     "); dump_instr_ra_rkb_rkc(instr); return;
   case OPC_SETEL:    printf("setel     "); dump_instr_ra_rkb_rkc(instr); return;
   case OPC_NEWARRAY: printf("newarray  "); dump_instr_ra_u(instr); return;
+  case OPC_NEWMAP:   printf("newmap    "); dump_instr_ra_u(instr); return;
     
   case OPC_CMP_EQ:   printf("cmp.eq    "); dump_instr_a_rkb_rkc(instr); return;
   case OPC_CMP_LT:   printf("cmp.lt    "); dump_instr_a_rkb_rkc(instr); return;

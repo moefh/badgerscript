@@ -127,6 +127,7 @@ struct fh_object {
 
 // non-object types
 #define fh_make_null   fh_new_null
+#define fh_make_bool   fh_new_bool
 #define fh_make_number fh_new_number
 #define fh_make_c_func fh_new_c_func
 
@@ -143,5 +144,9 @@ struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const c
 void fh_free_object(struct fh_object *obj);
 struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items);
 const char *fh_get_func_def_name(struct fh_func_def *func_def);
+int fh_next_map_object_key(struct fh_map *map, struct fh_value *key, struct fh_value *next_key);
+int fh_get_map_object_value(struct fh_map *map, struct fh_value *key, struct fh_value *val);
+int fh_add_map_object_entry(struct fh_program *prog, struct fh_map *map, struct fh_value *key, struct fh_value *val);
+int fh_delete_map_object_entry(struct fh_program *prog, struct fh_map *map, struct fh_value *key);
 
 #endif /* VALUE_H_FILE */

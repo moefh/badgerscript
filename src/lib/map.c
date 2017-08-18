@@ -13,7 +13,7 @@
 
 static int rehash(struct fh_map *map)
 {
-  int cap = 2 * map->cap;
+  int cap = (map->cap <= 4) ? 8 : 2 * map->cap;
   struct fh_map_entry *entries = malloc(cap * sizeof(struct fh_map_entry));
   if (! entries)
     return -1;
@@ -56,14 +56,32 @@ int fh_delete_map_object_entry(struct fh_program *prog, struct fh_map *map, stru
   return 0;
 }
 
-int fh_get_map_object_value(struct fh_program *prog, struct fh_map *map, struct fh_value *key, struct fh_value *val)
+int fh_get_map_object_value(struct fh_map *map, struct fh_value *key, struct fh_value *val)
 {
-  UNUSED(prog);
-  
   struct fh_map_entry *e = find_key_entry(map, key);
   if (! e)
     return -1;
   *val = e->val;
+  return 0;
+}
+
+int fh_next_map_object_key(struct fh_map *map, struct fh_value *key, struct fh_value *next_key)
+{
+  if (key->type == FH_VAL_NULL) {
+    if (map->len == 0) {
+      *next_key = fh_make_null();
+      return 0;
+    }
+    *next_key = map->entries[0].key;
+    return 0;
+  }
+  struct fh_map_entry *e = find_key_entry(map, key);
+  if (! e)
+    return -1;
+  if (e == &map->entries[map->len - 1])
+    *next_key = fh_make_null();
+  else
+    *next_key = e[1].key;
   return 0;
 }
 
@@ -96,9 +114,14 @@ int fh_delete_map_entry(struct fh_program *prog, struct fh_value *map, struct fh
   return fh_delete_map_object_entry(prog, GET_VAL_MAP(map), key);
 }
 
-int fh_get_map_value(struct fh_program *prog, struct fh_value *map, struct fh_value *key, struct fh_value *val)
+int fh_next_map_key(struct fh_value *map, struct fh_value *key, struct fh_value *next_key)
 {
-  return fh_get_map_object_value(prog, GET_VAL_MAP(map), key, val);
+  return fh_next_map_object_key(GET_VAL_MAP(map), key, next_key);
+}
+
+int fh_get_map_value(struct fh_value *map, struct fh_value *key, struct fh_value *val)
+{
+  return fh_get_map_object_value(GET_VAL_MAP(map), key, val);
 }
 
 int fh_add_map_entry(struct fh_program *prog, struct fh_value *map, struct fh_value *key, struct fh_value *val)

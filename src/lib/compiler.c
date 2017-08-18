@@ -848,6 +848,27 @@ static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struc
   return array_reg;
 }
 
+static int compile_map_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_map_lit *expr)
+{
+  int map_reg = alloc_n_regs(c, loc, expr->n_elems+1);
+  if (map_reg < 0)
+    return -1;
+  for (int i = 0; i < expr->n_elems; i++) {
+    if (i % 2 == 0 && expr->elems[i].type == EXPR_NULL)
+      return fh_compiler_error(c, loc, "map key can't be null");
+    if (compile_expr_to_reg(c, &expr->elems[i], map_reg + 1 + i) < 0)
+      return -1;
+  }
+
+  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWMAP, map_reg, expr->n_elems)) < 0)
+    return -1;
+
+  for (int i = 1; i < expr->n_elems+1; i++)
+    free_reg(c, loc, map_reg+i);
+
+  return map_reg;
+}
+
 static int compile_inner_func_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr, int dest_reg)
 {
   struct func_info *fi = get_cur_func_info(c, loc);
@@ -890,6 +911,7 @@ static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr)
   case EXPR_UN_OP:     return compile_un_op(c, expr->loc, &expr->data.un_op);
   case EXPR_FUNC_CALL: return compile_func_call(c, expr->loc, &expr->data.func_call);
   case EXPR_ARRAY_LIT: return compile_array_lit(c, expr->loc, &expr->data.array_lit);
+  case EXPR_MAP_LIT:   return compile_map_lit(c, expr->loc, &expr->data.map_lit);
   case EXPR_INDEX:     return compile_index(c, expr->loc, &expr->data.index);
   case EXPR_FUNC:      return compile_inner_func(c, expr->loc, &expr->data.func);
 

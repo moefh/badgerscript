@@ -122,7 +122,7 @@ static int tok_is_op(struct fh_parser *p, struct fh_token *tok, const char *op)
   return 0;
 }
 
-static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args, char stop_char)
+static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args)
 {
   struct fh_token tok;
   struct expr_stack args;
@@ -132,11 +132,10 @@ static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args, cha
   if (get_token(p, &tok) < 0)
     goto err;
   
-  char end_expr_chars[3] = { stop_char, ',', '\0' };
-  if (! tok_is_punct(&tok, (uint8_t)stop_char)) {
+  if (! tok_is_punct(&tok, ')')) {
     unget_token(p, &tok);
     while (1) {
-      struct fh_p_expr *e = parse_expr(p, false, end_expr_chars);
+      struct fh_p_expr *e = parse_expr(p, false, ",)");
       if (! e)
         goto err;
       if (! expr_stack_push(&args, e)) {
@@ -147,11 +146,11 @@ static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args, cha
       
       if (get_token(p, &tok) < 0)
         goto err;
-      if (tok_is_punct(&tok, (uint8_t)stop_char))
+      if (tok_is_punct(&tok, ')'))
         break;
       if (tok_is_punct(&tok, ','))
         continue;
-      fh_parse_error(p, tok.loc, "expected ',' or '%c'", stop_char);
+      fh_parse_error(p, tok.loc, "expected ',' or ')'");
       goto err;
     }
   }
@@ -159,6 +158,121 @@ static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args, cha
   expr_stack_shrink_to_fit(&args);
   *ret_args = expr_stack_data(&args);
   return expr_stack_size(&args);
+  
+ err:
+  stack_foreach(struct fh_p_expr, *, e, &args) {
+    fh_free_expr_children(e);
+  }
+  expr_stack_free(&args);
+  return -1;
+}
+
+static int parse_array_literal(struct fh_parser *p, struct fh_p_expr_array_lit *array_lit)
+{
+  struct fh_token tok;
+  struct expr_stack args;
+
+  expr_stack_init(&args);
+
+  if (get_token(p, &tok) < 0)
+    goto err;
+  
+  if (! tok_is_punct(&tok, ']')) {
+    unget_token(p, &tok);
+    while (1) {
+      struct fh_p_expr *e = parse_expr(p, false, ",]");
+      if (! e)
+        goto err;
+      if (! expr_stack_push(&args, e)) {
+        fh_free_expr(e);
+        goto err;
+      }
+      free(e);
+      
+      if (get_token(p, &tok) < 0)
+        goto err;
+      if (tok_is_punct(&tok, ']'))
+        break;
+      if (tok_is_punct(&tok, ',')) {
+        if (get_token(p, &tok) < 0)
+          goto err;
+        if (tok_is_punct(&tok, ']'))
+          break;
+        unget_token(p, &tok);
+        continue;
+      }
+      fh_parse_error(p, tok.loc, "expected ',' or ']'");
+      goto err;
+    }
+  }
+
+  expr_stack_shrink_to_fit(&args);
+  array_lit->elems = expr_stack_data(&args);
+  array_lit->n_elems = expr_stack_size(&args);
+  return 0;
+  
+ err:
+  stack_foreach(struct fh_p_expr, *, e, &args) {
+    fh_free_expr_children(e);
+  }
+  expr_stack_free(&args);
+  return -1;
+}
+
+static int parse_map_literal(struct fh_parser *p, struct fh_p_expr_map_lit *map_lit)
+{
+  struct fh_token tok;
+  struct expr_stack args;
+
+  expr_stack_init(&args);
+
+  if (get_token(p, &tok) < 0)
+    goto err;
+  
+  if (! tok_is_punct(&tok, '}')) {
+    unget_token(p, &tok);
+    while (1) {
+      // key
+      struct fh_p_expr *e = parse_expr(p, true, ":");
+      if (! e)
+        goto err;
+      if (! expr_stack_push(&args, e)) {
+        fh_free_expr(e);
+        goto err;
+      }
+      free(e);
+
+      // value
+      e = parse_expr(p, false, ",}");
+      if (! e)
+        goto err;
+      if (! expr_stack_push(&args, e)) {
+        fh_free_expr(e);
+        goto err;
+      }
+      free(e);
+
+      if (get_token(p, &tok) < 0)
+        goto err;
+      if (tok_is_punct(&tok, '}'))
+        break;
+      if (tok_is_punct(&tok, ',')) {
+        if (get_token(p, &tok) < 0)
+          goto err;
+        if (tok_is_punct(&tok, '}'))
+          break;
+        unget_token(p, &tok);
+        continue;
+      }
+      fh_parse_error(p, tok.loc, "expected ',' or '}'");
+      goto err;
+    }
+  }
+
+  expr_stack_shrink_to_fit(&args);
+  map_lit->elems = expr_stack_data(&args);
+  map_lit->n_elems = expr_stack_size(&args);
+  return 0;
   
  err:
   stack_foreach(struct fh_p_expr, *, e, &args) {
@@ -290,7 +404,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
         expr->data.func_call.func = func;
-        expr->data.func_call.n_args = parse_expr_list(p, &expr->data.func_call.args, ')');
+        expr->data.func_call.n_args = parse_expr_list(p, &expr->data.func_call.args);
         if (expr->data.func_call.n_args < 0) {
           free(expr);
           fh_free_expr(func);
@@ -348,8 +462,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         expr = new_expr(p, tok.loc, EXPR_ARRAY_LIT);
         if (! expr)
           goto err;
-        expr->data.array_lit.n_elems = parse_expr_list(p, &expr->data.array_lit.elems, ']');
-        if (expr->data.array_lit.n_elems < 0) {
+        if (parse_array_literal(p, &expr->data.array_lit) < 0) {
           free(expr);
           goto err;
         }
@@ -377,6 +490,30 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         }
       }
 
+      if (! p_expr_stack_push(&opns, &expr)) {
+        fh_parse_error_oom(p, tok.loc);
+        fh_free_expr(expr);
+        goto err;
+      }
+      continue;
+    }
+
+    /* { */
+    if (tok_is_punct(&tok, '{')) {
+      struct fh_p_expr *expr;
+      if (expect_opn) {
+        expr = new_expr(p, tok.loc, EXPR_MAP_LIT);
+        if (! expr)
+          goto err;
+        if (parse_map_literal(p, &expr->data.map_lit) < 0) {
+          free(expr);
+          goto err;
+        }
+        expect_opn = false;
+      } else {
+        fh_parse_error(p, tok.loc, "unexpected '{'");
+        goto err;
+      }
       if (! p_expr_stack_push(&opns, &expr)) {
         fh_parse_error_oom(p, tok.loc);
         fh_free_expr(expr);

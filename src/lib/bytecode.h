@@ -29,6 +29,7 @@ enum fh_bc_opcode {
   OPC_GETEL,
   OPC_SETEL,
   OPC_NEWARRAY,
+  OPC_NEWMAP,
   
   OPC_ADD,
   OPC_SUB,

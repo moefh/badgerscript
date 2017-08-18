@@ -151,7 +151,15 @@ void fh_free_expr_children(struct fh_p_expr *expr)
       free(expr->data.array_lit.elems);
     }
     return;
-    
+
+  case EXPR_MAP_LIT:
+    if (expr->data.map_lit.elems) {
+      for (int i = 0; i < expr->data.map_lit.n_elems; i++)
+        fh_free_expr_children(&expr->data.map_lit.elems[i]);
+      free(expr->data.map_lit.elems);
+    }
+    return;
+
   case EXPR_FUNC:
     fh_free_func(expr->data.func);
     return;
@@ -281,6 +289,15 @@ int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_exp
     if (expr->data.array_lit.elems) {
       for (int i = 0; i < expr->data.array_lit.n_elems; i++) {
         if ((ret = fh_ast_visit_expr_nodes(&expr->data.array_lit.elems[i], visit, data)) != 0)
+          return ret;
+      }
+    }
+    return 0;
+
+  case EXPR_MAP_LIT:
+    if (expr->data.map_lit.elems) {
+      for (int i = 0; i < expr->data.map_lit.n_elems; i++) {
+        if ((ret = fh_ast_visit_expr_nodes(&expr->data.map_lit.elems[i], visit, data)) != 0)
           return ret;
       }
     }

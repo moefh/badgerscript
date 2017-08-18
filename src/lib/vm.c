@@ -335,6 +335,12 @@ int fh_run_vm(struct fh_vm *vm)
           }
           *ra = *val;
           break;
+        } else if (rb->type == FH_VAL_MAP) {
+          if (fh_get_map_value(rb, rc, ra) < 0) {
+            vm_error(vm, "key not in map");
+            goto user_err;
+          }
+          break;
         }
         vm_error(vm, "invalid element access (non-container object)");
         goto user_err;
@@ -354,6 +360,10 @@ int fh_run_vm(struct fh_vm *vm)
             goto user_err;
           }
           *val = *rc;
+          break;
+        } else if (ra->type == FH_VAL_MAP) {
+          if (fh_add_map_entry(vm->prog, ra, rb, rc) < 0)
+            goto err;
           break;
         }
         vm_error(vm, "invalid element access (non-container object)");
@@ -378,6 +388,31 @@ int fh_run_vm(struct fh_vm *vm)
         }
         ra->type = FH_VAL_ARRAY;
         ra->data.obj = arr;
+        break;
+      }
+      
+      handle_op(OPC_NEWMAP) {
+        int n_elems = GET_INSTR_RU(instr);
+
+        struct fh_map *map = fh_make_map(vm->prog, false);
+        if (! map)
+          goto err;
+        if (n_elems != 0) {
+          GC_PIN_OBJ(map);
+          for (int i = 0; i < n_elems/2; i++) {
+            struct fh_value *key = &ra[2*i+1];
+            struct fh_value *val = &ra[2*i+2];
+            if (key->type == FH_VAL_NULL)
+              return vm_error(vm, "can't create array with null key");
+            if (fh_add_map_object_entry(vm->prog, map, key, val) < 0) {
+              GC_UNPIN_OBJ(map);
+              goto err;
+            }
+          }
+          GC_UNPIN_OBJ(map);
+        }
+        ra->type = FH_VAL_MAP;
+        ra->data.obj = map;
         break;
       }
       

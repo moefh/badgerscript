@@ -18,7 +18,7 @@ static void print_value(struct fh_value *val)
   case FH_VAL_BOOL:      printf("%s", (val->data.b) ? "true" : "false"); return;
   case FH_VAL_NUMBER:    printf("%g", val->data.num); return;
   case FH_VAL_STRING:    printf("%s", GET_VAL_STRING_DATA(val)); return;
-  case FH_VAL_ARRAY:     printf("<array of length %d>", fh_get_array_len(val)); return;
+  case FH_VAL_ARRAY:     printf("<array of length %d>", GET_VAL_ARRAY(val)->len); return;
   case FH_VAL_MAP:       printf("<map of length %d, capacity %d>", GET_VAL_MAP(val)->len, GET_VAL_MAP(val)->cap);
   case FH_VAL_CLOSURE:   printf("<closure %p>", val->data.obj); return;
   case FH_VAL_UPVAL:     printf("<internal error (upval)>"); return;
@@ -57,9 +57,46 @@ static int fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value
     return -1;
   
   struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
-  if (! arr)
-    return fh_set_error(prog, "len(): argument 1 must be an array");
-  *ret = fh_new_number(arr->len);
+  if (arr) {
+    *ret = fh_make_number(arr->len);
+    return 0;
+  }
+  struct fh_map *map = GET_VAL_MAP(&args[0]);
+  if (map) {
+    *ret = fh_make_number(map->len);
+    return 0;
+  }
+  return fh_set_error(prog, "len(): argument 1 must be an array or map");
+}
+
+static int fn_next_key(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  if (check_n_args(prog, "next_key()", 2, n_args))
+    return -1;
+  
+  struct fh_map *map = GET_VAL_MAP(&args[0]);
+  if (! map)
+    return fh_set_error(prog, "next_key(): argument 1 must be a map");
+  if (fh_next_map_object_key(map, &args[1], ret) < 0)
+    return fh_set_error(prog, "next_key(): key not in map");
+  return 0;
+}
+
+static int fn_contains_key(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  if (check_n_args(prog, "contains_key()", 2, n_args))
+    return -1;
+  
+  struct fh_map *map = GET_VAL_MAP(&args[0]);
+  if (! map)
+    return fh_set_error(prog, "contains_key(): argument 1 must be a map");
+  if (fh_get_map_object_value(map, &args[1], ret) < 0) {
+    *ret = fh_make_bool(false);
+  } else {
+    printf("key "); print_value(&args[1]); printf(" has value "); print_value(ret); printf("\n");
+    *ret = fh_make_bool(true);
+  }
+    
   return 0;
 }
 
@@ -84,7 +121,7 @@ static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_val
   
   for (int i = 0; i < n_args; i++)
     print_value(&args[i]);
-  *ret = fh_new_null();
+  *ret = fh_make_null();
   return 0;
 }
 
@@ -139,7 +176,7 @@ static int fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_va
   }
   
  end:
-  *ret = fh_new_null();
+  *ret = fh_make_null();
   return 0;
 }
 
@@ -149,6 +186,8 @@ const struct fh_named_c_func fh_std_c_funcs[] = {
   DEF_FN(print),
   DEF_FN(printf),
   DEF_FN(len),
+  DEF_FN(next_key),
+  DEF_FN(contains_key),
   DEF_FN(append),
 };
 const int fh_std_c_funcs_len = sizeof(fh_std_c_funcs)/sizeof(fh_std_c_funcs[0]);

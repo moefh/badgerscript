@@ -121,6 +121,18 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
     printf(" ]");
     return;
 
+  case EXPR_MAP_LIT:
+    printf("{ ");
+    for (int i = 0; i < expr->data.array_lit.n_elems/2; i++) {
+      dump_expr(ast, indent, &expr->data.array_lit.elems[2*i]);
+      printf(" : ");
+      dump_expr(ast, indent, &expr->data.array_lit.elems[2*i+1]);
+      if (2*(i+1)+1 < expr->data.array_lit.n_elems)
+        printf(", ");
+    }
+    printf(" }");
+    return;
+
   case EXPR_FUNC:
     printf("<...func...>");
     return;

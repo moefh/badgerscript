@@ -12,7 +12,7 @@ function print_array(arr)
 
 function main(args)
 {
-   var x = [1,[2],3];
+   var x = [1,[2],3,];
    append(x, "four", "五");
 
    if (len(x) != 5) error("nope");

@@ -43,7 +43,7 @@ void fh_dump_value(const struct fh_value *val)
   case FH_VAL_NUMBER:   printf("NUMBER(%f)", val->data.num); return;
   case FH_VAL_STRING:   printf("STRING("); fh_dump_string(fh_get_string(val)); printf(")"); return;
   case FH_VAL_ARRAY:    printf("ARRAY(len=%d)", fh_get_array_len(val)); return;
-  case FH_VAL_MAP:      printf("MAP(len=%d,cap=%d)", GET_OBJ_MAP(val->data.obj)->len, GET_OBJ_MAP(val->data.obj)->cap);
+  case FH_VAL_MAP:      printf("MAP(len=%d,cap=%d)", GET_OBJ_MAP(val->data.obj)->len, GET_OBJ_MAP(val->data.obj)->cap); break;
   case FH_VAL_UPVAL:    printf("UPVAL("); fh_dump_value(GET_OBJ_UPVAL(val->data.obj)->val); printf(")"); return;
   case FH_VAL_CLOSURE:  printf("CLOSURE(%p)", val->data.obj); return;
   case FH_VAL_FUNC_DEF: printf("FUNC_DEF(%p)", val->data.obj); return;

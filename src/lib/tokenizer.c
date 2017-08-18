@@ -346,7 +346,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
   }
 
   // punctuation
-  if (c == ',' || c == ';' || c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}') {
+  if (c == ',' || c == ';' || c == ':' || c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}') {
     tok->type = TOK_PUNCT;
     tok->data.punct = c;
     return 0;

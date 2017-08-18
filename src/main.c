@@ -135,6 +135,7 @@ int main(int argc, char **argv)
     return 1;
   }
   //fh_set_gc_frequency(prog, -1); // disable GC
+  //fh_set_gc_frequency(prog, 0);  // force GC on every allocation
 
   static const struct fh_named_c_func c_funcs[] = {
     { "get_term_lines", fn_get_term_lines },

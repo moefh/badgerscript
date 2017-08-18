@@ -82,6 +82,9 @@ bool fh_vals_are_equal(struct fh_value *v1, struct fh_value *v2);
 
 #define fh_new_null()     ((struct fh_value) { .type = FH_VAL_NULL })
 
+#define fh_new_bool(bv)   ((struct fh_value) { .type = FH_VAL_BOOL, .data = { .b = !!(bv) }})
+#define fh_get_bool(v)    ((v)->data.b)
+
 #define fh_new_c_func(f)  ((struct fh_value) { .type = FH_VAL_C_FUNC, .data = { .c_func = (f) }})
 #define fh_get_c_func(v)  ((v)->data.c_func)
 
@@ -98,7 +101,8 @@ struct fh_value *fh_get_array_item(struct fh_value *arr, int index);
 struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items);
 
 struct fh_value fh_new_map(struct fh_program *prog);
-int fh_get_map_value(struct fh_program *prog, struct fh_value *map, struct fh_value *key, struct fh_value *val);
+int fh_next_map_key(struct fh_value *map, struct fh_value *key, struct fh_value *next_key);
+int fh_get_map_value(struct fh_value *map, struct fh_value *key, struct fh_value *val);
 int fh_add_map_entry(struct fh_program *prog, struct fh_value *map, struct fh_value *key, struct fh_value *val);
 int fh_delete_map_entry(struct fh_program *prog, struct fh_value *map, struct fh_value *key);
 

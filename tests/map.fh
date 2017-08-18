@@ -1,0 +1,40 @@
+
+function print_map(map)
+{
+  var map_len = len(map);
+  printf("{\n");
+  var k = next_key(map, null);
+  while (k != null) {
+    printf("  %s : %s,\n", k, map[k]);
+    k = next_key(map, k);
+  }
+  printf("}\n");
+}
+
+function f()
+{
+}
+
+function main(args)
+{
+   var x = {
+     "hello" : "world",
+     true : "yes",
+     false : "no",
+     5 : "五",
+     "please_print" : function(x) { printf("OK, I'll print '%s'\n", x); },
+     "calc" : 1+2,
+   };
+
+   x[main] = "main";
+
+   x["please_print"](42);
+
+   if (! contains_key(x, 5))
+     error("nope");
+   if (contains_key(x, "not in array"))
+     error("nope");
+
+   print_map(x);
+}
+
