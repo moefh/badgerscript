@@ -18,33 +18,27 @@ Or, with Visual Studio on Windows:
 
 ## Features
 
-The code implements a parser and bytecode compiler for a dynamically
-typed toy language with closures, and a pretty fast register-based VM
-that follows [Lua](https://www.lua.org/) 5's design.
-
-Script execution has 3 phases:
-
-- lexing/parsing converts text to an abstract syntax tree (AST)
-- compilation converts the AST to bytecode
-- the VM runs the bytecode
-
-There's a very simple mark-and-sweep garbage collector.
-
+- full closure support
+- bytecode compilation
+- pretty fast register-based VM following [Lua](https://www.lua.org/)'s design
+- simple mark-and-sweep garbage collector
+- dynamic typing with `null`, `boolean`, `number`, `string`, `array`,
+  `map`, `closure` (function), and `c_func` (C function) values
 
 ## Status
 
 Feature                  | Status
 ------------------------ | ------------------------------------
 Parsing to AST           | Working
-Bytecode compilation     | Working
+Bytecode generation      | Working
 VM (bytecode execution)  | Working
 Garbage collection       | Working
 Closures                 | Working
-
+Map and array objects    | Working but inefficient
 
 Current plans:
 
-- `map` objects
+- use a hash table to improve map performance
 
 
 ## Example Code
@@ -52,7 +46,6 @@ Current plans:
 This script draws the Mandelbrot set in the terminal:
 
 ```php
-
 # check point c = (cx, cy) in the complex plane
 function calc_point(cx, cy, max_iter)
 {
