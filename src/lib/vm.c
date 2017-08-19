@@ -57,9 +57,6 @@ static struct fh_vm_call_frame *prepare_call(struct fh_vm *vm, struct fh_closure
   if (n_args < func_def->n_params)
     memset(vm->stack + ret_reg + 1 + n_args, 0, (func_def->n_params - n_args) * sizeof(struct fh_value));
 
-  /*
-   * Clear uninitialized registers. See comment [XXX]
-   */
   memset(vm->stack + ret_reg + 1 + func_def->n_params, 0, (func_def->n_regs - func_def->n_params) * sizeof(struct fh_value));
   
   struct fh_vm_call_frame *frame = call_frame_stack_push(&vm->call_stack, NULL);
@@ -121,14 +118,6 @@ int fh_call_vm_function(struct fh_vm *vm, struct fh_closure *closure, struct fh_
   if (args)
     memcpy(&vm->stack[ret_reg+1], args, n_args*sizeof(struct fh_value));
 
-  /*
-   * [XXX] Clear uninitialized registers.
-   *
-   * This is not strictly necessary (since well-behaved bytecode will
-   * never use a register before writing to it), but when debugging
-   * with dump_regs() we get complaints from valgrind if we don't do
-   * it:
-   */
   if (n_args < closure->func_def->n_regs)
     memset(&vm->stack[ret_reg+1+n_args], 0, (closure->func_def->n_regs-n_args)*sizeof(struct fh_value));
 
