@@ -54,6 +54,7 @@ struct fh_tokenizer;
 struct fh_parser;
 struct fh_compiler;
 struct fh_program;
+struct fh_map;
 
 extern const struct fh_named_c_func fh_std_c_funcs[];
 extern const int fh_std_c_funcs_len;
@@ -62,6 +63,7 @@ int fh_utf8_len(char *str, size_t str_size);
 struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 void fh_dump_value(const struct fh_value *val);
 void fh_dump_string(const char *str);
+void fh_dump_map(struct fh_map *map);
 
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_free_buffer(struct fh_buffer *buf);

@@ -106,6 +106,22 @@ static int rebuild(struct fh_map *map, uint32_t cap)
   return 0;
 }
 
+void fh_dump_map(struct fh_map *map)
+{
+  for (uint32_t i = 0; i < map->cap; i++) {
+    struct fh_map_entry *e = &map->entries[i];
+    printf("[%3u] ", i);
+    if (e->key.type == FH_VAL_NULL) {
+      printf("--\n");
+    } else {
+      fh_dump_value(&e->key);
+      printf(" -> ");
+      fh_dump_value(&e->val);
+      printf("\n");
+    }
+  }
+}
+
 int fh_get_map_object_value(struct fh_map *map, struct fh_value *key, struct fh_value *val)
 {
   if (map->cap == 0)
@@ -149,18 +165,19 @@ int fh_add_map_object_entry(struct fh_program *prog, struct fh_map *map, struct 
 
 int fh_next_map_object_key(struct fh_map *map, struct fh_value *key, struct fh_value *next_key)
 {
+  uint32_t next_i;
   if (key->type == FH_VAL_NULL || map->cap == 0) {
-    *next_key = map->entries[0].key;
-    return 0;
+    next_i = 0;
+  } else {
+    next_i = find_slot(map->entries, map->cap, key);
+    if (OCCUPIED(&map->entries[next_i]))
+      next_i++;
   }
-
-  uint32_t i = find_slot(map->entries, map->cap, key);
-  if (OCCUPIED(&map->entries[i])) {
-    for (i++; i < map->cap; i++) {
-      if (OCCUPIED(&map->entries[i])) {
-        *next_key = map->entries[i].key;
-        return 0;
-      }
+  
+  for (uint32_t i = next_i; i < map->cap; i++) {
+    if (OCCUPIED(&map->entries[i])) {
+      *next_key = map->entries[i].key;
+      return 0;
     }
   }
   *next_key = fh_new_null();
@@ -171,7 +188,11 @@ int fh_delete_map_object_entry(struct fh_map *map, struct fh_value *key)
 {
   if (map->cap == 0)
     return -1;
-  
+
+  //printf("--------------------------\n");
+  //printf("DELETING "); fh_dump_value(key);
+  //printf("\nBEFORE:\n"); fh_dump_map(map);
+    
   uint32_t i = find_slot(map->entries, map->cap, key);
   if (! OCCUPIED(&map->entries[i]))
     return -1;
@@ -189,6 +210,9 @@ int fh_delete_map_object_entry(struct fh_map *map, struct fh_value *key)
     i = j;
   }
   map->len--;
+
+  //printf("AFTER:\n"); fh_dump_map(map);
+  //printf("--------------------------\n");
   return 0;
 }
 

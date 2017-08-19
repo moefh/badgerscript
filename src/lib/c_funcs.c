@@ -79,6 +79,34 @@ static int fn_len(struct fh_program *prog, struct fh_value *ret, struct fh_value
   return fh_set_error(prog, "len(): argument 1 must be an array or map");
 }
 
+static int fn_delete(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  if (check_n_args(prog, "delete()", 2, n_args))
+    return -1;
+
+  struct fh_array *arr = GET_VAL_ARRAY(&args[0]);
+  if (arr) {
+    if (! fh_is_number(&args[1]))
+      return fh_set_error(prog, "delete(): argument 2 must be a number");
+    int index = (int) fh_get_number(&args[1]);
+    if (index < 0 || index >= arr->len)
+      return fh_set_error(prog, "delete(): array index out of bounds: %d", index);
+    *ret = arr->items[index];
+    if (index+1 < arr->len)
+      memmove(arr->items + index, arr->items + index + 1, (arr->len - (index + 1)) * sizeof(struct fh_value));
+    arr->len--;
+    return 0;
+  }
+  struct fh_map *map = GET_VAL_MAP(&args[0]);
+  if (map) {
+    if (fh_get_map_object_value(map, &args[1], ret) < 0
+        || fh_delete_map_object_entry(map, &args[1]) < 0)
+      return fh_set_error(prog, "delete(): key not in map");
+    return 0;
+  }
+  return fh_set_error(prog, "delete(): argument 1 must be an array or map");
+}
+
 static int fn_next_key(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   if (check_n_args(prog, "next_key()", 2, n_args))
@@ -199,5 +227,6 @@ const struct fh_named_c_func fh_std_c_funcs[] = {
   DEF_FN(next_key),
   DEF_FN(contains_key),
   DEF_FN(append),
+  DEF_FN(delete),
 };
 const int fh_std_c_funcs_len = sizeof(fh_std_c_funcs)/sizeof(fh_std_c_funcs[0]);

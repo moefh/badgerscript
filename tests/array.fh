@@ -12,8 +12,9 @@ function print_array(arr)
 
 function main(args)
 {
-   var x = [1,[2],3];
+   var x = [0, 1, [2], 3];
 
+   delete(x, 0);
    append(x, "four", "五");
 
    printf("BEFORE: ");

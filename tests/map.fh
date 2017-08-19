@@ -28,6 +28,10 @@ function main(args)
      print : "func print",
    };
 
+   if (x["calc"] != 3)
+     error("calc");
+   delete(x, "calc");
+
    x[main] = "main";
 
    x["please_print"](42);
@@ -37,8 +41,8 @@ function main(args)
    if (contains_key(x, "not in array"))
      error("nope");
 
-   printf("%s\n", x[printf]);
-   printf("%s\n", x["hello"]);
+   printf("printf -> %s\n", x[printf]);
+   printf("hello -> %s\n", x["hello"]);
 
    print_map(x);
 }
