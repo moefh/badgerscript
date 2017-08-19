@@ -4,63 +4,14 @@
 #include <stdio.h>
 #include <fh.h>
 
-#if defined (__linux__)
-#include <sys/ioctl.h>
-#elif defined (_WIN32)
-#include <windows.h>
-#endif
+#include "functions.h"
 
-static int fn_gc(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+static int run_script_file(struct fh_program *prog, bool dump_bytecode, char *filename, char **args, int n_args)
 {
-  (void)args;
-  (void)n_args;
-
-  fh_collect_garbage(prog);
-  *ret = fh_new_number(0);
-  return 0;
-}
-
-static int fn_add_garbage(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
-{
-  (void)args;
-  (void)n_args;
-
-  static int i = 0;
-  char str[256];
-  snprintf(str, sizeof(str), "garbage %d", i++);
-  fh_new_string(prog, str);
+  if (add_functions(prog) < 0)
+    return -1;
   
-  *ret = fh_new_null();
-  return 0;
-}
-
-static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
-{
-  (void)prog;
-  (void)args;
-  (void)n_args;
-
-#if defined (__linux__)
-  struct winsize term_size;
-  if (ioctl(0, TIOCGWINSZ, &term_size) >= 0) {
-    *ret = fh_new_number(term_size.ws_row);
-    return 0;
-  }
-#elif defined (_WIN32)
-  CONSOLE_SCREEN_BUFFER_INFO csbi;
-  if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) != 0) {
-    *ret = fh_new_number(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
-    return 0;
-  }
-#endif
-
-  *ret = fh_new_number(25);
-  return 0;
-}
-
-static int run_script(struct fh_program *prog, int dump_bytecode, char *script_file, char **args, int n_args)
-{
-  if (fh_compile_file(prog, script_file) < 0)
+  if (fh_compile_file(prog, filename) < 0)
     return -1;
 
   if (dump_bytecode)
@@ -72,17 +23,17 @@ static int run_script(struct fh_program *prog, int dump_bytecode, char *script_f
   struct fh_value *items = fh_grow_array(prog, &script_args, n_args+1);
   if (! items)
     return -1;
-  items[0] = fh_new_string(prog, script_file);
-  if (items[0].type == FH_VAL_NULL)
-    return -1;
-  for (int i = 0; i < n_args; i++) {
+  items[0] = fh_new_string(prog, filename);
+  for (int i = 0; i < n_args; i++)
     items[i+1] = fh_new_string(prog, args[i]);
-    if (items[i+1].type == FH_VAL_NULL)
-      return -1;
-  }
+
   struct fh_value script_ret;
+  if (fh_call_function(prog, "main", &script_args, 1, &script_ret) < 0)
+    return -1;
   
-  return fh_call_function(prog, "main", &script_args, 1, &script_ret);
+  if (script_ret.type == FH_VAL_NUMBER)
+    return (int) fh_get_number(&script_ret);
+  return 0;
 }
 
 static void print_usage(char *progname)
@@ -91,23 +42,24 @@ static void print_usage(char *progname)
   printf("\n");
   printf("options:\n");
   printf("\n");
-  printf("  -h      show this help\n");
-  printf("  -d      dump bytecode\n");
+  printf("  -h     display this help\n");
+  printf("  -d     dump bytecode before execution\n");
   printf("\n");
+  printf("Source code: <https://github.com/ricardo-massaro/badgerscript>\n");
 }
 
 int main(int argc, char **argv)
 {
-  char *script_filename = NULL;
-  char **script_args = NULL;
-  int num_script_args = 0;
-  int dump_bytecode = 0;
+  char *filename = NULL;
+  char **args = NULL;
+  int num_args = 0;
+  bool dump_bytecode = false;
 
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
-      script_filename = argv[i];
-      script_args = argv + i + 1;
-      num_script_args = argc - i - 1;
+      filename = argv[i];
+      args = argv + i + 1;
+      num_args = argc - i - 1;
       break;
     }
     switch (argv[i][1]) {
@@ -116,43 +68,30 @@ int main(int argc, char **argv)
       return 0;
 
     case 'd':
-      dump_bytecode = 1;
+      dump_bytecode = true;
       break;
 
     default:
       printf("%s: unknown option '%s'\n", argv[0], argv[i]);
-      exit(1);
+      return 1;
     }
   }
-  if (script_filename == NULL) {
+  if (filename == NULL) {
     print_usage(argv[0]);
     return 0;
   }
 
   struct fh_program *prog = fh_new_program();
   if (! prog) {
-    printf("ERROR: can't create program\n");
+    printf("ERROR: out of memory for program\n");
     return 1;
   }
-  //fh_set_gc_frequency(prog, -1); // disable GC
-  //fh_set_gc_frequency(prog, 0);  // force GC on every allocation
 
-  static const struct fh_named_c_func c_funcs[] = {
-    { "get_term_lines", fn_get_term_lines },
-    { "gc", fn_gc },
-    { "add_garbage", fn_add_garbage },
-  };
-  if (fh_add_c_funcs(prog, c_funcs, sizeof(c_funcs)/sizeof(c_funcs[0])) < 0)
-    goto err;
-  
-  if (run_script(prog, dump_bytecode, script_filename, script_args, num_script_args) < 0)
-    goto err;
-  
+  int ret = run_script_file(prog, dump_bytecode, filename, args, num_args);
+  if (ret < 0) {
+    printf("ERROR: %s\n", fh_get_error(prog));
+    ret = 1;
+  }
   fh_free_program(prog);
-  return 0;
-
- err:
-  printf("ERROR: %s\n", fh_get_error(prog));
-  fh_free_program(prog);
-  return 1;
+  return ret;
 }

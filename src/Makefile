@@ -1,5 +1,5 @@
 
-OBJS = main.o
+OBJS = main.o functions.o
 
 EXTRA_CFLAGS = -Ilib
 

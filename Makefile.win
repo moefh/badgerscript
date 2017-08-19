@@ -3,6 +3,7 @@ CC = cl
 CFLAGS = -O2
 
 SRC = src/main.c \
+      src/functions.c \
       src/lib/util.c \
       src/lib/input.c \
       src/lib/buffer.c \
