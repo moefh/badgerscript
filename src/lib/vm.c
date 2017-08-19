@@ -231,7 +231,7 @@ static struct fh_upval *find_or_add_upval(struct fh_vm *vm, struct fh_value *val
 static void close_upval(struct fh_vm *vm)
 {
   struct fh_upval *uv = vm->open_upvals;
-  //printf("CLOSING UPVAL %p (", uv); fh_dump_value(uv->val); printf(")\n");
+  //printf("CLOSING UPVAL %p (", (void *) uv); fh_dump_value(uv->val); printf(")\n");
   vm->open_upvals = uv->data.next;
   uv->data.storage = *uv->val;
   uv->val = &uv->data.storage;
@@ -247,9 +247,9 @@ static void dump_state(struct fh_vm *vm)
   printf("** current stack frame: ");
   if (frame) {
     if (frame->closure->func_def->name)
-      printf("closure %p of %s\n", frame->closure, GET_OBJ_STRING_DATA(frame->closure->func_def->name));
+      printf("closure %p of %s\n", (void *) frame->closure, GET_OBJ_STRING_DATA(frame->closure->func_def->name));
     else
-      printf("closure %p of function %p\n", frame->closure, frame->closure->func_def);
+      printf("closure %p of function %p\n", (void *) frame->closure, (void *) frame->closure->func_def);
   } else
     printf("no stack frame!\n");
   dump_regs(vm);
@@ -397,13 +397,16 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_map *map = fh_make_map(vm->prog, false);
         if (! map)
           goto err;
+        fh_alloc_map_object_len(map, n_elems/2);
         if (n_elems != 0) {
           GC_PIN_OBJ(map);
           for (int i = 0; i < n_elems/2; i++) {
             struct fh_value *key = &ra[2*i+1];
             struct fh_value *val = &ra[2*i+2];
-            if (key->type == FH_VAL_NULL)
+            if (key->type == FH_VAL_NULL) {
+              GC_UNPIN_OBJ(map);
               return vm_error(vm, "can't create array with null key");
+            }
             if (fh_add_map_object_entry(vm->prog, map, key, val) < 0) {
               GC_UNPIN_OBJ(map);
               goto err;

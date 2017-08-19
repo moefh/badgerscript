@@ -101,9 +101,10 @@ struct fh_value *fh_get_array_item(struct fh_value *arr, int index);
 struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items);
 
 struct fh_value fh_new_map(struct fh_program *prog);
+int fh_alloc_map_len(struct fh_value *map, uint32_t len);
 int fh_next_map_key(struct fh_value *map, struct fh_value *key, struct fh_value *next_key);
 int fh_get_map_value(struct fh_value *map, struct fh_value *key, struct fh_value *val);
 int fh_add_map_entry(struct fh_program *prog, struct fh_value *map, struct fh_value *key, struct fh_value *val);
-int fh_delete_map_entry(struct fh_program *prog, struct fh_value *map, struct fh_value *key);
+int fh_delete_map_entry(struct fh_value *map, struct fh_value *key);
 
 #endif /* FH_H_FILE */

@@ -147,7 +147,7 @@ static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
 
 static void mark_map_children(struct fh_gc_state *gc, struct fh_map *map)
 {
-  for (int i = 0; i < map->cap; i++) {
+  for (uint32_t i = 0; i < map->cap; i++) {
     if (map->entries[i].key.type != FH_VAL_NULL) {
       MARK_VALUE(gc, &map->entries[i].key);
       MARK_VALUE(gc, &map->entries[i].val);
