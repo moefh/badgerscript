@@ -21,6 +21,7 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr);
 static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent);
+static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr);
 
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
 {
@@ -660,6 +661,15 @@ static int expr_contains_var(struct fh_p_expr *expr, fh_symbol_id var)
 
 static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
 {
+  if (expr->op == '=') {
+    int reg = compile_bin_op(c, loc, expr);
+    if (reg < 0)
+      return -1;
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, reg)) < 0)
+      return -1;
+    return dest_reg;
+  }
+
   if (expr->op == AST_OP_AND || expr->op == AST_OP_OR) {
     if (compile_expr_to_reg(c, expr->left, dest_reg) < 0)
       return -1;
