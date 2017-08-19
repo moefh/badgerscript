@@ -23,7 +23,17 @@ static void print_value(struct fh_value *val)
   case FH_VAL_CLOSURE:   printf("<closure %p>", val->data.obj); return;
   case FH_VAL_UPVAL:     printf("<internal error (upval)>"); return;
   case FH_VAL_FUNC_DEF:  printf("<func def %p>", val->data.obj); return;
-  case FH_VAL_C_FUNC:    printf("<C function %p>", (void *) val->data.c_func); return;
+  case FH_VAL_C_FUNC:
+    {
+      printf("<C function 0x");
+      unsigned char *p = (unsigned char *) &val->data.c_func;
+      p += sizeof(val->data.c_func);
+      for (size_t i = 0; i < sizeof(val->data.c_func); i++)
+        if (*--p)
+          printf("%02x", *p);
+      printf(">");
+      return;
+    }
   }
   printf("<invalid value %d>", val->type);
 }

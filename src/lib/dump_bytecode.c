@@ -219,9 +219,9 @@ static void dump_const(struct fh_program *prog, struct fh_value *c)
     {
       struct fh_closure *closure = GET_OBJ_CLOSURE(c->data.obj);
       if (closure->func_def->name) {
-        printf("<closure %p of %s>\n", closure, GET_OBJ_STRING_DATA(closure->func_def->name));
+        printf("<closure %p of %s>\n", (void *) closure, GET_OBJ_STRING_DATA(closure->func_def->name));
       } else {
-        printf("<closure %p of function %p>\n", closure, closure->func_def);
+        printf("<closure %p of function %p>\n", (void *) closure, (void *) closure->func_def);
       }
       return;
     }
@@ -258,7 +258,7 @@ static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
   if (func_name)
     printf("; function %s(): %u parameters, %d regs\n", func_name, func_def->n_params, func_def->n_regs);
   else
-    printf("; function at %p: %u parameters, %d regs\n", func_def, func_def->n_params, func_def->n_regs);
+    printf("; function at %p: %u parameters, %d regs\n", (void *) func_def, func_def->n_params, func_def->n_regs);
   
   for (int i = 0; i < func_def->code_size; i++)
     fh_dump_bc_instr(prog, i, func_def->code[i]);
