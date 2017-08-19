@@ -37,8 +37,6 @@ static struct {
   { '!',        "!",  FH_ASSOC_PREFIX, 100 },
 
   { '^',        "^",  FH_ASSOC_RIGHT,  110 },
-  
-  { '.',        ".",  FH_ASSOC_RIGHT,  FUNC_CALL_PREC+10 },
 };
 
 struct fh_ast *fh_new_ast(void)

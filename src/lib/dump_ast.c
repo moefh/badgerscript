@@ -130,7 +130,9 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
       if (2*(i+1)+1 < expr->data.array_lit.n_elems)
         printf(", ");
     }
-    printf(" }");
+    if (expr->data.array_lit.n_elems > 0)
+      printf(" ");
+    printf("}");
     return;
 
   case EXPR_FUNC:

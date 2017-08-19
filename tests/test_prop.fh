@@ -1,0 +1,23 @@
+
+function main(args)
+{
+   var x = {
+     "x" : "x",
+     "y" : {
+       "z" : "z",
+       "f" : function(x) { return x; },
+     },
+     "g" : function(x) { return x + 1; },
+   };
+
+   if (x.x != "x") error("nope");
+   if (x.y.z != "z") error("nope");
+   if (x.y["z"] != "z") error("nope");
+   if (x["y"].z != "z") error("nope");
+   if (x["y"]["z"] != "z") error("nope");
+   if (x.g(1) != 2) error("nope");
+   if (x.y.f(42) != 42) error("nope");
+   
+   print("ok\n");
+}
+

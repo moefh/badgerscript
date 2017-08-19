@@ -455,6 +455,54 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       }
     }
 
+    /* . */
+    if (tok_is_punct(&tok, '.')) {
+      if (expect_opn) {
+        fh_parse_error(p, tok.loc, "unexpected '.'");
+        goto err;
+      }
+
+      if (get_token(p, &tok) < 0)
+        goto err;
+      if (! tok_is_symbol(&tok)) {
+        fh_parse_error(p, tok.loc, "expected name");
+        goto err;
+      }
+      struct fh_p_expr *index = new_expr(p, tok.loc, EXPR_STRING);
+      if (! index)
+        goto err;
+      const char *index_str = fh_get_token_symbol(&p->t, &tok);
+      index->data.str = fh_buf_add_string(&p->ast->string_pool, index_str, strlen(index_str));
+      if (index->data.str < 0) {
+        fh_parse_error_oom(p, tok.loc);
+        goto err;
+      }
+
+      if (resolve_expr_stack(p, tok.loc, &opns, &oprs, FUNC_CALL_PREC) < 0)
+        goto err;
+      struct fh_p_expr *container;
+      if (p_expr_stack_pop(&opns, &container) < 0) {
+        fh_parse_error(p, tok.loc, "syntax error (no container on stack!)");
+        goto err;
+      }
+
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_INDEX);
+      if (! expr) {
+        fh_free_expr(container);
+        fh_free_expr(index);
+        goto err;
+      }
+      expr->data.index.container = container;
+      expr->data.index.index = index;
+
+      if (! p_expr_stack_push(&opns, &expr)) {
+        fh_parse_error_oom(p, tok.loc);
+        fh_free_expr(expr);
+        goto err;
+      }
+      continue;
+    }
+    
     /* [ */
     if (tok_is_punct(&tok, '[')) {
       struct fh_p_expr *expr;
@@ -500,20 +548,18 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
 
     /* { */
     if (tok_is_punct(&tok, '{')) {
-      struct fh_p_expr *expr;
-      if (expect_opn) {
-        expr = new_expr(p, tok.loc, EXPR_MAP_LIT);
-        if (! expr)
-          goto err;
-        if (parse_map_literal(p, &expr->data.map_lit) < 0) {
-          free(expr);
-          goto err;
-        }
-        expect_opn = false;
-      } else {
+      if (! expect_opn) {
         fh_parse_error(p, tok.loc, "unexpected '{'");
         goto err;
       }
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_MAP_LIT);
+      if (! expr)
+        goto err;
+      if (parse_map_literal(p, &expr->data.map_lit) < 0) {
+        free(expr);
+        goto err;
+      }
+      expect_opn = false;
       if (! p_expr_stack_push(&opns, &expr)) {
         fh_parse_error_oom(p, tok.loc);
         fh_free_expr(expr);
