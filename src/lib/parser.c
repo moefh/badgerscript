@@ -474,6 +474,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
       const char *index_str = fh_get_token_symbol(&p->t, &tok);
       index->data.str = fh_buf_add_string(&p->ast->string_pool, index_str, strlen(index_str));
       if (index->data.str < 0) {
+        free(index);
         fh_parse_error_oom(p, tok.loc);
         goto err;
       }
