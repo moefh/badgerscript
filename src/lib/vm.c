@@ -530,8 +530,7 @@ int fh_run_vm(struct fh_vm *vm)
 
       handle_op(OPC_NOT) {
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
-        ra->type = FH_VAL_NUMBER;
-        ra->data.num = (fh_val_is_true(rb)) ? 0.0 : 1.0;
+        *ra = fh_new_bool(! fh_val_is_true(rb));
         break;
       }
 
