@@ -9,7 +9,7 @@
 #define OCCUPIED(e) ((e)->key.type != FH_VAL_NULL)
 
 // hash used by ELF
-uint32_t hash(const unsigned char *s, size_t len)
+static uint32_t hash(const unsigned char *s, size_t len)
 {
   uint32_t high;
   const unsigned char *end = s + len;
@@ -23,7 +23,24 @@ uint32_t hash(const unsigned char *s, size_t len)
   return h;
 }
 
-uint32_t val_hash(struct fh_value *val, uint32_t cap)
+// This should be replaced with something simpler (or just removed, if
+// the hash function is good enough), but for now it's a simple way to
+// ensure we have good entropy in the lower bits
+static uint32_t mix_u32(uint32_t h)
+{
+    uint32_t r = h ^ 0x5a5a5a5a5a5a5a;
+    r += r << 16;
+    r ^= r >> 13;
+    r += r << 4;
+    r ^= r >> 7;
+    r += r << 10;
+    r ^= r >> 5;
+    r += r << 8;
+    r ^= r >> 16;
+    return r;
+}
+
+static uint32_t val_hash(struct fh_value *val, uint32_t cap)
 {
   // WARNING: don't use uint8_t because it may not be considered a
   // char for strict aliasing purposes
@@ -42,7 +59,7 @@ uint32_t val_hash(struct fh_value *val, uint32_t cap)
     }
     p = (unsigned char *) &val->data;
   }
-  uint32_t h = hash(p, len);
+  uint32_t h = mix_u32(hash(p, len));
   //printf("hash(p, %5zu) returns %08x --> pos=%d\n", len, h, h&(cap-1));
   return h & (cap - 1);
 }
@@ -132,17 +149,21 @@ int fh_add_map_object_entry(struct fh_program *prog, struct fh_map *map, struct 
 
 int fh_next_map_object_key(struct fh_map *map, struct fh_value *key, struct fh_value *next_key)
 {
-  if (key->type == FH_VAL_NULL) {
+  if (key->type == FH_VAL_NULL || map->cap == 0) {
     *next_key = map->entries[0].key;
     return 0;
   }
-    
-  for (uint8_t i = 0; i < map->cap-1; i++)
-    if (OCCUPIED(&map->entries[i]) && fh_vals_are_equal(key, &map->entries[i].key)) {
-      *next_key = map->entries[(i+1)&(map->cap-1)].key;
-      return 0;
+
+  uint32_t i = find_slot(map->entries, map->cap, key);
+  if (OCCUPIED(&map->entries[i])) {
+    for (i++; i < map->cap; i++) {
+      if (OCCUPIED(&map->entries[i])) {
+        *next_key = map->entries[i].key;
+        return 0;
+      }
     }
-  *next_key = map->entries[0].key;
+  }
+  *next_key = fh_new_null();
   return 0;
 }
 
