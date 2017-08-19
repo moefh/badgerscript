@@ -43,6 +43,7 @@ uint32_t val_hash(struct fh_value *val, uint32_t cap)
     p = (unsigned char *) &val->data;
   }
   uint32_t h = hash(p, len);
+  //printf("hash(p, %5zu) returns %08x --> pos=%d\n", len, h, h&(cap-1));
   return h & (cap - 1);
 }
 
@@ -58,6 +59,9 @@ static uint32_t find_slot(struct fh_map_entry *entries, uint32_t cap, struct fh_
 static uint32_t insert(struct fh_map_entry *entries, uint32_t cap, struct fh_value *key, struct fh_value *val)
 {
   uint32_t i = find_slot(entries, cap, key);
+  //printf("-> inserting k="); fh_dump_value(key);
+  //printf("; val="); fh_dump_value(val);
+  //printf(" at position %u (occupied=%d)\n", i, OCCUPIED(&entries[i]));
   if (! OCCUPIED(&entries[i]))
     entries[i].key = *key;
   entries[i].val = *val;
@@ -70,12 +74,14 @@ static int rebuild(struct fh_map *map, uint32_t cap)
   if (! entries)
     return -1;
   memset(entries, 0, cap * sizeof(struct fh_map_entry));
-  
+
+  //printf("rebuilding map with cap %u\n", cap);
   for (uint32_t i = 0; i < map->cap; i++) {
     struct fh_map_entry *e = &map->entries[i];
     if (e->key.type != FH_VAL_NULL)
-      insert(entries, map->cap, &e->key, &e->val);
+      insert(entries, cap, &e->key, &e->val);
   }
+  //printf("done rebuilding\n");
   
   free(map->entries);
   map->entries = entries;

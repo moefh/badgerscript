@@ -24,6 +24,8 @@ function main(args)
      5 : "五",
      "please_print" : function(x) { printf("OK, I'll print '%s'\n", x); },
      "calc" : 1+2,
+     printf : "func printf",
+     print : "func print",
    };
 
    x[main] = "main";
@@ -34,6 +36,9 @@ function main(args)
      error("nope");
    if (contains_key(x, "not in array"))
      error("nope");
+
+   printf("%s\n", x[printf]);
+   printf("%s\n", x["hello"]);
 
    print_map(x);
 }
