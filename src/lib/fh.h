@@ -80,6 +80,15 @@ void fh_collect_garbage(struct fh_program *prog);
 bool fh_val_is_true(struct fh_value *val);
 bool fh_vals_are_equal(struct fh_value *v1, struct fh_value *v2);
 
+#define fh_is_null(v)     ((v)->type == FH_VAL_NULL)
+#define fh_is_bool(v)     ((v)->type == FH_VAL_BOOL)
+#define fh_is_number(v)   ((v)->type == FH_VAL_NUMBER)
+#define fh_is_c_func(v)   ((v)->type == FH_VAL_C_FUNC)
+#define fh_is_string(v)   ((v)->type == FH_VAL_STRING)
+#define fh_is_closure(v)  ((v)->type == FH_VAL_CLOSURE)
+#define fh_is_array(v)    ((v)->type == FH_VAL_ARRAY)
+#define fh_is_map(v)      ((v)->type == FH_VAL_MAP)
+
 #define fh_new_null()     ((struct fh_value) { .type = FH_VAL_NULL })
 
 #define fh_new_bool(bv)   ((struct fh_value) { .type = FH_VAL_BOOL, .data = { .b = !!(bv) }})

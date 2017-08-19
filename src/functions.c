@@ -47,26 +47,11 @@ static int fn_gc(struct fh_program *prog, struct fh_value *ret, struct fh_value 
   return 0;
 }
 
-static int fn_add_garbage(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
-{
-  (void)args;
-  (void)n_args;
-
-  static int i = 0;
-  char str[64];
-  snprintf(str, sizeof(str), "garbage %d", i++);
-  fh_new_string(prog, str);
-  
-  *ret = fh_new_null();
-  return 0;
-}
-
 int add_functions(struct fh_program *prog)
 {
   static const struct fh_named_c_func c_funcs[] = {
     { "get_term_lines",  fn_get_term_lines  },
     { "gc",              fn_gc              },
-    { "add_garbage",     fn_add_garbage     },
   };
   return fh_add_c_funcs(prog, c_funcs, sizeof(c_funcs)/sizeof(c_funcs[0]));
 }

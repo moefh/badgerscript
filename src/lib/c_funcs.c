@@ -137,7 +137,7 @@ static int fn_print(struct fh_program *prog, struct fh_value *ret, struct fh_val
 
 static int fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
-  if (n_args == 0 || args[0].type != FH_VAL_STRING)
+  if (n_args == 0 || ! fh_is_string(&args[0]))
     goto end;
 
   int next_arg = 1;
@@ -156,21 +156,21 @@ static int fn_printf(struct fh_program *prog, struct fh_value *ret, struct fh_va
     
     switch (*c) {
     case 'd':
-      if (args[next_arg].type != FH_VAL_NUMBER)
+      if (! fh_is_number(&args[next_arg]))
         return fh_set_error(prog, "printf(): invalid argument type for '%%%c'", *c);
       printf("%lld", (long long) (int64_t) args[next_arg].data.num);
       break;
       
     case 'u':
     case 'x':
-      if (args[next_arg].type != FH_VAL_NUMBER)
+      if (! fh_is_number(&args[next_arg]))
         return fh_set_error(prog, "printf(): invalid argument type for '%%%c'", *c);
       printf((*c == 'u') ? "%llu" : "%llx", (unsigned long long) (int64_t) args[next_arg].data.num);
       break;
       
     case 'f':
     case 'g':
-      if (args[next_arg].type != FH_VAL_NUMBER)
+      if (! fh_is_number(&args[next_arg]))
         return fh_set_error(prog, "printf(): invalid argument type for '%%%c'", *c);
       printf((*c == 'f') ? "%f" : "%g", args[next_arg].data.num);
       break;

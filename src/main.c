@@ -18,7 +18,7 @@ static int run_script_file(struct fh_program *prog, bool dump_bytecode, char *fi
     fh_dump_bytecode(prog);
   
   struct fh_value script_args = fh_new_array(prog);
-  if (script_args.type == FH_VAL_NULL)
+  if (fh_is_null(&script_args))
     return -1;
   struct fh_value *items = fh_grow_array(prog, &script_args, n_args+1);
   if (! items)
@@ -31,7 +31,7 @@ static int run_script_file(struct fh_program *prog, bool dump_bytecode, char *fi
   if (fh_call_function(prog, "main", &script_args, 1, &script_ret) < 0)
     return -1;
   
-  if (script_ret.type == FH_VAL_NUMBER)
+  if (fh_is_number(&script_ret))
     return (int) fh_get_number(&script_ret);
   return 0;
 }

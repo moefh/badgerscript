@@ -14,12 +14,12 @@ function main() {
       i = i + 1;
       continue;
     }
-    add_garbage();
+    []; # create garbage
     printf("i=%d\n", i);
     i = i + 1;
   }
 
   gc();
   test("hi");
-  return 1;
+  return 0;
 }
