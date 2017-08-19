@@ -34,27 +34,53 @@ Bytecode generation      | Working
 VM (bytecode execution)  | Working
 Garbage collection       | Working
 Closures                 | Working
-Map and array objects    | Working but inefficient
-
-Current plans:
-
-- use a hash table to improve map performance
+Map and array objects    | Working
 
 
 ## Example Code
 
-This script draws the Mandelbrot set in the terminal:
+### Closures
+
+```php
+function make_counter(num) {
+    return {
+        "next" : function() {
+            num = num + 1;
+        },
+
+        "read" : function() {
+            return num;
+        },
+    };
+}
+
+function main() {
+    var c1 = make_counter(0);
+    var c2 = make_counter(10);
+    c1.next();
+    c2.next();
+    printf("%d, %d\n", c1.read(), c2.read());    # prints 1, 11
+
+    c1.next();
+    if (c1.read() == 2 && c2.read() == 11) {
+        printf("ok!\n");
+    } else {
+        error("this should will not happen");
+    }
+}
+```
+
+### Mandelbrot Set
 
 ```php
 # check point c = (cx, cy) in the complex plane
 function calc_point(cx, cy, max_iter)
 {
-    var i = 0;
-    
     # start at the critical point z = (x, y) = 0
     var x = 0;
     var y = 0;
 
+    var i = 0;
     while (i < max_iter) {
         # calculate next iteration: z = z^2 + c
         var t = x*x - y*y + cx;
@@ -71,18 +97,18 @@ function calc_point(cx, cy, max_iter)
 
 function mandelbrot(x1, y1, x2, y2, size_x, size_y, max_iter)
 {
-    var step_x = (x2-x1)/size_x;
-    var step_y = (y2-y1)/size_y;
+    var step_x = (x2-x1) / (size_x-1);
+    var step_y = (y2-y1) / (size_y-1);
 
     var y = y1;
     while (y <= y2) {
         var x = x1;
         while (x <= x2) {
-            var c = calc_point(x, y, max_iter);
-            if (c == max_iter)
+            var n = calc_point(x, y, max_iter);
+            if (n == max_iter)
                 printf(".");         # in Mandelbrot set
             else
-                printf("%d", c%10);  # outside
+                printf("%d", n%10);  # outside
             x = x + step_x;
         }
         y = y + step_y;

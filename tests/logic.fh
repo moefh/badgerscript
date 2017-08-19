@@ -1,12 +1,23 @@
 
-function fn_true() { printf("fn true\n"); return 1; }
-function fn_false() { printf("fn false\n"); return 0; }
+function fn_true() { printf("fn true\n"); return true; }
+function fn_false() { printf("fn false\n"); return false; }
 
 function x() {}
 
+function test_and()
+{
+  var x = true;
+  var y = false;
+  if (x==true && y==false)
+    printf("yep\n");
+  else
+    printf("nope\n");
+}
+
 function main()
 {
-  var x = 1;
+  test_and();
+  var x = true;
   x = !!x;
   printf("%s\n", x);
   var r = fn_false() && fn_true();

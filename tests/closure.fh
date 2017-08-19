@@ -1,24 +1,40 @@
 
-function make_counter(c)
-{
-  return [
-    function() { return c; },
-    function(n) { c = c + n; }
-  ];
+function make_counter(num) {
+    return {
+        "next" : function() {
+            num = num + 1;
+        },
+
+        "read" : function() {
+            return num;
+        },
+    };
 }
 
-function main()
-{
-  var c1 = make_counter(0);
-  var c2 = make_counter(100);
+function main() {
+    print("Hello, world!\n");
+    
+    var c1 = make_counter(0);
+    var c2 = make_counter(10);
+    c1.next();
+    c2.next();
+    printf("%d, %d\n", c1.read(), c2.read());    # prints 1, 11
 
-  c1[1](1);
-  c1[1](1);
-  printf("c1=%d\n", c1[0]());
+    c1.next();
+    if (c1.read() == 2 && c2.read() == 11) {
+        printf("ok!\n");
+    } else {
+        error("this should will not happen");
+    }
 
-  c2[1](15);
-  printf("c2=%d\n", c2[0]());
-
-  c1[1](1);
-  printf("c1=%d\n", c1[0]());
+    var i = 1;
+    while (i <= 10) {
+        if (i == 6)
+            break;
+        printf("%d\n", i);
+        i = i + 1;
+    }
+    
+    return;
+    error("this should will not happen");
 }
