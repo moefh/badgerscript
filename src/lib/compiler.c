@@ -22,6 +22,7 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr);
 static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent);
 static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr);
+static int compile_test_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *bin_op, bool invert_test);
 
 void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
 {
@@ -659,6 +660,22 @@ static int expr_contains_var(struct fh_p_expr *expr, fh_symbol_id var)
 }
 #endif
 
+static bool is_test_bin_op(struct fh_p_expr_bin_op *expr)
+{
+  switch (expr->op) {
+  case '>':
+  case '<':
+  case AST_OP_GE:
+  case AST_OP_LE:
+  case AST_OP_EQ:
+  case AST_OP_NEQ:
+    return true;
+
+  default:
+    return false;
+  }
+}
+ 
 static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr, int dest_reg)
 {
   if (expr->op == '=') {
@@ -670,6 +687,22 @@ static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, s
     return dest_reg;
   }
 
+  if (is_test_bin_op(expr)) {
+    int k_true = add_const_bool(c, loc, true);
+    int k_false = add_const_bool(c, loc, false);
+    if (k_true < 0 || k_false < 0)
+      return -1;
+    k_true += MAX_FUNC_REGS + 1;
+    k_false += MAX_FUNC_REGS + 1;
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, k_true)) < 0)
+      return -1;
+    if (compile_test_bin_op(c, loc, expr, false) < 0)
+      return -1;
+    if (add_instr(c, loc, MAKE_INSTR_AB(OPC_MOV, dest_reg, k_false)) < 0)
+      return -1;
+    return dest_reg;
+  }
+  
   if (expr->op == AST_OP_AND || expr->op == AST_OP_OR) {
     if (compile_expr_to_reg(c, expr->left, dest_reg) < 0)
       return -1;
@@ -1007,55 +1040,47 @@ static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct
   return 0;
 }
 
-static int get_opcode_for_test(struct fh_compiler *c, struct fh_src_loc loc, uint32_t op, int *invert)
+static int get_opcode_for_test(struct fh_compiler *c, struct fh_src_loc loc, uint32_t op, bool *invert)
 {
   switch (op) {
-  case '<':        *invert = 0; return OPC_CMP_LT;
-  case '>':        *invert = 1; return OPC_CMP_LE;
-  case AST_OP_LE:  *invert = 0; return OPC_CMP_LE;
-  case AST_OP_GE:  *invert = 1; return OPC_CMP_LT;
-  case AST_OP_EQ:  *invert = 0; return OPC_CMP_EQ;
-  case AST_OP_NEQ: *invert = 1; return OPC_CMP_EQ;
+  case '<':        *invert = false; return OPC_CMP_LT;
+  case '>':        *invert = true;  return OPC_CMP_LE;
+  case AST_OP_LE:  *invert = false; return OPC_CMP_LE;
+  case AST_OP_GE:  *invert = true;  return OPC_CMP_LT;
+  case AST_OP_EQ:  *invert = false; return OPC_CMP_EQ;
+  case AST_OP_NEQ: *invert = true;  return OPC_CMP_EQ;
     
   default:
     return fh_compiler_error(c, loc, "invalid operator for test: '%u", op);
   }
 }
 
-static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int invert_test)
+static int compile_test_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *bin_op, bool invert_test)
+{
+  int left_rk = compile_expr(c, bin_op->left);
+  if (left_rk < 0)
+    return -1;
+  int right_rk = compile_expr(c, bin_op->right);
+  if (right_rk < 0)
+      return -1;
+  bool invert = false;
+  int opcode = get_opcode_for_test(c, loc, bin_op->op, &invert);
+  if (opcode < 0)
+    return -1;
+  if (add_instr(c, loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_rk, right_rk)) < 0)
+    return -1;
+  return 0;
+}
+
+static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, bool invert_test)
 {
   if (test->type == EXPR_UN_OP && test->data.un_op.op == '!') {
     invert_test = ! invert_test;
     test = test->data.un_op.arg;
   }
   
-  if (test->type == EXPR_BIN_OP) {
-    switch (test->data.bin_op.op) {
-    case '>':
-    case '<':
-    case AST_OP_GE:
-    case AST_OP_LE:
-    case AST_OP_EQ:
-    case AST_OP_NEQ: {
-      int left_rk = compile_expr(c, test->data.bin_op.left);
-      if (left_rk < 0)
-        return -1;
-      int right_rk = compile_expr(c, test->data.bin_op.right);
-      if (right_rk < 0)
-        return -1;
-      int invert = 0;
-      int opcode = get_opcode_for_test(c, test->loc, test->data.bin_op.op, &invert);
-      if (opcode < 0)
-        return -1;
-      if (add_instr(c, test->loc, MAKE_INSTR_ABC(opcode, invert_test ^ invert, left_rk, right_rk)) < 0)
-        return -1;
-      return 0;
-    }
-
-    default:
-      break;
-    }
-  }
+  if (test->type == EXPR_BIN_OP && is_test_bin_op(&test->data.bin_op))
+    return compile_test_bin_op(c, test->loc, &test->data.bin_op, invert_test);
 
   int rk;
   if (test->type == EXPR_NUMBER) {
@@ -1073,7 +1098,7 @@ static int compile_test(struct fh_compiler *c, struct fh_p_expr *test, int inver
 
 static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_if *stmt_if)
 {
-  if (compile_test(c, stmt_if->test, 0) < 0)
+  if (compile_test(c, stmt_if->test, false) < 0)
     return -1;
   free_tmp_regs(c, loc);
 
@@ -1113,7 +1138,7 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   int parent_num_break_addrs = int_stack_size(&fi->break_addrs);
   
   int start_addr = get_cur_pc(c, loc);
-  if (compile_test(c, stmt_while->test, 0) < 0)
+  if (compile_test(c, stmt_while->test, false) < 0)
     return -1;
   free_tmp_regs(c, loc);
 
