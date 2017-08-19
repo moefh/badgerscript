@@ -2,7 +2,7 @@
 CC = gcc
 AR = ar rc
 RANLIB = ranlib
-CFLAGS = -Wall -Wextra -std=c99
+CFLAGS = -Wall -Wextra -std=c99 -pedantic
 LDFLAGS =
 LIBS = -lm
 

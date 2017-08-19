@@ -32,7 +32,8 @@ struct fh_object_header {
 
 struct fh_string {
   OBJ_HEADER;
-  size_t size;
+  uint32_t size;
+  uint32_t hash;
 };
 
 struct fh_array {
@@ -108,14 +109,15 @@ struct fh_object {
 
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
 
-#define GET_OBJ_CLOSURE(o)     ((struct fh_closure *) (o))
-#define GET_OBJ_UPVAL(o)       ((struct fh_upval *) (o))
-#define GET_OBJ_FUNC_DEF(o)    ((struct fh_func_def *) (o))
-#define GET_OBJ_ARRAY(o)       ((struct fh_array *) (o))
-#define GET_OBJ_MAP(o)         ((struct fh_map *) (o))
-#define GET_OBJ_STRING(o)      ((struct fh_string *) (o))
+#define GET_OBJ_CLOSURE(o)     ((struct fh_closure   *) (o))
+#define GET_OBJ_UPVAL(o)       ((struct fh_upval     *) (o))
+#define GET_OBJ_FUNC_DEF(o)    ((struct fh_func_def  *) (o))
+#define GET_OBJ_ARRAY(o)       ((struct fh_array     *) (o))
+#define GET_OBJ_MAP(o)         ((struct fh_map       *) (o))
+#define GET_OBJ_STRING(o)      ((struct fh_string    *) (o))
 #define GET_OBJ_STRING_DATA(o) (((char *) o) + sizeof(struct fh_string))
 
+#define GET_VAL_OBJ(v)         ((struct fh_object *) ((v)->data.obj))
 #define GET_VAL_CLOSURE(v)     (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)
 #define GET_VAL_FUNC_DEF(v)    (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
 #define GET_VAL_ARRAY(v)       (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)

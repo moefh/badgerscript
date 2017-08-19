@@ -221,11 +221,14 @@ struct fh_map *fh_make_map(struct fh_program *prog, bool pinned)
 
 struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len)
 {
+  if (sizeof(struct fh_string) + str_len > UINT32_MAX)
+    return NULL;
   struct fh_string *s = (struct fh_string *) fh_make_object(prog, pinned, FH_VAL_STRING, sizeof(struct fh_string) + str_len);
   if (! s)
     return NULL;
   memcpy(GET_OBJ_STRING_DATA(s), str, str_len);
-  s->size = str_len;
+  s->size = (uint32_t) str_len;
+  s->hash = fh_hash(str, str_len);
   return s;
 }
 

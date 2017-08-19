@@ -8,58 +8,20 @@
 
 #define OCCUPIED(e) ((e)->key.type != FH_VAL_NULL)
 
-// hash used by ELF
-static uint32_t hash(const unsigned char *s, size_t len)
-{
-  uint32_t high;
-  const unsigned char *end = s + len;
-  uint32_t h = 0;
-  while (s < end) {
-    h = (h << 4) + *s++;
-    if ((high = h & 0xF0000000) != 0)
-      h ^= high >> 24;
-    h &= ~high;
-  }
-  return h;
-}
-
-// This should be replaced with something simpler (or just removed, if
-// the hash function is good enough), but for now it's a simple way to
-// ensure we have good entropy in the lower bits
-static uint32_t mix_u32(uint32_t h)
-{
-    uint32_t r = h ^ 0x5a5a5a5a5a5a5a;
-    r += r << 16;
-    r ^= r >> 13;
-    r += r << 4;
-    r ^= r >> 7;
-    r += r << 10;
-    r ^= r >> 5;
-    r += r << 8;
-    r ^= r >> 16;
-    return r;
-}
-
 static uint32_t val_hash(struct fh_value *val, uint32_t cap)
 {
-  // WARNING: don't use uint8_t because it may not be considered a
-  // char for strict aliasing purposes
-  const unsigned char *p;
+  if (val->type == FH_VAL_STRING)
+    return GET_VAL_STRING(val)->hash & (cap-1);
+  
   size_t len;
-  if (val->type == FH_VAL_STRING) {
-    len = GET_VAL_STRING(val)->size;
-    p = (unsigned char *) GET_VAL_STRING_DATA(val);
-  } else {
-    switch (val->type) {
-    case FH_VAL_NULL:   len = 0; break;
-    case FH_VAL_BOOL:   len = sizeof(bool); break;
-    case FH_VAL_NUMBER: len = sizeof(double); break;
-    case FH_VAL_C_FUNC: len = sizeof(fh_c_func); break;
-    default:            len = sizeof(void *); break;
-    }
-    p = (unsigned char *) &val->data;
+  switch (val->type) {
+  case FH_VAL_NULL:   len = 0; break;
+  case FH_VAL_BOOL:   len = sizeof(bool); break;
+  case FH_VAL_NUMBER: len = sizeof(double); break;
+  case FH_VAL_C_FUNC: len = sizeof(fh_c_func); break;
+  default:            len = sizeof(void *); break;
   }
-  uint32_t h = mix_u32(hash(p, len));
+  uint32_t h = fh_hash((unsigned char *) &val->data, len);
   //printf("hash(p, %5zu) returns %08x --> pos=%d\n", len, h, h&(cap-1));
   return h & (cap - 1);
 }

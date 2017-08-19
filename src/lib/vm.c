@@ -203,12 +203,16 @@ bool fh_vals_are_equal(struct fh_value *v1, struct fh_value *v2)
   case FH_VAL_BOOL:      return v1->data.b == v2->data.b;
   case FH_VAL_NUMBER:    return v1->data.num == v2->data.num;
   case FH_VAL_C_FUNC:    return v1->data.c_func == v2->data.c_func;
-  case FH_VAL_STRING:    return strcmp(fh_get_string(v1), fh_get_string(v2)) == 0;
   case FH_VAL_ARRAY:     return v1->data.obj == v2->data.obj;
   case FH_VAL_MAP:       return v1->data.obj == v2->data.obj;
   case FH_VAL_CLOSURE:   return v1->data.obj == v2->data.obj;
   case FH_VAL_FUNC_DEF:  return v1->data.obj == v2->data.obj;
   case FH_VAL_UPVAL:     return false;
+
+  case FH_VAL_STRING:
+    if (GET_VAL_STRING(v1)->hash != GET_VAL_STRING(v2)->hash)
+      return false;
+    return strcmp(GET_OBJ_STRING_DATA(v1->data.obj), GET_OBJ_STRING_DATA(v2->data.obj)) == 0;
   }
   return false;
 }

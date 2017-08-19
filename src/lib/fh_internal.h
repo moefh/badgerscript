@@ -6,10 +6,8 @@
 #include "fh.h"
 #include "stack.h"
 
-#include <stdbool.h>
-
 #define ARRAY_SIZE(arr)  ((int)(sizeof(arr)/sizeof(arr[0])))
-#define UNUSED(x) ((void)(x))
+#define UNUSED(x)        ((void)(x))
 
 enum fh_op_assoc {
   FH_ASSOC_PREFIX,
@@ -21,6 +19,8 @@ struct fh_src_loc {
   uint16_t line;
   uint16_t col;
 };
+
+#define fh_make_src_loc(l, c) ((struct fh_src_loc) { .line = (l), .col = (c) })
 
 struct fh_buffer {
   char *p;
@@ -59,8 +59,8 @@ struct fh_map;
 extern const struct fh_named_c_func fh_std_c_funcs[];
 extern const int fh_std_c_funcs_len;
 
+uint32_t fh_hash(const void *data, size_t len);
 int fh_utf8_len(char *str, size_t str_size);
-struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col);
 void fh_dump_value(const struct fh_value *val);
 void fh_dump_string(const char *str);
 void fh_dump_map(struct fh_map *map);

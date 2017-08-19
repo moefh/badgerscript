@@ -6,12 +6,31 @@
 #include "fh_internal.h"
 #include "bytecode.h"
 
-struct fh_src_loc fh_make_src_loc(uint16_t line, uint16_t col)
+uint32_t fh_hash(const void *data, size_t len)
 {
-  struct fh_src_loc ret;
-  ret.line = line;
-  ret.col = col;
-  return ret;
+  // this is the hash used by ELF
+  uint32_t high;
+  const unsigned char *s = data;
+  const unsigned char *end = s + len;
+  uint32_t h = 0;
+  while (s < end) {
+    h = (h << 4) + *s++;
+    if ((high = h & 0xF0000000) != 0)
+      h ^= high >> 24;
+    h &= ~high;
+  }
+
+  // this is an additional bit mix
+  uint32_t r = h;
+  r += r << 16;
+  r ^= r >> 13;
+  r += r << 4;
+  r ^= r >> 7;
+  r += r << 10;
+  r ^= r >> 5;
+  r += r << 8;
+  r ^= r >> 16;
+  return r;
 }
 
 void fh_dump_string(const char *str)
