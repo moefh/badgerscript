@@ -192,7 +192,7 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
     goto err;
   fh_close_input(in);
   in = NULL;
-  fh_dump_ast(ast);
+  //fh_dump_ast(ast);
 
   if (fh_compile(&prog->compiler, ast) < 0)
     goto err;
