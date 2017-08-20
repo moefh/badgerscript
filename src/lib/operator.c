@@ -12,7 +12,7 @@ void fh_init_op_table(struct fh_op_table *ops)
   op_stack_init(&ops->binary);
 }
 
-void fh_free_op_table(struct fh_op_table *ops)
+void fh_destroy_op_table(struct fh_op_table *ops)
 {
   op_stack_free(&ops->prefix);
   op_stack_free(&ops->binary);

@@ -44,25 +44,18 @@ struct fh_ast *fh_new_ast(void)
   struct fh_ast *ast = malloc(sizeof(struct fh_ast));
   if (! ast)
     return NULL;
-  ast->symtab = NULL;
+  fh_init_symtab(&ast->symtab);
   fh_init_op_table(&ast->op_table);
   fh_init_buffer(&ast->string_pool);
   named_func_stack_init(&ast->funcs);
 
   for (int i = 0; i < ARRAY_SIZE(ast_ops); i++) {
-    if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0)
-      goto err;
+    if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0) {
+      fh_free_ast(ast);
+      return NULL;
+    }
   }
-  
-  ast->symtab = fh_new_symtab();
-  if (! ast->symtab)
-    goto err;
-  
   return ast;
-
- err:
-  fh_free_ast(ast);
-  return NULL;
 }
 
 void fh_free_ast(struct fh_ast *ast)
@@ -72,16 +65,15 @@ void fh_free_ast(struct fh_ast *ast)
   }
   named_func_stack_free(&ast->funcs);
 
-  fh_free_op_table(&ast->op_table);
-  fh_free_buffer(&ast->string_pool);
-  if (ast->symtab)
-    fh_free_symtab(ast->symtab);
+  fh_destroy_op_table(&ast->op_table);
+  fh_destroy_buffer(&ast->string_pool);
+  fh_destroy_symtab(&ast->symtab);
   free(ast);
 }
 
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
 {
-  return fh_get_symbol_name(ast->symtab, id);
+  return fh_get_symbol_name(&ast->symtab, id);
 }
 
 const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)

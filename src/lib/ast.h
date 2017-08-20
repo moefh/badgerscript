@@ -166,7 +166,7 @@ DECLARE_STACK(p_stmt_stack, struct fh_p_stmt *);
 
 struct fh_ast {
   struct fh_buffer string_pool;
-  struct fh_symtab *symtab;
+  struct fh_symtab symtab;
   struct fh_op_table op_table;
   struct named_func_stack funcs;
 };

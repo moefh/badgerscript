@@ -17,6 +17,7 @@ static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 static void reset_parser(struct fh_parser *p)
 {
   p->ast = NULL;
+  p->tmp_buf.size = 0;
   p->has_saved_tok = 0;
   p->last_loc = fh_make_src_loc(0,0);
 }
@@ -24,12 +25,14 @@ static void reset_parser(struct fh_parser *p)
 void fh_init_parser(struct fh_parser *p, struct fh_program *prog)
 {
   p->prog = prog;
+  fh_init_buffer(&p->tmp_buf);
   reset_parser(p);
 }
 
 void fh_destroy_parser(struct fh_parser *p)
 {
   reset_parser(p);
+  fh_destroy_buffer(&p->tmp_buf);
 }
 
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
@@ -995,7 +998,7 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
 int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
 {
   reset_parser(p);
-  fh_init_tokenizer(&p->t, p->prog, in, ast);
+  fh_init_tokenizer(&p->t, p->prog, in, ast, &p->tmp_buf);
   
   p->ast = ast;
 
@@ -1024,7 +1027,6 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
     fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(&p->t, &tok));
     goto err;
   }
-  fh_destroy_tokenizer(&p->t);
   stack_foreach(struct fh_p_named_func, *, f, &funcs) {
     named_func_stack_push(&p->ast->funcs, f);
   }
@@ -1032,7 +1034,6 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
   return 0;
 
  err:
-  fh_destroy_tokenizer(&p->t);
   stack_foreach(struct fh_p_named_func, *, f, &funcs) {
     fh_free_named_func(*f);
   }

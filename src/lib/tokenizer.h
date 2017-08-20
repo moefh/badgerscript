@@ -5,7 +5,7 @@
 
 #include "fh_internal.h"
 
-#define TOKENIZER_BUF_SIZE 1024
+#define TOKENIZER_BUF_SIZE 256
 
 enum fh_token_type {
   TOK_EOF,
@@ -45,6 +45,7 @@ struct fh_tokenizer {
   struct fh_program *prog;
   struct fh_input *in;
   struct fh_ast *ast;
+  struct fh_buffer *tmp;
 
   struct fh_src_loc cur_loc;
   uint32_t buf_pos;
@@ -55,12 +56,9 @@ struct fh_tokenizer {
   
   int saved_byte;
   struct fh_src_loc saved_loc;
-
-  struct fh_buffer tmp;
 };
 
-void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast);
-void fh_destroy_tokenizer(struct fh_tokenizer *t);
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf);
 int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok);
 struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t);
 const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok);

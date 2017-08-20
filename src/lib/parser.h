@@ -12,6 +12,7 @@ struct fh_parser {
   struct fh_program *prog;
   struct fh_tokenizer t;
   struct fh_ast *ast;
+  struct fh_buffer tmp_buf;
   struct fh_src_loc last_loc;
   int has_saved_tok;
   struct fh_token saved_tok;

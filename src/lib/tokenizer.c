@@ -27,11 +27,12 @@ static const struct keyword {
   { KW_CONTINUE,   "continue" },
 };
 
-void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast)
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf)
 {
   t->prog = prog;
   t->in = in;
   t->ast = ast;
+  t->tmp = tmp_buf;
   t->cur_loc = fh_make_src_loc(1, 0);
   
   t->buf_pos = 0;
@@ -39,13 +40,6 @@ void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct f
   t->saved_byte = -1;
 
   t->last_err_loc = fh_make_src_loc(0,0);
-
-  fh_init_buffer(&t->tmp);
-}
-
-void fh_destroy_tokenizer(struct fh_tokenizer *t)
-{
-  fh_free_buffer(&t->tmp);
 }
 
 static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, ...)
@@ -77,7 +71,7 @@ const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
 
 const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
 {
-  return fh_get_symbol_name(t->ast->symtab, tok->data.symbol_id);
+  return fh_get_symbol_name(&t->ast->symtab, tok->data.symbol_id);
 }
 
 const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok)
@@ -227,7 +221,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
 
   // string
   if (c == '"') {
-    t->tmp.size = 0;
+    t->tmp->size = 0;
     while (1) {
       c = next_byte(t);
       if (c < 0) {
@@ -255,16 +249,16 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
           return -1;
         }
       }
-      if (fh_buf_add_byte(&t->tmp, c) < 0) {
+      if (fh_buf_add_byte(t->tmp, c) < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;
       }
     }
-    if (fh_utf8_len(t->tmp.p, t->tmp.size) < 0) {
+    if (fh_utf8_len(t->tmp->p, t->tmp->size) < 0) {
       set_error(t, tok->loc, "invalid utf-8 string");
       return -1;
     }
-    fh_string_id str_pos = fh_buf_add_string(&t->ast->string_pool, t->tmp.p, t->tmp.size);
+    fh_string_id str_pos = fh_buf_add_string(&t->ast->string_pool, t->tmp->p, t->tmp->size);
     if (str_pos < 0) {
       set_error(t, tok->loc, "out of memory");
       return -1;
@@ -276,7 +270,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
 
   // number
   if (FH_IS_DIGIT(c)) {
-    t->tmp.size = 0;
+    t->tmp->size = 0;
     int got_point = 0;
     while (FH_IS_DIGIT(c) || c == '.') {
       if (c == '.') {
@@ -284,7 +278,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
           break;
         got_point = 1;
       }
-      if (fh_buf_add_byte(&t->tmp, c) < 0) {
+      if (fh_buf_add_byte(t->tmp, c) < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;
       }
@@ -293,14 +287,14 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
     if (c >= 0)
       unget_byte(t, c);
 
-    if (fh_buf_add_byte(&t->tmp, '\0') < 0) {
+    if (fh_buf_add_byte(t->tmp, '\0') < 0) {
       set_error(t, tok->loc, "out of memory");
       return -1;
     }
     
     char *end = NULL;
-    double num = strtod((char *) t->tmp.p, &end);
-    if ((char *) t->tmp.p == end) {
+    double num = strtod((char *) t->tmp->p, &end);
+    if ((char *) t->tmp->p == end) {
       set_error(t, tok->loc, "invalid number");
       return -1;
     }
@@ -311,9 +305,9 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
 
   // keyword or symbol
   if (FH_IS_ALPHA(c)) {
-    t->tmp.size = 0;
+    t->tmp->size = 0;
     while (FH_IS_ALNUM(c)) {
-      if (fh_buf_add_byte(&t->tmp, c) < 0) {
+      if (fh_buf_add_byte(t->tmp, c) < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;
       }
@@ -323,17 +317,17 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
       unget_byte(t, c);
 
     enum fh_keyword_type keyword;
-    if (find_keyword(t->tmp.p, t->tmp.size, &keyword) > 0) {
+    if (find_keyword(t->tmp->p, t->tmp->size, &keyword) > 0) {
       // keyword
       tok->type = TOK_KEYWORD;
       tok->data.keyword = keyword;
     } else {
       // other symbol
-      if (fh_buf_add_byte(&t->tmp, '\0') < 0) {
+      if (fh_buf_add_byte(t->tmp, '\0') < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;
       }
-      fh_symbol_id symbol_id = fh_add_symbol(t->ast->symtab, t->tmp.p);
+      fh_symbol_id symbol_id = fh_add_symbol(&t->ast->symtab, t->tmp->p);
       if (symbol_id < 0) {
         set_error(t, tok->loc, "out of memory");
         return -1;

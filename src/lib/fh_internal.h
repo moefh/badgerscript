@@ -42,6 +42,13 @@ struct fh_op_table {
   struct op_stack binary;
 };
 
+struct fh_symtab {
+  int num;
+  int cap;
+  int *entries;
+  struct fh_buffer symbols;
+};
+
 typedef int32_t fh_symbol_id;
 typedef int fh_string_id;
 
@@ -66,19 +73,19 @@ void fh_dump_string(const char *str);
 void fh_dump_map(struct fh_map *map);
 
 void fh_init_buffer(struct fh_buffer *buf);
-void fh_free_buffer(struct fh_buffer *buf);
+void fh_destroy_buffer(struct fh_buffer *buf);
 int fh_buf_grow(struct fh_buffer *buf, size_t add_size);
 int fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size);
 int fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
 
-struct fh_symtab *fh_new_symtab(void);
-void fh_free_symtab(struct fh_symtab *s);
+void fh_init_symtab(struct fh_symtab *s);
+void fh_destroy_symtab(struct fh_symtab *s);
 fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol);
 fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const char *symbol);
 const char *fh_get_symbol_name(struct fh_symtab *s, fh_symbol_id id);
 
 void fh_init_op_table(struct fh_op_table *ops);
-void fh_free_op_table(struct fh_op_table *ops);
+void fh_destroy_op_table(struct fh_op_table *ops);
 int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, enum fh_op_assoc assoc);
 struct fh_operator *fh_get_binary_op(struct fh_op_table *ops, char *name);
 struct fh_operator *fh_get_prefix_op(struct fh_op_table *ops, char *name);

@@ -4,31 +4,19 @@
 
 #include "fh_internal.h"
 
-struct fh_symtab {
-  int num;
-  int cap;
-  int *entries;
-  struct fh_buffer symbols;
-};
-
-struct fh_symtab *fh_new_symtab(void)
+void fh_init_symtab(struct fh_symtab *s)
 {
-  struct fh_symtab *s = malloc(sizeof(struct fh_symtab));
-  if (s == NULL)
-    return NULL;
   s->num = 0;
   s->cap = 0;
   s->entries = NULL;
   fh_init_buffer(&s->symbols);
-  return s;
 }
 
-void fh_free_symtab(struct fh_symtab *s)
+void fh_destroy_symtab(struct fh_symtab *s)
 {
-  if (s->entries != NULL)
+  if (s->entries)
     free(s->entries);
-  fh_free_buffer(&s->symbols);
-  free(s);
+  fh_destroy_buffer(&s->symbols);
 }
 
 fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
