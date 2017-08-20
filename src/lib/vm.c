@@ -595,11 +595,8 @@ int fh_run_vm(struct fh_vm *vm)
         struct fh_value *rb = LOAD_REG_OR_CONST(GET_INSTR_RB(instr));
         struct fh_value *rc = LOAD_REG_OR_CONST(GET_INSTR_RC(instr));
         int test = fh_vals_are_equal(rb, rc) ^ inv;
-        if (test) {
+        if (test)
           pc++;
-          break;
-        }
-        pc += GET_INSTR_RS(*pc) + 1;
         break;
       }
 
@@ -612,12 +609,8 @@ int fh_run_vm(struct fh_vm *vm)
           goto user_err;
         }
         int test = (rb->data.num < rc->data.num) ^ inv;
-        //printf("(%f < %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
-        if (test) {
+        if (test)
           pc++;
-          break;
-        }
-        pc += GET_INSTR_RS(*pc) + 1;
         break;
       }
 
@@ -630,12 +623,8 @@ int fh_run_vm(struct fh_vm *vm)
           goto user_err;
         }
         int test = (rb->data.num <= rc->data.num) ^ inv;
-        //printf("(%f <= %f) ^ %d ==> %d\n", ra->data.num, rb->data.num, c, test);
-        if (test) {
+        if (test)
           pc++;
-          break;
-        }
-        pc += GET_INSTR_RS(*pc) + 1;
         break;
       }
 
