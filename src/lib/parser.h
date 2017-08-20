@@ -8,9 +8,11 @@
 
 struct fh_ast;
 
+DECLARE_STACK(tokenizer_stack, struct fh_tokenizer);
+
 struct fh_parser {
   struct fh_program *prog;
-  struct fh_tokenizer t;
+  struct tokenizer_stack tokenizers;
   struct fh_ast *ast;
   struct fh_buffer tmp_buf;
   struct fh_src_loc last_loc;

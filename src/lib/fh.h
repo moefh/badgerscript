@@ -19,6 +19,7 @@ struct fh_program;
 struct fh_value;
 
 struct fh_input_funcs {
+  struct fh_input *(*open)(struct fh_input *in, const char *filename);
   int (*read)(struct fh_input *in, char *line, int max_len);
   int (*close)(struct fh_input *in);
 };
@@ -58,10 +59,12 @@ struct fh_value {
 };
 
 struct fh_input *fh_open_input_file(const char *filename);
-struct fh_input *fh_new_input(void *user_data, struct fh_input_funcs *funcs);
+struct fh_input *fh_new_input(const char *filename, void *user_data, struct fh_input_funcs *funcs);
 void *fh_get_input_user_data(struct fh_input *in);
+const char *fh_get_input_filename(struct fh_input *in);
+struct fh_input *fh_open_input(struct fh_input *in, const char *filename);
 int fh_close_input(struct fh_input *in);
-int fh_input_read(struct fh_input *in, char *line, int max_len);
+int fh_read_input(struct fh_input *in, char *line, int max_len);
 
 struct fh_program *fh_new_program(void);
 void fh_free_program(struct fh_program *prog);

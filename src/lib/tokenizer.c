@@ -17,6 +17,7 @@ static const struct keyword {
   enum fh_keyword_type type;
   const char *name;
 } keywords[] = {
+  { KW_INCLUDE,    "include" },
   { KW_FUNCTION,   "function" },
   { KW_RETURN,     "return" },
   { KW_VAR,        "var" },
@@ -27,19 +28,20 @@ static const struct keyword {
   { KW_CONTINUE,   "continue" },
 };
 
-void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf)
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id)
 {
   t->prog = prog;
   t->in = in;
   t->ast = ast;
   t->tmp = tmp_buf;
-  t->cur_loc = fh_make_src_loc(1, 0);
+  t->file_id = file_id;
+  t->cur_loc = fh_make_src_loc(file_id, 1, 0);
   
   t->buf_pos = 0;
   t->buf_len = 0;
   t->saved_byte = -1;
 
-  t->last_err_loc = fh_make_src_loc(0,0);
+  t->last_err_loc = t->cur_loc;
 }
 
 static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, ...)
@@ -50,7 +52,7 @@ static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, 
   vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
-  fh_set_error(t->prog, "%d:%d: %s", loc.line, loc.col, str);
+  fh_set_error(t->prog, "%s:%d:%d: %s", fh_get_ast_file_name(t->ast, loc.file_id), loc.line, loc.col, str);
   t->last_err_loc = loc;
 }
 
@@ -59,9 +61,8 @@ struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t)
   return t->last_err_loc;
 }
 
-const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_keyword(struct fh_token *tok)
 {
-  UNUSED(t);
   for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
     if (keywords[i].type == tok->data.keyword)
       return keywords[i].name;
@@ -69,21 +70,20 @@ const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok)
   return NULL;
 }
 
-const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_symbol(struct fh_ast *ast, struct fh_token *tok)
 {
-  return fh_get_symbol_name(&t->ast->symtab, tok->data.symbol_id);
+  return fh_get_symbol_name(&ast->symtab, tok->data.symbol_id);
 }
 
-const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_op(struct fh_token *tok)
 {
-  UNUSED(t);
   return tok->data.op_name;
 }
 
-const char *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_get_token_string(struct fh_ast *ast, struct fh_token *tok)
 {
   if (tok->type == TOK_STRING)
-    return t->ast->string_pool.p + tok->data.str;
+    return fh_get_ast_string(ast, tok->data.str);
   return NULL;
 }
 
@@ -104,7 +104,7 @@ static int next_byte(struct fh_tokenizer *t)
   }
   
   if (t->buf_pos == t->buf_len) {
-    int r = fh_input_read(t->in, t->buf, sizeof(t->buf));
+    int r = fh_read_input(t->in, t->buf, sizeof(t->buf));
     if (r < 0)
       return -1;
     t->buf_len = (uint32_t) r;
@@ -147,7 +147,7 @@ static int find_keyword(char *keyword, int keyword_size, enum fh_keyword_type *r
   return 0;
 }
 
-const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
+const char *fh_dump_token(struct fh_ast *ast, struct fh_token *tok)
 {
   static char str[256];
   
@@ -157,15 +157,15 @@ const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
     break;
     
   case TOK_KEYWORD:
-    snprintf(str, sizeof(str), "%s", fh_get_token_keyword(t, tok));
+    snprintf(str, sizeof(str), "%s", fh_get_token_keyword(tok));
     break;
     
   case TOK_SYMBOL:
-    snprintf(str, sizeof(str), "%s", fh_get_token_symbol(t, tok));
+    snprintf(str, sizeof(str), "%s", fh_get_token_symbol(ast, tok));
     break;
     
   case TOK_OP:
-    snprintf(str, sizeof(str), "%s", fh_get_token_op(t, tok));
+    snprintf(str, sizeof(str), "%s", fh_get_token_op(tok));
     break;
     
   case TOK_PUNCT:
@@ -173,7 +173,7 @@ const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok)
     break;
     
   case TOK_STRING:
-    snprintf(str, sizeof(str), "\"%s\"", fh_get_token_string(t, tok));
+    snprintf(str, sizeof(str), "\"%s\"", fh_get_token_string(ast, tok));
     break;
     
   case TOK_NUMBER:

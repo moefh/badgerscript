@@ -1,0 +1,33 @@
+
+include "mandel_lib.fh"
+
+function main(args)
+{
+  var plane = [];
+  var cur_line = [];
+  var out = {
+    "point_inside" : function() {
+      append(cur_line, 0);
+    },
+
+    "point_outside" : function(c) {
+      append(cur_line, c+1);
+    },
+
+    "end_line" : function() {
+      append(plane, cur_line);
+      cur_line = [];
+    },
+  };
+
+  mandelbrot(-2, -2, 2, 2, 101, 101, 1500, out);
+
+  if (len(plane) != 101 || len(plane[0]) != 101)
+    error("nope");
+
+  if (plane[  0][  0] != 1) error("nope");
+  if (plane[100][100] != 1) error("nope");
+  if (plane[ 50][  2] <  1) error("nope");
+  if (plane[ 50][100] != 1) error("nope");
+  print("ok\n");
+}

@@ -18,6 +18,7 @@ enum fh_token_type {
 };
 
 enum fh_keyword_type {
+  KW_INCLUDE,
   KW_FUNCTION,
   KW_RETURN,
   KW_VAR,
@@ -46,6 +47,7 @@ struct fh_tokenizer {
   struct fh_input *in;
   struct fh_ast *ast;
   struct fh_buffer *tmp;
+  uint16_t file_id;
 
   struct fh_src_loc cur_loc;
   uint32_t buf_pos;
@@ -58,14 +60,21 @@ struct fh_tokenizer {
   struct fh_src_loc saved_loc;
 };
 
-void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf);
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id);
 int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok);
 struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t);
-const char *fh_get_token_keyword(struct fh_tokenizer *t, struct fh_token *tok);
-const char *fh_get_token_symbol(struct fh_tokenizer *t, struct fh_token *tok);
-const char *fh_get_token_string(struct fh_tokenizer *t, struct fh_token *tok);
-const char *fh_get_token_op(struct fh_tokenizer *t, struct fh_token *tok);
+const char *fh_get_token_keyword(struct fh_token *tok);
+const char *fh_get_token_symbol(struct fh_ast *ast, struct fh_token *tok);
+const char *fh_get_token_string(struct fh_ast *ast, struct fh_token *tok);
+const char *fh_get_token_op(struct fh_token *tok);
 
-const char *fh_dump_token(struct fh_tokenizer *t, struct fh_token *tok);
+const char *fh_dump_token(struct fh_ast *ast, struct fh_token *tok);
+
+#define tok_is_eof(tok)          ((tok)->type == TOK_EOF)
+#define tok_is_number(tok)       ((tok)->type == TOK_NUMBER)
+#define tok_is_string(tok)       ((tok)->type == TOK_STRING)
+#define tok_is_punct(tok, p)     ((tok)->type == TOK_PUNCT && (tok)->data.punct == (p))
+#define tok_is_keyword(tok, kw)  ((tok)->type == TOK_KEYWORD && (tok)->data.keyword == (kw))
+#define tok_is_symbol(tok)       ((tok)->type == TOK_SYMBOL)
 
 #endif /* TOKENIZER_H_FILE */

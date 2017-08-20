@@ -136,7 +136,7 @@ int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, .
   vsnprintf(str, sizeof(str), fmt, ap);
   va_end(ap);
 
-  fh_set_error(c->prog, "%d:%d: %s", loc.line, loc.col, str);
+  fh_set_error(c->prog, "%s:%d:%d: %s", fh_get_ast_file_name(c->ast, loc.file_id), loc.line, loc.col, str);
   return -1;
 }
 
@@ -767,7 +767,7 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
       }
 
       // no such variable
-      return fh_compiler_error(c, loc, "undeclared variable: '%s'", fh_get_ast_symbol(c->ast, expr->left->data.var));
+      return fh_compiler_error(c, expr->left->loc, "undeclared variable: '%s'", fh_get_ast_symbol(c->ast, expr->left->data.var));
     }
 
     if (expr->left->type == EXPR_INDEX) {

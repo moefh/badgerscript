@@ -18,9 +18,10 @@ enum fh_op_assoc {
 struct fh_src_loc {
   uint16_t line;
   uint16_t col;
+  uint16_t file_id;
 };
 
-#define fh_make_src_loc(l, c) ((struct fh_src_loc) { .line = (l), .col = (c) })
+#define fh_make_src_loc(f, l, c) ((struct fh_src_loc) { .file_id = (f), .line = (l), .col = (c) })
 
 struct fh_buffer {
   char *p;

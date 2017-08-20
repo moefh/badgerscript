@@ -172,26 +172,16 @@ struct fh_closure *fh_get_global_func_by_name(struct fh_program *prog, const cha
   return NULL;
 }
 
-int fh_compile_file(struct fh_program *prog, const char *filename)
+int fh_compile_input(struct fh_program *prog, struct fh_input *in)
 {
-  struct fh_input *in = NULL;
-  struct fh_ast *ast = NULL;
-
-  in = fh_open_input_file(filename);
-  if (! in) {
-    fh_set_error(prog, "can't open '%s'", filename);
-    goto err;
-  }
-  
-  ast = fh_new_ast();
+  struct fh_ast *ast = fh_new_ast();
   if (! ast) {
+    fh_close_input(in);
     fh_set_error(prog, "out of memory for AST");
-    goto err;
+    return -1;
   }
   if (fh_parse(&prog->parser, ast, in) < 0)
     goto err;
-  fh_close_input(in);
-  in = NULL;
   //fh_dump_ast(ast);
 
   if (fh_compile(&prog->compiler, ast) < 0)
@@ -203,9 +193,17 @@ int fh_compile_file(struct fh_program *prog, const char *filename)
  err:
   if (ast)
     fh_free_ast(ast);
-  if (in)
-    fh_close_input(in);
   return -1;
+}
+
+int fh_compile_file(struct fh_program *prog, const char *filename)
+{
+  struct fh_input *in = fh_open_input_file(filename);
+  if (! in) {
+    fh_set_error(prog, "can't open '%s'", filename);
+    return -1;
+  }
+  return fh_compile_input(prog, in);
 }
 
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret)

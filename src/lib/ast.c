@@ -45,6 +45,7 @@ struct fh_ast *fh_new_ast(void)
   if (! ast)
     return NULL;
   fh_init_symtab(&ast->symtab);
+  fh_init_symtab(&ast->file_names);
   fh_init_op_table(&ast->op_table);
   fh_init_buffer(&ast->string_pool);
   named_func_stack_init(&ast->funcs);
@@ -67,8 +68,15 @@ void fh_free_ast(struct fh_ast *ast)
 
   fh_destroy_op_table(&ast->op_table);
   fh_destroy_buffer(&ast->string_pool);
+  fh_destroy_symtab(&ast->file_names);
   fh_destroy_symtab(&ast->symtab);
   free(ast);
+}
+
+void fh_take_ast_file_name_table(struct fh_ast *ast, struct fh_symtab *file_names)
+{
+  *file_names = ast->file_names;
+  fh_init_symtab(&ast->file_names);
 }
 
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
@@ -79,6 +87,16 @@ const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
 const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id)
 {
   return ast->string_pool.p + id;
+}
+
+fh_symbol_id fh_add_ast_file_name(struct fh_ast *ast, const char *filename)
+{
+  return fh_add_symbol(&ast->file_names, filename);
+}
+
+const char *fh_get_ast_file_name(struct fh_ast *ast, fh_symbol_id file_id)
+{
+  return fh_get_symbol_name(&ast->file_names, file_id);
 }
 
 const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
