@@ -1137,15 +1137,18 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
   int parent_num_break_addrs = int_stack_size(&fi->break_addrs);
   
+  int addr_jmp_to_end = -1;
   int start_addr = get_cur_pc(c, loc);
-  if (compile_test(c, stmt_while->test, false) < 0)
-    return -1;
-  free_tmp_regs(c, loc);
-
-  // jmp to_end
-  int addr_jmp_to_end = get_cur_pc(c, loc);
-  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
-    return -1;
+  if (! (stmt_while->test->type == EXPR_BOOL && stmt_while->test->data.b)) {
+    if (compile_test(c, stmt_while->test, false) < 0)
+      return -1;
+    free_tmp_regs(c, loc);
+    
+    // jmp to_end
+    addr_jmp_to_end = get_cur_pc(c, loc);
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
+      return -1;
+  }
 
   // statement
   switch (stmt_while->stmt->type) {
@@ -1161,12 +1164,16 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   default:
     if (compile_stmt(c, stmt_while->stmt) < 0)
       return -1;
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, start_addr - get_cur_pc(c, loc) - 1)) < 0)
+      return -1;
   }
 
   // to_end:
   int addr_end = get_cur_pc(c, loc);
-  if (set_jmp_target(c, loc, addr_jmp_to_end, addr_end) < 0)
-    return -1;
+  if (addr_jmp_to_end >= 0) {
+    if (set_jmp_target(c, loc, addr_jmp_to_end, addr_end) < 0)
+      return -1;
+  }
 
   while (int_stack_size(&fi->break_addrs) > parent_num_break_addrs) {
     int break_addr;
