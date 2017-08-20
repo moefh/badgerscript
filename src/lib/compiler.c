@@ -159,6 +159,8 @@ static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc
   func_def->n_consts = 0;
   func_def->upvals = NULL;
   func_def->n_upvals = 0;
+  func_def->code_src_loc = NULL;
+  func_def->code_src_loc_size = 0;
   if (name) {
     func_def->name = fh_make_string(c->prog, true, name);
     if (! func_def->name)
