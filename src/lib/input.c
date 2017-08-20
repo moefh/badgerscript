@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 #include "fh.h"
 
@@ -116,3 +117,64 @@ struct fh_input *fh_open_input_file(const char *filename)
   }
   return in;
 }
+
+/* ======================================= */
+/* === string input ====================== */
+
+struct string_input_data {
+  char *data;
+  int len;
+};
+
+static int string_read(struct fh_input *in, char *line, int max_len)
+{
+  struct string_input_data *str = in->user_data;
+
+  if (str->len == 0)
+    return -1;
+  
+  int len = (max_len < str->len) ? max_len : str->len;
+  memcpy(line, str->data, len);
+  str->data += len;
+  str->len -= len;
+  return len;
+}
+
+static int string_close(struct fh_input *in)
+{
+  free(in->user_data);
+  return 0;
+}
+
+struct fh_input *string_open(struct fh_input *in, const char *filename)
+{
+  (void)in;
+  return fh_open_input_file(filename);
+}
+
+struct fh_input *fh_open_input_string(const char *input)
+{
+  static struct fh_input_funcs string_input_funcs = {
+    .open = string_open,
+    .read = string_read,
+    .close = string_close,
+  };
+
+  size_t input_len = strlen(input);
+  if (input_len > INT_MAX)
+    return NULL;
+  struct string_input_data *str = malloc(sizeof(struct string_input_data) + input_len + 1);
+  if (! str)
+    return NULL;
+  str->data = (char *)str + sizeof(struct string_input_data);
+  str->len = input_len;
+  memcpy(str->data, input, input_len);
+  
+  struct fh_input *in = fh_new_input("(string)", str, &string_input_funcs);
+  if (! in) {
+    free(str);
+    return NULL;
+  }
+  return in;
+}
+

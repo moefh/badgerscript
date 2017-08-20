@@ -59,6 +59,7 @@ struct fh_value {
 };
 
 struct fh_input *fh_open_input_file(const char *filename);
+struct fh_input *fh_open_input_string(const char *string);
 struct fh_input *fh_new_input(const char *filename, void *user_data, struct fh_input_funcs *funcs);
 void *fh_get_input_user_data(struct fh_input *in);
 const char *fh_get_input_filename(struct fh_input *in);
@@ -71,6 +72,7 @@ void fh_free_program(struct fh_program *prog);
 void fh_set_gc_frequency(struct fh_program *prog, int frequency);
 int fh_add_c_func(struct fh_program *prog, const char *name, fh_c_func func);
 int fh_add_c_funcs(struct fh_program *prog, const struct fh_named_c_func *funcs, int n_funcs);
+int fh_compile_input(struct fh_program *prog, struct fh_input *in);
 int fh_compile_file(struct fh_program *prog, const char *filename);
 void fh_dump_bytecode(struct fh_program *prog);
 int fh_call_function(struct fh_program *prog, const char *func_name, struct fh_value *args, int n_args, struct fh_value *ret);

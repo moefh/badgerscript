@@ -66,7 +66,7 @@ void *fh_parse_error_oom(struct fh_parser *p, struct fh_src_loc loc)
 
 void *fh_parse_error_expected(struct fh_parser *p, struct fh_src_loc loc, char *expected)
 {
-  return fh_parse_error(p, loc, "expected '%s'", expected);
+  return fh_parse_error(p, loc, "expected %s", expected);
 }
 
 static int get_token(struct fh_parser *p, struct fh_token *tok)

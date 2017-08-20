@@ -15,6 +15,7 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
+  fh_init_symtab(&prog->src_file_names);
   p_closure_stack_init(&prog->global_funcs);
   named_c_func_stack_init(&prog->c_funcs);
 
@@ -30,6 +31,7 @@ struct fh_program *fh_new_program(void)
   return prog;
 
  err:
+  fh_destroy_symtab(&prog->src_file_names);
   p_closure_stack_free(&prog->global_funcs);
   p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
@@ -45,6 +47,7 @@ void fh_free_program(struct fh_program *prog)
   if (p_object_stack_size(&prog->pinned_objs) > 0)
     fprintf(stderr, "*** WARNING: %d pinned object(s) on exit\n", p_object_stack_size(&prog->pinned_objs));
 
+  fh_destroy_symtab(&prog->src_file_names);
   p_closure_stack_free(&prog->global_funcs);
   p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
@@ -174,7 +177,7 @@ struct fh_closure *fh_get_global_func_by_name(struct fh_program *prog, const cha
 
 int fh_compile_input(struct fh_program *prog, struct fh_input *in)
 {
-  struct fh_ast *ast = fh_new_ast();
+  struct fh_ast *ast = fh_new_ast(&prog->src_file_names);
   if (! ast) {
     fh_close_input(in);
     fh_set_error(prog, "out of memory for AST");
