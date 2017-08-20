@@ -56,13 +56,13 @@ struct fh_p_stmt_while {
 };
 
 struct fh_p_stmt_block {
-  int n_stmts;
-  struct fh_p_stmt **stmts;
+  struct fh_p_stmt *stmt_list;
 };
 
 struct fh_p_stmt {
   enum fh_stmt_type type;
   struct fh_src_loc loc;
+  struct fh_p_stmt *next;
   union {
     struct fh_p_stmt_decl decl;
     struct fh_p_stmt_block block;
@@ -105,8 +105,7 @@ struct fh_p_expr_un_op {
 
 struct fh_p_expr_func_call {
   struct fh_p_expr *func;
-  int n_args;
-  struct fh_p_expr *args;
+  struct fh_p_expr *arg_list;
 };
 
 struct fh_p_expr_func {
@@ -121,18 +120,17 @@ struct fh_p_expr_index {
 };
 
 struct fh_p_expr_array_lit {
-  int n_elems;
-  struct fh_p_expr *elems;
+  struct fh_p_expr *elem_list;
 };
 
 struct fh_p_expr_map_lit {
-  int n_elems;
-  struct fh_p_expr *elems;
+  struct fh_p_expr *elem_list;
 };
 
 struct fh_p_expr {
   enum fh_expr_type type;
   struct fh_src_loc loc;
+  struct fh_p_expr *next;
   union {
     fh_symbol_id var;
     double num;
@@ -152,24 +150,23 @@ struct fh_p_expr {
 /* == named function ========================= */
 
 struct fh_p_named_func {
+  struct fh_p_named_func *next;
   fh_symbol_id name;
   struct fh_src_loc loc;
-  struct fh_p_expr_func func;
+  struct fh_p_expr *func;
 };
 
 /* =========================================== */
 
-DECLARE_STACK(named_func_stack, struct fh_p_named_func);
-DECLARE_STACK(expr_stack, struct fh_p_expr);
+//DECLARE_STACK(named_func_stack, struct fh_p_named_func);
 DECLARE_STACK(p_expr_stack, struct fh_p_expr *);
-DECLARE_STACK(p_stmt_stack, struct fh_p_stmt *);
 
 struct fh_ast {
   struct fh_buffer string_pool;
   struct fh_symtab symtab;
   struct fh_symtab *file_names;
   struct fh_op_table op_table;
-  struct named_func_stack funcs;
+  struct fh_p_named_func *func_list;
 };
 
 struct fh_ast *fh_new_ast(struct fh_symtab *file_names);
@@ -182,16 +179,22 @@ fh_symbol_id fh_add_ast_file_name(struct fh_ast *ast, const char *filename);
 
 int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_expr *expr, void *data), void *data);
 
-void fh_free_named_func(struct fh_p_named_func func);
-void fh_free_func(struct fh_p_expr_func func);
+struct fh_p_expr *fh_new_expr(struct fh_ast *ast, struct fh_src_loc loc, enum fh_expr_type type, size_t extra_size);
+struct fh_p_stmt *fh_new_stmt(struct fh_ast *ast, struct fh_src_loc loc, enum fh_stmt_type type, size_t extra_size);
+struct fh_p_named_func *fh_new_named_func(struct fh_ast *ast, struct fh_src_loc loc);
+
+int fh_expr_list_size(struct fh_p_expr *list);
+int fh_stmt_list_size(struct fh_p_stmt *list);
+
+void fh_free_named_func(struct fh_p_named_func *func);
+void fh_free_named_func_list(struct fh_p_named_func *list);
 void fh_free_block(struct fh_p_stmt_block block);
-void fh_free_stmts(struct fh_p_stmt **stmts, int n_stmts);
 void fh_free_stmt(struct fh_p_stmt *stmt);
 void fh_free_stmt_children(struct fh_p_stmt *stmt);
+void fh_free_stmt_list(struct fh_p_stmt *list);
 void fh_free_expr(struct fh_p_expr *expr);
 void fh_free_expr_children(struct fh_p_expr *expr);
-void fh_free_func(struct fh_p_expr_func func);
-void fh_free_named_func(struct fh_p_named_func func);
+void fh_free_expr_list(struct fh_p_expr *list);
 
 void fh_dump_named_func(struct fh_ast *ast, struct fh_p_named_func *func);
 void fh_dump_expr(struct fh_ast *ast, struct fh_p_expr *expr);

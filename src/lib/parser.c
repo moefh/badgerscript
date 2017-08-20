@@ -10,7 +10,7 @@
 #include "ast.h"
 
 static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt_block *block);
-static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_func *func);
+static struct fh_p_expr *parse_func(struct fh_parser *p);
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
 
@@ -104,23 +104,19 @@ static void unget_token(struct fh_parser *p, struct fh_token *tok)
   p->has_saved_tok = 1;
 }
 
-static struct fh_p_expr *new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type)
+static struct fh_p_expr *new_expr(struct fh_parser *p, struct fh_src_loc loc, enum fh_expr_type type, size_t extra_size)
 {
-  struct fh_p_expr *expr = malloc(sizeof(struct fh_p_expr));
+  struct fh_p_expr *expr = fh_new_expr(p->ast, loc, type, extra_size);
   if (! expr)
     return fh_parse_error_oom(p, loc);
-  expr->type = type;
-  expr->loc = loc;
   return expr;
 }
 
-static struct fh_p_stmt *new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type)
+static struct fh_p_stmt *new_stmt(struct fh_parser *p, struct fh_src_loc loc, enum fh_stmt_type type, size_t extra_size)
 {
-  struct fh_p_stmt *stmt = malloc(sizeof(struct fh_p_stmt));
+  struct fh_p_stmt *stmt = fh_new_stmt(p->ast, loc, type, extra_size);
   if (! stmt)
     return fh_parse_error_oom(p, loc);
-  stmt->type = type;
-  stmt->loc = loc;
   return stmt;
 }
 
@@ -138,27 +134,26 @@ static int tok_is_op(struct fh_token *tok, const char *op)
   return 0;
 }
 
-static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args)
+static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_list)
 {
   struct fh_token tok;
-  struct expr_stack args;
-
-  expr_stack_init(&args);
 
   if (get_token(p, &tok) < 0)
-    goto err;
+    return -1;
   
+  struct fh_p_expr *list = NULL;
+  struct fh_p_expr **list_tail = &list;
+  int num_exprs = 0;
+
   if (! tok_is_punct(&tok, ')')) {
     unget_token(p, &tok);
     while (1) {
       struct fh_p_expr *e = parse_expr(p, false, ",)");
       if (! e)
         goto err;
-      if (! expr_stack_push(&args, e)) {
-        fh_free_expr(e);
-        goto err;
-      }
-      free(e);
+      *list_tail = e;
+      list_tail = &e->next;
+      num_exprs++;
       
       if (get_token(p, &tok) < 0)
         goto err;
@@ -171,27 +166,23 @@ static int parse_expr_list(struct fh_parser *p, struct fh_p_expr **ret_args)
     }
   }
 
-  expr_stack_shrink_to_fit(&args);
-  *ret_args = expr_stack_data(&args);
-  return expr_stack_size(&args);
+  *ret_list = list;
+  return num_exprs;
   
  err:
-  stack_foreach(struct fh_p_expr, *, e, &args) {
-    fh_free_expr_children(e);
-  }
-  expr_stack_free(&args);
+  fh_free_expr_list(list);
   return -1;
 }
 
 static int parse_array_literal(struct fh_parser *p, struct fh_p_expr_array_lit *array_lit)
 {
   struct fh_token tok;
-  struct expr_stack args;
-
-  expr_stack_init(&args);
 
   if (get_token(p, &tok) < 0)
-    goto err;
+    return -1;
+
+  array_lit->elem_list = NULL;
+  struct fh_p_expr **list_tail = &array_lit->elem_list;
   
   if (! tok_is_punct(&tok, ']')) {
     unget_token(p, &tok);
@@ -199,11 +190,8 @@ static int parse_array_literal(struct fh_parser *p, struct fh_p_expr_array_lit *
       struct fh_p_expr *e = parse_expr(p, false, ",]");
       if (! e)
         goto err;
-      if (! expr_stack_push(&args, e)) {
-        fh_free_expr(e);
-        goto err;
-      }
-      free(e);
+      *list_tail = e;
+      list_tail = &e->next;
       
       if (get_token(p, &tok) < 0)
         goto err;
@@ -222,29 +210,23 @@ static int parse_array_literal(struct fh_parser *p, struct fh_p_expr_array_lit *
     }
   }
 
-  expr_stack_shrink_to_fit(&args);
-  array_lit->elems = expr_stack_data(&args);
-  array_lit->n_elems = expr_stack_size(&args);
   return 0;
   
  err:
-  stack_foreach(struct fh_p_expr, *, e, &args) {
-    fh_free_expr_children(e);
-  }
-  expr_stack_free(&args);
+  fh_free_expr_list(array_lit->elem_list);
   return -1;
 }
 
 static int parse_map_literal(struct fh_parser *p, struct fh_p_expr_map_lit *map_lit)
 {
   struct fh_token tok;
-  struct expr_stack args;
-
-  expr_stack_init(&args);
 
   if (get_token(p, &tok) < 0)
-    goto err;
+    return -1;
   
+  map_lit->elem_list = NULL;
+  struct fh_p_expr **list_tail = &map_lit->elem_list;
+
   if (! tok_is_punct(&tok, '}')) {
     unget_token(p, &tok);
     while (1) {
@@ -252,21 +234,15 @@ static int parse_map_literal(struct fh_parser *p, struct fh_p_expr_map_lit *map_
       struct fh_p_expr *e = parse_expr(p, true, ":");
       if (! e)
         goto err;
-      if (! expr_stack_push(&args, e)) {
-        fh_free_expr(e);
-        goto err;
-      }
-      free(e);
+      *list_tail = e;
+      list_tail = &e->next;
 
       // value
       e = parse_expr(p, false, ",}");
       if (! e)
         goto err;
-      if (! expr_stack_push(&args, e)) {
-        fh_free_expr(e);
-        goto err;
-      }
-      free(e);
+      *list_tail = e;
+      list_tail = &e->next;
 
       if (get_token(p, &tok) < 0)
         goto err;
@@ -285,16 +261,10 @@ static int parse_map_literal(struct fh_parser *p, struct fh_p_expr_map_lit *map_
     }
   }
 
-  expr_stack_shrink_to_fit(&args);
-  map_lit->elems = expr_stack_data(&args);
-  map_lit->n_elems = expr_stack_size(&args);
   return 0;
   
  err:
-  stack_foreach(struct fh_p_expr, *, e, &args) {
-    fh_free_expr_children(e);
-  }
-  expr_stack_free(&args);
+  fh_free_expr_list(map_lit->elem_list);
   return -1;
 }
 
@@ -336,7 +306,7 @@ static int resolve_expr_stack(struct fh_parser *p, struct fh_src_loc loc, struct
       return 0;
     uint32_t op_id = op->op;
     enum fh_op_assoc op_assoc = op->assoc;
-    struct fh_p_expr *expr = new_expr(p, loc, EXPR_NONE);
+    struct fh_p_expr *expr = new_expr(p, loc, EXPR_NONE, 0);
     if (! expr) {
       fh_parse_error_oom(p, loc);
       return -1;
@@ -414,14 +384,13 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
 
-        expr = new_expr(p, func->loc, EXPR_FUNC_CALL);
+        expr = new_expr(p, func->loc, EXPR_FUNC_CALL, 0);
         if (! expr) {
           fh_free_expr(func);
           goto err;
         }
         expr->data.func_call.func = func;
-        expr->data.func_call.n_args = parse_expr_list(p, &expr->data.func_call.args);
-        if (expr->data.func_call.n_args < 0) {
+        if (parse_expr_list(p, &expr->data.func_call.arg_list) < 0) {
           free(expr);
           fh_free_expr(func);
           goto err;
@@ -484,7 +453,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error(p, tok.loc, "expected name");
         goto err;
       }
-      struct fh_p_expr *index = new_expr(p, tok.loc, EXPR_STRING);
+      struct fh_p_expr *index = new_expr(p, tok.loc, EXPR_STRING, 0);
       if (! index)
         goto err;
       const char *index_str = fh_get_token_symbol(p->ast, &tok);
@@ -503,7 +472,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         goto err;
       }
 
-      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_INDEX);
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_INDEX, 0);
       if (! expr) {
         fh_free_expr(container);
         fh_free_expr(index);
@@ -524,7 +493,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
     if (tok_is_punct(&tok, '[')) {
       struct fh_p_expr *expr;
       if (expect_opn) {
-        expr = new_expr(p, tok.loc, EXPR_ARRAY_LIT);
+        expr = new_expr(p, tok.loc, EXPR_ARRAY_LIT, 0);
         if (! expr)
           goto err;
         if (parse_array_literal(p, &expr->data.array_lit) < 0) {
@@ -541,7 +510,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
 
-        expr = new_expr(p, tok.loc, EXPR_INDEX);
+        expr = new_expr(p, tok.loc, EXPR_INDEX, 0);
         if (! expr) {
           fh_free_expr(container);
           goto err;
@@ -569,7 +538,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error(p, tok.loc, "unexpected '{'");
         goto err;
       }
-      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_MAP_LIT);
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_MAP_LIT, 0);
       if (! expr)
         goto err;
       if (parse_map_literal(p, &expr->data.map_lit) < 0) {
@@ -620,7 +589,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *num = new_expr(p, tok.loc, EXPR_NUMBER);
+      struct fh_p_expr *num = new_expr(p, tok.loc, EXPR_NUMBER, 0);
       if (! num)
         goto err;
       num->data.num = tok.data.num;
@@ -639,7 +608,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *str = new_expr(p, tok.loc, EXPR_STRING);
+      struct fh_p_expr *str = new_expr(p, tok.loc, EXPR_STRING, 0);
       if (! str)
         goto err;
       str->data.str = tok.data.str;
@@ -664,7 +633,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         goto err;
       }
 
-      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_NONE);
+      struct fh_p_expr *expr = new_expr(p, tok.loc, EXPR_NONE, 0);
       if (! expr)
         goto err;
       if (strcmp(sym_name, "null") == 0) {
@@ -694,13 +663,9 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
         fh_parse_error_expected(p, tok.loc, "'(' or operator");
         goto err;
       }
-      struct fh_p_expr *func = new_expr(p, tok.loc, EXPR_FUNC);
+      struct fh_p_expr *func = parse_func(p);
       if (! func)
         goto err;
-      if (! parse_func(p, &func->data.func)) {
-        free(func);
-        goto err;
-      }
       if (! p_expr_stack_push(&opns, &func)) {
         fh_free_expr(func);
         fh_parse_error_oom(p, tok.loc);
@@ -732,7 +697,7 @@ static struct fh_p_stmt *parse_stmt_if(struct fh_parser *p)
   if (! tok_is_punct(&tok, '('))
     return fh_parse_error_expected(p, tok.loc, "'('");
 
-  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_IF);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_IF, 0);
   if (! stmt)
     return NULL;
   stmt->data.stmt_if.test = NULL;
@@ -773,7 +738,7 @@ static struct fh_p_stmt *parse_stmt_while(struct fh_parser *p)
   if (! tok_is_punct(&tok, '('))
     return fh_parse_error_expected(p, tok.loc, "'('");
 
-  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_WHILE);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_WHILE, 0);
   if (! stmt)
     return NULL;
   stmt->data.stmt_while.test = NULL;
@@ -811,7 +776,7 @@ static struct fh_p_stmt *parse_stmt(struct fh_parser *p)
     return parse_stmt_while(p);
   }
 
-  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_NONE);
+  struct fh_p_stmt *stmt = new_stmt(p, tok.loc, STMT_NONE, 0);
   if (! stmt)
     return NULL;
 
@@ -912,8 +877,8 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
   if (! tok_is_punct(&tok, '{'))
     return fh_parse_error_expected(p, tok.loc, "'{'");
 
-  struct p_stmt_stack stmts;
-  p_stmt_stack_init(&stmts);
+  block->stmt_list = NULL;
+  struct fh_p_stmt **list_tail = &block->stmt_list;
   while (1) {
     if (get_token(p, &tok) < 0)
       goto err;
@@ -924,29 +889,21 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
     struct fh_p_stmt *stmt = parse_stmt(p);
     if (! stmt)
       goto err;
-    if (! p_stmt_stack_push(&stmts, &stmt)) {
-      fh_parse_error_oom(p, tok.loc);
-      goto err;
-    }
+    *list_tail = stmt;
+    list_tail = &stmt->next;
   }
 
-  if (p_stmt_stack_shrink_to_fit(&stmts) < 0)
-    goto err;
-  block->n_stmts = p_stmt_stack_size(&stmts);
-  block->stmts = p_stmt_stack_data(&stmts);
   return block;
 
  err:
-  fh_free_stmts(p_stmt_stack_data(&stmts), p_stmt_stack_size(&stmts));
-  p_stmt_stack_free(&stmts);
+  fh_free_stmt_list(block->stmt_list);
   return NULL;
 }
 
-static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_func *func)
+static struct fh_p_expr *parse_func(struct fh_parser *p)
 {
   struct fh_token tok;
 
-  // param list
   if (get_token(p, &tok) < 0)
     return NULL;
   if (! tok_is_punct(&tok, '('))
@@ -974,22 +931,21 @@ static struct fh_p_expr_func *parse_func(struct fh_parser *p, struct fh_p_expr_f
     }
   }
   
-  // function body
-  if (! parse_block(p, &func->body))
+  struct fh_p_expr *func = new_expr(p, tok.loc, EXPR_FUNC, n_params * sizeof(fh_symbol_id));
+  if (! func)
     return NULL;
+  func->data.func.n_params = n_params;
+  func->data.func.params = (fh_symbol_id *) ((char *)func + sizeof(struct fh_p_expr));
+  memcpy(func->data.func.params, params, n_params * sizeof(fh_symbol_id));
 
-  // copy params
-  func->n_params = n_params;
-  func->params = malloc(n_params * sizeof(params[0]));
-  if (! func->params) {
-    fh_free_block(func->body);
-    return fh_parse_error_oom(p, tok.loc);
+  if (! parse_block(p, &func->data.func.body)) {
+    free(func);
+    return NULL;
   }
-  memcpy(&func->params[0], &params[0], n_params * sizeof(params[0]));
   return func;
 }
 
-static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p_named_func *func)
+static struct fh_p_named_func *parse_named_func(struct fh_parser *p)
 {
   struct fh_token tok;
 
@@ -998,12 +954,18 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p, struct fh_p
     return NULL;
   if (! tok_is_symbol(&tok))
     return fh_parse_error_expected(p, tok.loc, "function name");
-  func->loc = tok.loc;
-  func->name = tok.data.symbol_id;
 
-  // rest of function
-  if (! parse_func(p, &func->func))
+  struct fh_p_named_func *func = fh_new_named_func(p->ast, tok.loc);
+  if (! func)
     return NULL;
+  func->name = tok.data.symbol_id;
+  
+  // rest of function
+  func->func = parse_func(p);
+  if (! func->func) {
+    free(func);
+    return NULL;
+  }
 
   return func;
 }
@@ -1053,8 +1015,8 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
   if (new_input(p, p->last_loc, in) < 0)
     return -1;
   
-  struct named_func_stack funcs;
-  named_func_stack_init(&funcs);
+  struct fh_p_named_func *func_list = NULL;
+  struct fh_p_named_func **func_list_tail = &func_list;
 
   struct fh_token tok;
   while (1) {
@@ -1071,29 +1033,23 @@ int fh_parse(struct fh_parser *p, struct fh_ast *ast, struct fh_input *in)
     }
 
     if (tok_is_keyword(&tok, KW_FUNCTION)) {
-      struct fh_p_named_func func;
-      if (! parse_named_func(p, &func))
+      struct fh_p_named_func *func = parse_named_func(p);
+      if (! func)
         goto err;
-      if (! named_func_stack_push(&funcs, &func)) {
-        fh_parse_error_oom(p, tok.loc);
-        goto err;
-      }
+      *func_list_tail = func;
+      func_list_tail = &func->next;
       continue;
     }
 
     fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->ast, &tok));
     goto err;
   }
-  stack_foreach(struct fh_p_named_func, *, f, &funcs) {
-    named_func_stack_push(&p->ast->funcs, f);
-  }
-  named_func_stack_free(&funcs);
+
+  *func_list_tail = p->ast->func_list;
+  p->ast->func_list = func_list;
   return 0;
 
  err:
-  stack_foreach(struct fh_p_named_func, *, f, &funcs) {
-    fh_free_named_func(*f);
-  }
-  named_func_stack_free(&funcs);
+  fh_free_named_func_list(func_list);
   return -1;
 }

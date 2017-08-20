@@ -837,20 +837,22 @@ static int compile_un_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func_call *expr)
 {
-  int func_reg = alloc_n_regs(c, loc, expr->n_args+1);
+  int n_args = fh_expr_list_size(expr->arg_list);
+  int func_reg = alloc_n_regs(c, loc, n_args + 1);
   if (func_reg < 0)
     return -1;
   if (compile_expr_to_reg(c, expr->func, func_reg) < 0)
     return -1;
-  for (int i = 0; i < expr->n_args; i++) {
-    if (compile_expr_to_reg(c, &expr->args[i], func_reg + 1 + i) < 0)
+  int reg = func_reg + 1;
+  for (struct fh_p_expr *e = expr->arg_list; e != NULL; e = e->next) {
+    if (compile_expr_to_reg(c, e, reg++) < 0)
       return -1;
   }
 
-  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_CALL, func_reg, expr->n_args)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AB(OPC_CALL, func_reg, n_args)) < 0)
     return -1;
 
-  for (int i = 1; i < expr->n_args+1; i++)
+  for (int i = 1; i < n_args+1; i++)
     free_reg(c, loc, func_reg+i);
 
   return func_reg;
@@ -881,18 +883,20 @@ static int compile_index(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_array_lit *expr)
 {
-  int array_reg = alloc_n_regs(c, loc, expr->n_elems+1);
+  int n_elems = fh_expr_list_size(expr->elem_list);
+  int array_reg = alloc_n_regs(c, loc, n_elems + 1);
   if (array_reg < 0)
     return -1;
-  for (int i = 0; i < expr->n_elems; i++) {
-    if (compile_expr_to_reg(c, &expr->elems[i], array_reg + 1 + i) < 0)
+  int reg = array_reg + 1;
+  for (struct fh_p_expr *e = expr->elem_list; e != NULL; e = e->next) {
+    if (compile_expr_to_reg(c, e, reg++) < 0)
       return -1;
   }
 
-  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWARRAY, array_reg, expr->n_elems)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWARRAY, array_reg, n_elems)) < 0)
     return -1;
 
-  for (int i = 1; i < expr->n_elems+1; i++)
+  for (int i = 1; i < n_elems+1; i++)
     free_reg(c, loc, array_reg+i);
 
   return array_reg;
@@ -900,20 +904,22 @@ static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struc
 
 static int compile_map_lit(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_map_lit *expr)
 {
-  int map_reg = alloc_n_regs(c, loc, expr->n_elems+1);
+  int n_elems = fh_expr_list_size(expr->elem_list);
+  int map_reg = alloc_n_regs(c, loc, n_elems+1);
   if (map_reg < 0)
     return -1;
-  for (int i = 0; i < expr->n_elems; i++) {
-    if (i % 2 == 0 && expr->elems[i].type == EXPR_NULL)
+  int reg = map_reg + 1;
+  for (struct fh_p_expr *e = expr->elem_list; e != NULL; e = e->next) {
+    if ((reg - map_reg - 1) % 2 == 0 && e->type == EXPR_NULL)
       return fh_compiler_error(c, loc, "map key can't be null");
-    if (compile_expr_to_reg(c, &expr->elems[i], map_reg + 1 + i) < 0)
+    if (compile_expr_to_reg(c, e, reg++) < 0)
       return -1;
   }
 
-  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWMAP, map_reg, expr->n_elems)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AU(OPC_NEWMAP, map_reg, n_elems)) < 0)
     return -1;
 
-  for (int i = 1; i < expr->n_elems+1; i++)
+  for (int i = 1; i < n_elems+1; i++)
     free_reg(c, loc, map_reg+i);
 
   return map_reg;
@@ -1273,9 +1279,10 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   bi->start_addr = block_start_addr;
   bi->parent_num_regs = get_top_var_reg(c, loc) + 1;
 
-  for (int i = 0; i < block->n_stmts; i++)
-    if (compile_stmt(c, block->stmts[i]) < 0)
+  for (struct fh_p_stmt *s = block->stmt_list; s != NULL; s = s->next) {
+    if (compile_stmt(c, s) < 0)
       return -1;
+  }
 
   int num_open_upvals = get_num_open_upvals(c, loc, bi->parent_num_regs);
   switch (bi->type) {
@@ -1315,7 +1322,13 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   if (compile_block(c, loc, &func->body, COMP_BLOCK_FUNC, -1) < 0)
     goto err;
 
-  if (func->body.n_stmts == 0 || func->body.stmts[func->body.n_stmts-1]->type != STMT_RETURN) {
+  struct fh_p_stmt *last_stmt;
+  for (last_stmt = func->body.stmt_list; last_stmt != NULL; last_stmt = last_stmt->next) {
+    if (! last_stmt->next)
+      break;
+  }
+  
+  if (! last_stmt || last_stmt->type != STMT_RETURN) {
     if (add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0)) < 0)
       goto err;
   }
@@ -1356,7 +1369,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
 
 static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func_def *func_def)
 {
-  if (compile_func(c, func->loc, &func->func, func_def, NULL) < 0)
+  if (compile_func(c, func->loc, &func->func->data.func, func_def, NULL) < 0)
     return -1;
 
   if (func_info_stack_size(&c->funcs) > 0)
@@ -1382,7 +1395,7 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
 
   int pin_state = fh_get_pin_state(c->prog);
   
-  stack_foreach(struct fh_p_named_func, *, f, &c->ast->funcs) {
+  for (struct fh_p_named_func *f = c->ast->func_list; f != NULL; f = f->next) {
     const char *name = get_func_name(c, f);
     if (! name)
       goto err;
@@ -1390,7 +1403,7 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
     if (fh_get_global_func_by_name(c->prog, name))
       return fh_compiler_error(c, f->loc, "function '%s' already exists", name);
 
-    struct fh_func_def *func_def = new_func_def(c, f->loc, name, f->func.n_params);
+    struct fh_func_def *func_def = new_func_def(c, f->loc, name, f->func->data.func.n_params);
     if (! func_def) {
       fh_compiler_error(c, f->loc, "out of memory");
       goto err;
@@ -1410,7 +1423,7 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
     }
   }
 
-  stack_foreach(struct fh_p_named_func, *, f, &c->ast->funcs) {
+  for (struct fh_p_named_func *f = c->ast->func_list; f != NULL; f = f->next) {
     const char *name = get_func_name(c, f);
     if (! name)
       goto err;

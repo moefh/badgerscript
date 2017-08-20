@@ -44,11 +44,11 @@ struct fh_ast *fh_new_ast(struct fh_symtab *file_names)
   struct fh_ast *ast = malloc(sizeof(struct fh_ast));
   if (! ast)
     return NULL;
+  ast->func_list = NULL;
   ast->file_names = file_names;
   fh_init_symtab(&ast->symtab);
   fh_init_op_table(&ast->op_table);
   fh_init_buffer(&ast->string_pool);
-  named_func_stack_init(&ast->funcs);
 
   for (int i = 0; i < ARRAY_SIZE(ast_ops); i++) {
     if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0) {
@@ -61,11 +61,7 @@ struct fh_ast *fh_new_ast(struct fh_symtab *file_names)
 
 void fh_free_ast(struct fh_ast *ast)
 {
-  stack_foreach(struct fh_p_named_func, *, func, &ast->funcs) {
-    fh_free_named_func(*func);
-  }
-  named_func_stack_free(&ast->funcs);
-
+  fh_free_named_func_list(ast->func_list);
   fh_destroy_op_table(&ast->op_table);
   fh_destroy_buffer(&ast->string_pool);
   fh_destroy_symtab(&ast->symtab);
@@ -100,16 +96,74 @@ const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
   return opr->name;
 }
 
-void fh_free_func(struct fh_p_expr_func func)
+/* node creation */
+
+struct fh_p_named_func *fh_new_named_func(struct fh_ast *ast, struct fh_src_loc loc)
 {
-  if (func.params)
-    free(func.params);
-  fh_free_block(func.body);
+  UNUSED(ast);
+  struct fh_p_named_func *func = malloc(sizeof(struct fh_p_named_func));
+  func->next = NULL;
+  func->loc = loc;
+  return func;
 }
 
-void fh_free_named_func(struct fh_p_named_func func)
+struct fh_p_expr *fh_new_expr(struct fh_ast *ast, struct fh_src_loc loc, enum fh_expr_type type, size_t extra_size)
 {
-  fh_free_func(func.func);
+  UNUSED(ast);
+  struct fh_p_expr *expr = malloc(sizeof(struct fh_p_expr) + extra_size);
+  if (! expr)
+    return NULL;
+  expr->next = NULL;
+  expr->type = type;
+  expr->loc = loc;
+  return expr;
+}
+
+struct fh_p_stmt *fh_new_stmt(struct fh_ast *ast, struct fh_src_loc loc, enum fh_stmt_type type, size_t extra_size)
+{
+  UNUSED(ast);
+  struct fh_p_stmt *stmt = malloc(sizeof(struct fh_p_stmt) + extra_size);
+  if (! stmt)
+    return NULL;
+  stmt->next = NULL;
+  stmt->type = type;
+  stmt->loc = loc;
+  return stmt;
+}
+
+/* node utility functions */
+int fh_expr_list_size(struct fh_p_expr *list)
+{
+  int n = 0;
+  for (struct fh_p_expr *e = list; e != NULL; e = e->next)
+    n++;
+  return n;
+}
+
+int fh_stmt_list_size(struct fh_p_stmt *list)
+{
+  int n = 0;
+  for (struct fh_p_stmt *s = list; s != NULL; s = s->next)
+    n++;
+  return n;
+}
+
+/* node destruction */
+
+void fh_free_named_func(struct fh_p_named_func *func)
+{
+  fh_free_expr(func->func);
+  free(func);
+}
+
+void fh_free_named_func_list(struct fh_p_named_func *list)
+{
+  struct fh_p_named_func *f = list;
+  while (f != NULL) {
+    struct fh_p_named_func *next = f->next;
+    fh_free_named_func(f);
+    f = next;
+  }
 }
 
 void fh_free_expr_children(struct fh_p_expr *expr)
@@ -138,31 +192,19 @@ void fh_free_expr_children(struct fh_p_expr *expr)
 
   case EXPR_FUNC_CALL:
     fh_free_expr(expr->data.func_call.func);
-    if (expr->data.func_call.args) {
-      for (int i = 0; i < expr->data.func_call.n_args; i++)
-        fh_free_expr_children(&expr->data.func_call.args[i]);
-      free(expr->data.func_call.args);
-    }
+    fh_free_expr_list(expr->data.func_call.arg_list);
     return;
 
   case EXPR_ARRAY_LIT:
-    if (expr->data.array_lit.elems) {
-      for (int i = 0; i < expr->data.array_lit.n_elems; i++)
-        fh_free_expr_children(&expr->data.array_lit.elems[i]);
-      free(expr->data.array_lit.elems);
-    }
+    fh_free_expr_list(expr->data.array_lit.elem_list);
     return;
 
   case EXPR_MAP_LIT:
-    if (expr->data.map_lit.elems) {
-      for (int i = 0; i < expr->data.map_lit.n_elems; i++)
-        fh_free_expr_children(&expr->data.map_lit.elems[i]);
-      free(expr->data.map_lit.elems);
-    }
+    fh_free_expr_list(expr->data.map_lit.elem_list);
     return;
 
   case EXPR_FUNC:
-    fh_free_func(expr->data.func);
+    fh_free_block(expr->data.func.body);
     return;
   }
   
@@ -174,6 +216,16 @@ void fh_free_expr(struct fh_p_expr *expr)
   if (expr) {
     fh_free_expr_children(expr);
     free(expr);
+  }
+}
+
+void fh_free_expr_list(struct fh_p_expr *list)
+{
+  struct fh_p_expr *e = list;
+  while (e != NULL) {
+    struct fh_p_expr *next = e->next;
+    fh_free_expr(e);
+    e = next;
   }
 }
 
@@ -224,20 +276,19 @@ void fh_free_stmt(struct fh_p_stmt *stmt)
   }
 }
 
-void fh_free_stmts(struct fh_p_stmt **stmts, int n_stmts)
+void fh_free_stmt_list(struct fh_p_stmt *list)
 {
-  if (stmts) {
-    for (int i = 0; i < n_stmts; i++)
-      fh_free_stmt(stmts[i]);
+  struct fh_p_stmt *s = list;
+  while (s != NULL) {
+    struct fh_p_stmt *next = s->next;
+    fh_free_stmt(s);
+    s = next;
   }
 }
 
 void fh_free_block(struct fh_p_stmt_block block)
 {
-  if (block.stmts) {
-    fh_free_stmts(block.stmts, block.n_stmts);
-    free(block.stmts);
-  }
+  fh_free_stmt_list(block.stmt_list);
 }
 
 int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_expr *expr, void *data), void *data)
@@ -278,29 +329,23 @@ int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_exp
   case EXPR_FUNC_CALL:
     if ((ret = fh_ast_visit_expr_nodes(expr->data.func_call.func, visit, data)) != 0)
       return ret;
-    if (expr->data.func_call.args) {
-      for (int i = 0; i < expr->data.func_call.n_args; i++) {
-        if ((ret = fh_ast_visit_expr_nodes(&expr->data.func_call.args[i], visit, data)) != 0)
-          return ret;
-      }
+    for (struct fh_p_expr *e = expr->data.func_call.arg_list; e != NULL; e = e->next) {
+      if ((ret = fh_ast_visit_expr_nodes(e, visit, data)) != 0)
+        return ret;
     }
     return 0;
 
   case EXPR_ARRAY_LIT:
-    if (expr->data.array_lit.elems) {
-      for (int i = 0; i < expr->data.array_lit.n_elems; i++) {
-        if ((ret = fh_ast_visit_expr_nodes(&expr->data.array_lit.elems[i], visit, data)) != 0)
-          return ret;
-      }
+    for (struct fh_p_expr *e = expr->data.array_lit.elem_list; e != NULL; e = e->next) {
+      if ((ret = fh_ast_visit_expr_nodes(e, visit, data)) != 0)
+        return ret;
     }
     return 0;
 
   case EXPR_MAP_LIT:
-    if (expr->data.map_lit.elems) {
-      for (int i = 0; i < expr->data.map_lit.n_elems; i++) {
-        if ((ret = fh_ast_visit_expr_nodes(&expr->data.map_lit.elems[i], visit, data)) != 0)
-          return ret;
-      }
+    for (struct fh_p_expr *e = expr->data.map_lit.elem_list; e != NULL; e = e->next) {
+      if ((ret = fh_ast_visit_expr_nodes(e, visit, data)) != 0)
+        return ret;
     }
     return 0;
   }

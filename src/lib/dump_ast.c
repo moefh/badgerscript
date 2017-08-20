@@ -103,9 +103,9 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
     dump_expr(ast, indent, expr->data.func_call.func);
     if (expr_needs_paren(expr->data.func_call.func)) printf(")");
     printf("(");
-    for (int i = 0; i < expr->data.func_call.n_args; i++) {
-      dump_expr(ast, indent, &expr->data.func_call.args[i]);
-      if (i+1 < expr->data.func_call.n_args)
+    for (struct fh_p_expr *e = expr->data.func_call.arg_list; e != NULL; e = e->next) {
+      dump_expr(ast, indent, e);
+      if (e->next)
         printf(", ");
     }
     printf(")");
@@ -113,25 +113,28 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
 
   case EXPR_ARRAY_LIT:
     printf("[ ");
-    for (int i = 0; i < expr->data.array_lit.n_elems; i++) {
-      dump_expr(ast, indent, &expr->data.array_lit.elems[i]);
-      if (i+1 < expr->data.array_lit.n_elems)
+    for (struct fh_p_expr *e = expr->data.array_lit.elem_list; e != NULL; e = e->next) {
+      dump_expr(ast, indent, e);
+      if (e->next)
         printf(", ");
     }
     printf(" ]");
     return;
 
   case EXPR_MAP_LIT:
-    printf("{ ");
-    for (int i = 0; i < expr->data.array_lit.n_elems/2; i++) {
-      dump_expr(ast, indent, &expr->data.array_lit.elems[2*i]);
-      printf(" : ");
-      dump_expr(ast, indent, &expr->data.array_lit.elems[2*i+1]);
-      if (2*(i+1)+1 < expr->data.array_lit.n_elems)
-        printf(", ");
-    }
-    if (expr->data.array_lit.n_elems > 0)
+    printf("{");
+    for (struct fh_p_expr *e = expr->data.map_lit.elem_list; e != NULL; e = e->next) {
       printf(" ");
+      dump_expr(ast, indent, e);
+      printf(" : ");
+      if (! (e = e->next)) {
+        printf("<ERROR>");
+        break;
+      }
+      dump_expr(ast, indent, e);
+      if (e->next)
+        printf(",");
+    }
     printf("}");
     return;
 
@@ -248,8 +251,8 @@ static void dump_stmt(struct fh_ast *ast, int indent, struct fh_p_stmt *stmt)
 static void dump_block(struct fh_ast *ast, int indent, struct fh_p_stmt_block block)
 {
   printf("{\n");
-  for (int i = 0; i < block.n_stmts; i++)
-    dump_stmt(ast, indent+INDENT, block.stmts[i]);
+  for (struct fh_p_stmt *s = block.stmt_list; s != NULL; s = s->next)
+    dump_stmt(ast, indent+INDENT, s);
   printf("%*s}", indent, "");
 }
 
@@ -266,19 +269,19 @@ void fh_dump_block(struct fh_ast *ast, struct fh_p_stmt_block block)
 void fh_dump_named_func(struct fh_ast *ast, struct fh_p_named_func *func)
 {
   printf("function %s(", fh_get_ast_symbol(ast, func->name));
-  for (int i = 0; i < func->func.n_params; i++) {
-    printf("%s", fh_get_ast_symbol(ast, func->func.params[i]));
-    if (i+1 < func->func.n_params)
+  for (int i = 0; i < func->func->data.func.n_params; i++) {
+    printf("%s", fh_get_ast_symbol(ast, func->func->data.func.params[i]));
+    if (i+1 < func->func->data.func.n_params)
       printf(", ");
   }
   printf(") ");
-  dump_block(ast, 0, func->func.body);
+  dump_block(ast, 0, func->func->data.func.body);
   printf("\n");
 }
 
 void fh_dump_ast(struct fh_ast *ast)
 {
-  stack_foreach(struct fh_p_named_func, *, f, &ast->funcs) {
+  for (struct fh_p_named_func *f = ast->func_list; f != NULL; f = f->next) {
     fh_dump_named_func(ast, f);
   }
 }
