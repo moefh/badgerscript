@@ -165,10 +165,10 @@ void fh_dump_bc_instr(struct fh_program *prog, int32_t addr, uint32_t instr)
   UNUSED(prog);
 
   if (addr >= 0)
-    printf("%-5d", addr);
+    printf("%5d       ", addr);
   else
     printf("     ");
-  printf("%08x     ", instr);
+  //printf("%08x     ", instr);
   enum fh_bc_opcode opc = GET_INSTR_OP(instr);
   switch (opc) {
   case OPC_RET:      printf("ret       "); dump_instr_ret(instr); return;
@@ -259,9 +259,22 @@ static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
     printf("; function %s(): %u parameters, %d regs\n", func_name, func_def->n_params, func_def->n_regs);
   else
     printf("; function at %p: %u parameters, %d regs\n", (void *) func_def, func_def->n_params, func_def->n_regs);
+
+  struct fh_src_loc loc = fh_make_src_loc(0,0,0);
+  const char *code_src_loc = func_def->code_src_loc;
+  const char *code_src_loc_end = code_src_loc + func_def->code_src_loc_size;
+
+  //for (int i = 0; i < func_def->code_src_loc_size; i++) printf("%02x ", (uint8_t) code_src_loc[i]); printf("\n");
   
-  for (int i = 0; i < func_def->code_size; i++)
+  for (int i = 0; i < func_def->code_size; i++) {
+    if (code_src_loc) {
+      code_src_loc = fh_decode_src_loc(code_src_loc, code_src_loc_end - code_src_loc, &loc, 1);
+      printf("%4d:%-4d     ", loc.line, loc.col);
+    } else {
+      printf("              ");
+    }
     fh_dump_bc_instr(prog, i, func_def->code[i]);
+  }
 
   if (func_def->n_consts) {
     printf("; %d constants:\n", func_def->n_consts);

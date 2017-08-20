@@ -15,6 +15,8 @@ static void free_func_def(struct fh_func_def *func_def)
     free(func_def->code);
   if (func_def->upvals)
     free(func_def->upvals);
+  if (func_def->code_src_loc)
+    free(func_def->code_src_loc);
   free(func_def);
 }
 

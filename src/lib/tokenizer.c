@@ -136,7 +136,7 @@ static bool is_op(struct fh_tokenizer *t, char *name)
   return fh_get_op(&t->ast->op_table, name) != NULL;
 }
 
-static int find_keyword(char *keyword, int keyword_size, enum fh_keyword_type *ret)
+static int find_keyword(const void *keyword, int keyword_size, enum fh_keyword_type *ret)
 {
   for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
     if (strncmp(keyword, keywords[i].name, keyword_size) == 0 && keywords[i].name[keyword_size] == '\0') {
@@ -293,8 +293,8 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
     }
     
     char *end = NULL;
-    double num = strtod((char *) t->tmp->p, &end);
-    if ((char *) t->tmp->p == end) {
+    double num = strtod(t->tmp->p, &end);
+    if (t->tmp->p == end) {
       set_error(t, tok->loc, "invalid number");
       return -1;
     }

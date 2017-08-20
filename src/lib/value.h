@@ -3,7 +3,7 @@
 #ifndef VALUE_H_FILE
 #define VALUE_H_FILE
 
-#include "fh.h"
+#include "fh_internal.h"
 #include "stack.h"
 
 enum fh_upval_def_type {
@@ -74,6 +74,9 @@ struct fh_func_def {
   int n_consts;
   struct fh_upval_def *upvals;
   int n_upvals;
+  int code_src_loc_size;
+  void *code_src_loc;
+  fh_symbol_id src_file_id;
 };
 
 struct fh_upval {
@@ -115,7 +118,7 @@ struct fh_object {
 #define GET_OBJ_ARRAY(o)       ((struct fh_array     *) (o))
 #define GET_OBJ_MAP(o)         ((struct fh_map       *) (o))
 #define GET_OBJ_STRING(o)      ((struct fh_string    *) (o))
-#define GET_OBJ_STRING_DATA(o) (((char *) o) + sizeof(struct fh_string))
+#define GET_OBJ_STRING_DATA(o) (((char *) (o)) + sizeof(struct fh_string))
 
 #define GET_VAL_OBJ(v)         ((struct fh_object *) ((v)->data.obj))
 #define GET_VAL_CLOSURE(v)     (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)

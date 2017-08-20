@@ -414,7 +414,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
 
-        expr = new_expr(p, tok.loc, EXPR_FUNC_CALL);
+        expr = new_expr(p, func->loc, EXPR_FUNC_CALL);
         if (! expr) {
           fh_free_expr(func);
           goto err;

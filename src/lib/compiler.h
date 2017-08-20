@@ -43,6 +43,8 @@ struct func_info {
   struct code_stack code;
   struct value_stack consts;
   struct upval_def_stack upvals;
+  struct fh_src_loc last_instr_src_loc;
+  struct fh_buffer code_src_loc;
 };
 
 DECLARE_STACK(func_info_stack, struct func_info);

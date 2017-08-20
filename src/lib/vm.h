@@ -3,6 +3,7 @@
 #ifndef VM_H_FILE
 #define VM_H_FILE
 
+#include "fh_internal.h"
 #include "stack.h"
 
 struct fh_vm_call_frame {
@@ -22,6 +23,9 @@ struct fh_vm {
   struct fh_upval *open_upvals;
   struct call_frame_stack call_stack;
   uint32_t *pc;
+  struct fh_src_loc last_error_loc;
+  int last_error_addr;
+  int last_error_frame_index;
 };
 
 void fh_init_vm(struct fh_vm *vm, struct fh_program *prog);

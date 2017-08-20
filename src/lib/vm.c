@@ -16,6 +16,9 @@ void fh_init_vm(struct fh_vm *vm, struct fh_program *prog)
   vm->stack = NULL;
   vm->stack_size = 0;
   vm->open_upvals = NULL;
+  vm->last_error_loc = fh_make_src_loc(0,0,0);
+  vm->last_error_addr = -1;
+  vm->last_error_frame_index = -1;
   call_frame_stack_init(&vm->call_stack);
 }
 
@@ -250,6 +253,26 @@ static void dump_state(struct fh_vm *vm)
   int addr = (frame) ? vm->pc - 1 - frame->closure->func_def->code : -1;
   fh_dump_bc_instr(vm->prog, addr, vm->pc[-1]);
   printf("----------------------------\n");
+}
+
+static void save_error_loc(struct fh_vm *vm)
+{
+  int frame_index = call_frame_stack_size(&vm->call_stack) - 1;
+  struct fh_vm_call_frame *frame;
+  do {
+    frame = call_frame_stack_item(&vm->call_stack, frame_index);
+    frame_index--;
+  } while (frame && ! frame->closure);
+  if (frame) {
+    struct fh_func_def *func_def = frame->closure->func_def;
+    vm->last_error_frame_index = frame_index;
+    vm->last_error_addr = vm->pc - func_def->code;
+    vm->last_error_loc = fh_get_addr_src_loc(func_def, vm->last_error_addr);
+  } else {
+    vm->last_error_frame_index = -1;
+    vm->last_error_addr = -1;
+    vm->last_error_loc = fh_make_src_loc(0,0,0);
+  }
 }
 
 #define handle_op(op) case op:
@@ -636,11 +659,13 @@ int fh_run_vm(struct fh_vm *vm)
 
  err:
   vm->pc = pc;
+  save_error_loc(vm);
   dump_state(vm);
   return -1;
   
  user_err:
   vm->pc = pc;
+  save_error_loc(vm);
   //dump_state(vm);
   return -1;
 }

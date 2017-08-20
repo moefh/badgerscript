@@ -44,7 +44,7 @@ void fh_destroy_compiler(struct fh_compiler *c)
   func_info_stack_free(&c->funcs);
 }
 
-static struct func_info *new_func_info(struct fh_compiler *c, struct func_info *parent)
+static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *parent)
 {
   struct func_info *fi = func_info_stack_push(&c->funcs, NULL);
   if (! fi)
@@ -58,8 +58,24 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct func_info *
   reg_stack_init(&fi->regs);
   int_stack_init(&fi->break_addrs);
   block_info_stack_init(&fi->blocks);
+  fi->last_instr_src_loc = loc;
+  fh_init_buffer(&fi->code_src_loc);
   
   return func_info_stack_top(&c->funcs);
+}
+
+static void pop_func_info(struct fh_compiler *c)
+{
+  struct func_info fi;
+  if (func_info_stack_pop(&c->funcs, &fi) < 0)
+    return;
+  reg_stack_free(&fi.regs);
+  int_stack_free(&fi.break_addrs);
+  code_stack_free(&fi.code);
+  value_stack_free(&fi.consts);
+  upval_def_stack_free(&fi.upvals);
+  block_info_stack_free(&fi.blocks);
+  fh_destroy_buffer(&fi.code_src_loc);
 }
 
 static struct func_info *get_cur_func_info(struct fh_compiler *c, struct fh_src_loc loc)
@@ -97,19 +113,6 @@ static struct block_info *get_cur_block_info(struct fh_compiler *c, struct fh_sr
   }
   fh_compiler_error(c, loc, "not inside loop");
   return NULL;
-}
-
-static void pop_func_info(struct fh_compiler *c)
-{
-  struct func_info fi;
-  if (func_info_stack_pop(&c->funcs, &fi) < 0)
-    return;
-  reg_stack_free(&fi.regs);
-  int_stack_free(&fi.break_addrs);
-  code_stack_free(&fi.code);
-  value_stack_free(&fi.consts);
-  upval_def_stack_free(&fi.upvals);
-  block_info_stack_free(&fi.blocks);
 }
 
 static int get_cur_pc(struct fh_compiler *c, struct fh_src_loc loc)
@@ -172,6 +175,10 @@ static int add_instr(struct fh_compiler *c, struct fh_src_loc loc, uint32_t inst
 
   if (! code_stack_push(&fi->code, &instr))
     return fh_compiler_error(c, loc, "out of memory for bytecode");
+
+  if (fh_encode_src_loc_change(&fi->code_src_loc, &fi->last_instr_src_loc, &loc) < 0)
+    return fh_compiler_error(c, loc, "out of memory for bytecode source location");
+  fi->last_instr_src_loc = loc;
   return 0;
 }
 
@@ -1294,7 +1301,7 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent)
 {
-  struct func_info *fi = new_func_info(c, parent);
+  struct func_info *fi = new_func_info(c, loc, parent);
   if (! fi) {
     fh_compiler_error(c, loc, "out of memory");
     goto err;
@@ -1313,7 +1320,9 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
       goto err;
   }
 
-  if (code_stack_shrink_to_fit(&fi->code) < 0 || value_stack_shrink_to_fit(&fi->consts) < 0) {
+  if (code_stack_shrink_to_fit(&fi->code) < 0
+      || value_stack_shrink_to_fit(&fi->consts) < 0
+      || fh_buf_shrink_to_fit(&fi->code_src_loc) < 0) {
     fh_compiler_error(c, loc, "out of memory");
     goto err;
   }
@@ -1331,6 +1340,11 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   func_def->n_upvals = upval_def_stack_size(&fi->upvals);
   func_def->upvals = upval_def_stack_data(&fi->upvals);
   upval_def_stack_init(&fi->upvals);
+
+  func_def->code_src_loc_size = fi->code_src_loc.size;
+  func_def->code_src_loc = fi->code_src_loc.p;
+  fh_init_buffer(&fi->code_src_loc);
+  func_def->src_file_id = loc.file_id;
   
   pop_func_info(c);
   return 0;

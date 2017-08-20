@@ -19,7 +19,7 @@ void fh_destroy_symtab(struct fh_symtab *s)
   fh_destroy_buffer(&s->symbols);
 }
 
-fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
+fh_symbol_id fh_add_symbol(struct fh_symtab *s, const void *symbol)
 {
   fh_symbol_id cur = fh_get_symbol_id(s, symbol);
   if (cur >= 0)
@@ -41,7 +41,7 @@ fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol)
   return s->num++;
 }
 
-fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const char *symbol)
+fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const void *symbol)
 {
   for (fh_symbol_id i = 0; i < s->num; i++) {
     if (strcmp(symbol, (char*) s->symbols.p + s->entries[i]) == 0)

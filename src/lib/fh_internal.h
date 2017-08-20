@@ -72,17 +72,22 @@ int fh_utf8_len(char *str, size_t str_size);
 void fh_dump_value(const struct fh_value *val);
 void fh_dump_string(const char *str);
 void fh_dump_map(struct fh_map *map);
+const void *fh_decode_src_loc(const void *encoded, int encoded_len, struct fh_src_loc *src_loc, int n_instr);
+int fh_encode_src_loc_change(struct fh_buffer *buf, struct fh_src_loc *old_loc, struct fh_src_loc *new_loc);
+struct fh_src_loc fh_get_addr_src_loc(struct fh_func_def *func_def, int addr);
 
 void fh_init_buffer(struct fh_buffer *buf);
 void fh_destroy_buffer(struct fh_buffer *buf);
 int fh_buf_grow(struct fh_buffer *buf, size_t add_size);
-int fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size);
+int fh_buf_shrink_to_fit(struct fh_buffer *buf);
+int fh_buf_add_string(struct fh_buffer *buf, const void *str, size_t str_size);
 int fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
+int fh_buf_add_u16(struct fh_buffer *buf, uint16_t c);
 
 void fh_init_symtab(struct fh_symtab *s);
 void fh_destroy_symtab(struct fh_symtab *s);
-fh_symbol_id fh_add_symbol(struct fh_symtab *s, const char *symbol);
-fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const char *symbol);
+fh_symbol_id fh_add_symbol(struct fh_symtab *s, const void *symbol);
+fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const void *symbol);
 const char *fh_get_symbol_name(struct fh_symtab *s, fh_symbol_id id);
 
 void fh_init_op_table(struct fh_op_table *ops);

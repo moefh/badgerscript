@@ -69,6 +69,15 @@ void fh_set_gc_frequency(struct fh_program *prog, int frequency)
 
 const char *fh_get_error(struct fh_program *prog)
 {
+  if (prog->vm.last_error_addr < 0)
+    return prog->last_error_msg;
+  char tmp[512];
+  struct fh_src_loc *loc = &prog->vm.last_error_loc;
+  snprintf(tmp, sizeof(tmp), "%s:%d:%d: %s",
+           fh_get_symbol_name(&prog->src_file_names, loc->file_id),
+           loc->line, loc->col, prog->last_error_msg);
+  size_t size = (sizeof(tmp) > sizeof(prog->last_error_msg)) ? sizeof(prog->last_error_msg) : sizeof(tmp);
+  memcpy(prog->last_error_msg, tmp, size);
   return prog->last_error_msg;
 }
 
@@ -78,13 +87,14 @@ int fh_set_error(struct fh_program *prog, const char *fmt, ...)
   va_start(ap, fmt);
   vsnprintf(prog->last_error_msg, sizeof(prog->last_error_msg), fmt, ap);
   va_end(ap);
-
+  prog->vm.last_error_addr = -1;
   return -1;
 }
 
 int fh_set_verror(struct fh_program *prog, const char *fmt, va_list ap)
 {
   vsnprintf(prog->last_error_msg, sizeof(prog->last_error_msg), fmt, ap);
+  prog->vm.last_error_addr = -1;
   return -1;
 }
 

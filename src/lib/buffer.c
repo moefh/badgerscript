@@ -41,7 +41,24 @@ int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
   return 0;
 }
 
-int fh_buf_add_string(struct fh_buffer *buf, const char *str, size_t str_size)
+int fh_buf_shrink_to_fit(struct fh_buffer *buf)
+{
+  if (buf->size == 0) {
+    if (buf->p) {
+      free(buf->p);
+      buf->p = NULL;
+    }
+    return 0;
+  }
+  
+  void *new_p = realloc(buf->p, buf->size);
+  if (new_p == NULL)
+    return -1;
+  buf->p = new_p;
+  return 0;
+}
+
+int fh_buf_add_string(struct fh_buffer *buf, const void *str, size_t str_size)
 {
   int pos = buf->size;
   if (fh_buf_grow(buf, str_size + 1) < 0)
@@ -57,5 +74,15 @@ int fh_buf_add_byte(struct fh_buffer *buf, uint8_t c)
   if (fh_buf_grow(buf, 1) < 0)
     return -1;
   buf->p[pos++] = c;
+  return pos;
+}
+
+int fh_buf_add_u16(struct fh_buffer *buf, uint16_t c)
+{
+  int pos = buf->size;
+  if (fh_buf_grow(buf, 2) < 0)
+    return -1;
+  buf->p[pos++] = c & 0xff;
+  buf->p[pos++] = (c >> 8) & 0xff;
   return pos;
 }
