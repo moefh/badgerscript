@@ -1,31 +1,37 @@
 /* gc.c */
 
 #include <stdio.h>
+#include <inttypes.h>
 
 #include "fh_internal.h"
 #include "program.h"
 
+//#define COUNT_MEM_USAGE
 //#define DEBUG_GC
 
 #ifdef DEBUG_GC
-#define DEBUG_LOG(x)    printf(x)
-#define DEBUG_LOG1(x,y) printf(x,y)
+#define debug_log(x)    printf(x)
+#define debug_log1(x,y) printf(x,y)
 #else
-#define DEBUG_LOG(x)
-#define DEBUG_LOG1(x,y)
-#define DEBUG_OBJ(x, y)
+#define debug_log(x)
+#define debug_log1(x,y)
+#define debug_obj(x, y)
 #endif
 
 struct fh_gc_state {
   struct fh_object *container_list;
+#ifdef COUNT_MEM_USAGE
+  uint64_t used;
+  uint64_t released;
+#endif
 };
 
 #ifdef DEBUG_GC
 /* NOTE: we can't access any objects referenced by the object being
  * dumped, as they might already be free */
-static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
+static void debug_obj(const char *prefix, struct fh_object *obj)
 {
-  printf("%s object %p of type %d", prefix, obj, obj->obj.header.type);
+  printf("%s object %p of type %d", prefix, (void *) obj, obj->obj.header.type);
   switch (obj->obj.header.type) {
   case FH_VAL_STRING:    printf(" (string) "); fh_dump_string(GET_OBJ_STRING_DATA(obj)); printf("\n"); break;
   case FH_VAL_UPVAL:     printf(" (upval)\n"); break;
@@ -39,19 +45,51 @@ static void DEBUG_OBJ(const char *prefix, struct fh_object *obj)
 }
 #endif
 
-static void sweep(struct fh_program *prog)
+#ifdef COUNT_MEM_USAGE
+static inline size_t obj_size(struct fh_object *obj)
 {
-  DEBUG_LOG("***** sweeping\n");
+  switch (obj->obj.header.type) {
+  case FH_VAL_STRING:  return sizeof(struct fh_string) + GET_OBJ_STRING(obj)->size;
+  case FH_VAL_CLOSURE: return sizeof(struct fh_closure) + sizeof(struct fh_upval *)*GET_OBJ_CLOSURE(obj)->n_upvals;
+  case FH_VAL_UPVAL:   return sizeof(struct fh_upval);
+  case FH_VAL_ARRAY:   return sizeof(struct fh_array) + sizeof(struct fh_value)*GET_OBJ_ARRAY(obj)->cap;
+  case FH_VAL_MAP:     return sizeof(struct fh_map) + sizeof(struct fh_map_entry)*GET_OBJ_MAP(obj)->cap;
+  case FH_VAL_FUNC_DEF:
+    {
+      struct fh_func_def *f = GET_OBJ_FUNC_DEF(obj);
+      return (sizeof(struct fh_func_def)
+              + f->code_src_loc_size
+              + f->code_size * sizeof(uint32_t)
+              + f->n_consts * sizeof(struct fh_value)
+              + f->n_upvals * sizeof(struct fh_upval_def));
+    }
+  default:
+    return 0;
+  }
+}
+#define count_used(gc, obj)     do { (gc)->used     += obj_size((obj)); } while (0)
+#define count_released(gc, obj) do { (gc)->released += obj_size((obj)); } while (0)
+#else
+#define count_used(gc, obj)     (void)0
+#define count_released(gc, obj) (void)0
+#endif
+
+static void sweep(struct fh_gc_state *gc, struct fh_program *prog)
+{
+  UNUSED(gc);
+  debug_log("***** sweeping\n");
   struct fh_object **objs = &prog->objects;
   struct fh_object *cur;
   while ((cur = *objs) != NULL) {
     if (cur->obj.header.gc_bits & (GC_BIT_MARK|GC_BIT_PIN)) {
       objs = &cur->obj.header.next;
       cur->obj.header.gc_bits &= ~GC_BIT_MARK;
-      DEBUG_OBJ("-> keeping", cur);
+      count_used(gc, cur);
+      debug_obj("-> keeping", cur);
     } else {
       *objs = cur->obj.header.next;
-      DEBUG_OBJ("-> FREEING", cur);
+      count_released(gc, cur);
+      debug_obj("-> FREEING", cur);
       fh_free_object(cur);
     }      
   }
@@ -59,11 +97,11 @@ static void sweep(struct fh_program *prog)
 
 void fh_free_program_objects(struct fh_program *prog)
 {
-  DEBUG_LOG("***** FREEING ALL OBJECTS\n");
+  debug_log("***** FREEING ALL OBJECTS\n");
   struct fh_object *o = prog->objects;
   while (o) {
     struct fh_object *next = o->obj.header.next;
-    DEBUG_OBJ("-> FREEING", o);
+    debug_obj("-> FREEING", o);
     fh_free_object(o);
     o = next;
   }
@@ -74,7 +112,7 @@ void fh_free_program_objects(struct fh_program *prog)
 
 static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
 {
-  DEBUG_OBJ("-> marking", obj);
+  debug_obj("-> marking", obj);
   
   GC_SET_BIT(obj, GC_BIT_MARK);
   switch (obj->obj.header.type) {
@@ -215,7 +253,7 @@ static void mark_container_children(struct fh_gc_state *gc)
 static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
 {
   // mark global functions
-  DEBUG_LOG("***** marking global functions\n");
+  debug_log("***** marking global functions\n");
   stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
     MARK_OBJECT(gc, (struct fh_object *) *pc);
   }
@@ -225,46 +263,51 @@ static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
   if (cur_frame) {
     int stack_size = cur_frame->base + ((cur_frame->closure) ? cur_frame->closure->func_def->n_regs : 0);
     struct fh_value *stack = prog->vm.stack;
-    DEBUG_LOG1("***** marking %d stack values\n", stack_size);
+    debug_log1("***** marking %d stack values\n", stack_size);
     for (int i = 0; i < stack_size; i++)
       MARK_VALUE(gc, &stack[i]);
   }
 
   // mark open upvals
-  DEBUG_LOG("***** marking first open upval\n");
+  debug_log("***** marking first open upval\n");
   if (prog->vm.open_upvals)
     MARK_OBJECT(gc, (struct fh_object *) prog->vm.open_upvals);
   
   // mark pinned values
-  DEBUG_LOG1("***** marking %d pinned values\n", p_object_stack_size(&prog->pinned_objs));
+  debug_log1("***** marking %d pinned values\n", p_object_stack_size(&prog->pinned_objs));
   stack_foreach(struct fh_object *, *, o, &prog->pinned_objs) {
     MARK_OBJECT(gc, *o);
   }
 
   // mark C values
-  DEBUG_LOG1("***** marking %d C tmp values\n", value_stack_size(&prog->c_vals));
+  debug_log1("***** marking %d C tmp values\n", value_stack_size(&prog->c_vals));
   stack_foreach(struct fh_value, *, v, &prog->c_vals) {
     MARK_VALUE(gc, v);
   }
 }
 
-static void mark(struct fh_program *prog)
+static void mark(struct fh_gc_state *gc, struct fh_program *prog)
 {
-  struct fh_gc_state gc;
-
-  gc.container_list = NULL;
+  mark_roots(gc, prog);
   
-  mark_roots(&gc, prog);
-  
-  DEBUG_LOG("***** marking container children\n");
-  mark_container_children(&gc);
+  debug_log("***** marking container children\n");
+  mark_container_children(gc);
 }
 
 void fh_collect_garbage(struct fh_program *prog)
 {
-  DEBUG_LOG("== STARTING GC ==================\n");
-  mark(prog);
-  sweep(prog);
+  struct fh_gc_state gc = {
+    .container_list = NULL,
+  };
+
+  debug_log("== STARTING GC ==================\n");
+  mark(&gc, prog);
+  sweep(&gc, prog);
   prog->n_created_objs_since_last_gc = 0;
-  DEBUG_LOG("== GC DONE ======================\n");
+  debug_log("== GC DONE ======================\n");
+
+#ifdef COUNT_MEM_USAGE
+  printf("gc used:     %" PRIu64 "\n", gc.used);
+  printf("gc released: %" PRIu64 "\n", gc.released);
+#endif
 }

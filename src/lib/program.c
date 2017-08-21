@@ -52,6 +52,7 @@ void fh_free_program(struct fh_program *prog)
   p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
+  
   fh_collect_garbage(prog);
   fh_free_program_objects(prog);
   
