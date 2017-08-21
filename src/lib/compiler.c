@@ -743,7 +743,7 @@ static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, s
   case '/': opc = OPC_DIV; break;
   case '%': opc = OPC_MOD; break;
   default:
-    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
+    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_op_name(expr->op));
   }
   if (add_instr(c, loc, MAKE_INSTR_ABC(opc, dest_reg, left_rk, right_rk)) < 0)
     return -1;
@@ -822,7 +822,7 @@ static int compile_un_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, st
   case AST_OP_UNM: opc = OPC_NEG; break;
   case '!':        opc = OPC_NOT; break;
   default:
-    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_ast_op(c->ast, expr->op));
+    return fh_compiler_error(c, loc, "compilation of operator '%s' is not implemented", fh_get_op_name(expr->op));
   }
   if (add_instr(c, loc, MAKE_INSTR_AB(opc, dest_reg, arg_rk)) < 0)
     return -1;

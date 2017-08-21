@@ -162,7 +162,6 @@ struct fh_ast {
   struct fh_buffer string_pool;
   struct fh_symtab symtab;
   struct fh_symtab *file_names;
-  struct fh_op_table op_table;
   struct fh_p_named_func *func_list;
 };
 
@@ -170,7 +169,6 @@ struct fh_ast *fh_new_ast(struct fh_symtab *file_names);
 void fh_free_ast(struct fh_ast *ast);
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id);
 const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id);
-const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op);
 const char *fh_get_ast_file_name(struct fh_ast *ast, fh_symbol_id file_id);
 fh_symbol_id fh_add_ast_file_name(struct fh_ast *ast, const char *filename);
 

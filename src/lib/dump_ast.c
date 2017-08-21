@@ -76,7 +76,7 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
     if (expr_needs_paren(expr->data.bin_op.left)) printf("(");
     dump_expr(ast, indent, expr->data.bin_op.left);
     if (expr_needs_paren(expr->data.bin_op.left)) printf(")");
-    printf(" %s ", fh_get_ast_op(ast, expr->data.bin_op.op));
+    printf(" %s ", fh_get_op_name(expr->data.bin_op.op));
     if (expr_needs_paren(expr->data.bin_op.right)) printf("(");
     dump_expr(ast, indent, expr->data.bin_op.right);
     if (expr_needs_paren(expr->data.bin_op.right)) printf(")");
@@ -92,7 +92,7 @@ static void dump_expr(struct fh_ast *ast, int indent, struct fh_p_expr *expr)
     return;
     
   case EXPR_UN_OP:
-    printf("%s", fh_get_ast_op(ast, expr->data.un_op.op));
+    printf("%s", fh_get_op_name(expr->data.un_op.op));
     if (expr_needs_paren(expr->data.un_op.arg)) printf("(");
     dump_expr(ast, indent, expr->data.un_op.arg);
     if (expr_needs_paren(expr->data.un_op.arg)) printf(")");

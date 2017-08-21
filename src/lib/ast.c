@@ -6,39 +6,6 @@
 
 #include "ast.h"
 
-static struct {
-  uint32_t op;
-  char name[4];
-  enum fh_op_assoc assoc;
-  int32_t prec;
-} ast_ops[] = {
-  { '=',        "=",  FH_ASSOC_RIGHT,  10 },
-  
-  { AST_OP_OR,  "||", FH_ASSOC_LEFT,   20 },
-  { AST_OP_AND, "&&", FH_ASSOC_LEFT,   30 },
-  
-  { '|',        "|",  FH_ASSOC_LEFT,   40 },
-  { '&',        "&",  FH_ASSOC_LEFT,   50 },
-
-  { AST_OP_EQ,  "==", FH_ASSOC_LEFT,   60 },
-  { AST_OP_NEQ, "!=", FH_ASSOC_LEFT,   60 },
-  { '<',        "<",  FH_ASSOC_LEFT,   70 },
-  { '>',        ">",  FH_ASSOC_LEFT,   70 },
-  { AST_OP_LE,  "<=", FH_ASSOC_LEFT,   70 },
-  { AST_OP_GE,  ">=", FH_ASSOC_LEFT,   70 },
-
-  { '+',        "+",  FH_ASSOC_LEFT,   80 },
-  { '-',        "-",  FH_ASSOC_LEFT,   80 },
-  { '*',        "*",  FH_ASSOC_LEFT,   90 },
-  { '/',        "/",  FH_ASSOC_LEFT,   90 },
-  { '%',        "%",  FH_ASSOC_LEFT,   90 },
-
-  { AST_OP_UNM, "-",  FH_ASSOC_PREFIX, 100 },
-  { '!',        "!",  FH_ASSOC_PREFIX, 100 },
-
-  { '^',        "^",  FH_ASSOC_RIGHT,  110 },
-};
-
 struct fh_ast *fh_new_ast(struct fh_symtab *file_names)
 {
   struct fh_ast *ast = malloc(sizeof(struct fh_ast));
@@ -47,22 +14,13 @@ struct fh_ast *fh_new_ast(struct fh_symtab *file_names)
   ast->func_list = NULL;
   ast->file_names = file_names;
   fh_init_symtab(&ast->symtab);
-  fh_init_op_table(&ast->op_table);
   fh_init_buffer(&ast->string_pool);
-
-  for (int i = 0; i < ARRAY_SIZE(ast_ops); i++) {
-    if (fh_add_op(&ast->op_table, ast_ops[i].op, ast_ops[i].name, ast_ops[i].prec, ast_ops[i].assoc) < 0) {
-      fh_free_ast(ast);
-      return NULL;
-    }
-  }
   return ast;
 }
 
 void fh_free_ast(struct fh_ast *ast)
 {
   fh_free_named_func_list(ast->func_list);
-  fh_destroy_op_table(&ast->op_table);
   fh_destroy_buffer(&ast->string_pool);
   fh_destroy_symtab(&ast->symtab);
   free(ast);
@@ -86,14 +44,6 @@ fh_symbol_id fh_add_ast_file_name(struct fh_ast *ast, const char *filename)
 const char *fh_get_ast_file_name(struct fh_ast *ast, fh_symbol_id file_id)
 {
   return fh_get_symbol_name(ast->file_names, file_id);
-}
-
-const char *fh_get_ast_op(struct fh_ast *ast, uint32_t op)
-{
-  struct fh_operator *opr = fh_get_op_by_id(&ast->op_table, op);
-  if (opr == NULL)
-    return NULL;
-  return opr->name;
 }
 
 /* node creation */

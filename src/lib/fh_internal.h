@@ -10,9 +10,9 @@
 #define UNUSED(x)        ((void)(x))
 
 enum fh_op_assoc {
-  FH_ASSOC_PREFIX,
-  FH_ASSOC_LEFT,
-  FH_ASSOC_RIGHT,
+  FH_ASSOC_PREFIX = (1<<0),
+  FH_ASSOC_LEFT   = (1<<1),
+  FH_ASSOC_RIGHT  = (1<<2),
 };
 
 struct fh_src_loc {
@@ -30,10 +30,10 @@ struct fh_buffer {
 };
 
 struct fh_operator {
-  enum fh_op_assoc assoc;
-  int32_t prec;
   uint32_t op;
   char name[4];
+  enum fh_op_assoc assoc;
+  int32_t prec;
 };
 
 DECLARE_STACK(op_stack, struct fh_operator);
@@ -90,13 +90,11 @@ fh_symbol_id fh_add_symbol(struct fh_symtab *s, const void *symbol);
 fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const void *symbol);
 const char *fh_get_symbol_name(struct fh_symtab *s, fh_symbol_id id);
 
-void fh_init_op_table(struct fh_op_table *ops);
-void fh_destroy_op_table(struct fh_op_table *ops);
-int fh_add_op(struct fh_op_table *ops, uint32_t op, char *name, int32_t prec, enum fh_op_assoc assoc);
-struct fh_operator *fh_get_binary_op(struct fh_op_table *ops, char *name);
-struct fh_operator *fh_get_prefix_op(struct fh_op_table *ops, char *name);
-struct fh_operator *fh_get_op(struct fh_op_table *ops, char *name);
-struct fh_operator *fh_get_op_by_id(struct fh_op_table *ops, uint32_t op);
+struct fh_operator *fh_get_binary_op(const char *name);
+struct fh_operator *fh_get_prefix_op(const char *name);
+struct fh_operator *fh_get_op(const char *name);
+struct fh_operator *fh_get_op_by_id(uint32_t op);
+const char *fh_get_op_name(uint32_t op);
 
 void fh_free_program_objects(struct fh_program *prog);
 int fh_get_pin_state(struct fh_program *prog);

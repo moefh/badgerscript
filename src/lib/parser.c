@@ -550,7 +550,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
     /* operator */
     if (tok_is_op(&tok, NULL)) {
       if (expect_opn) {
-        struct fh_operator *op = fh_get_prefix_op(&p->ast->op_table, tok.data.op_name);
+        struct fh_operator *op = fh_get_prefix_op(tok.data.op_name);
         if (! op) {
           fh_parse_error(p, tok.loc, "unexpected '%s'", fh_dump_token(p->ast, &tok));
           goto err;
@@ -560,7 +560,7 @@ static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char
           goto err;
         }
       } else {
-        struct fh_operator *op = fh_get_binary_op(&p->ast->op_table, tok.data.op_name);
+        struct fh_operator *op = fh_get_binary_op(tok.data.op_name);
         if (! op) {
           fh_parse_error_expected(p, tok.loc, "'(' or binary operator");
           goto err;

@@ -141,11 +141,6 @@ static void unget_byte(struct fh_tokenizer *t, uint8_t b)
   t->saved_byte = b;
 }
 
-static bool is_op(struct fh_tokenizer *t, char *name)
-{
-  return fh_get_op(&t->ast->op_table, name) != NULL;
-}
-
 static int find_keyword(const void *keyword, int keyword_size, enum fh_keyword_type *ret)
 {
   for (int i = 0; i < ARRAY_SIZE(keywords); i++) {
@@ -363,7 +358,7 @@ int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok)
   int op_len = 1;
   while (1) {
     op_name[op_len] = '\0';
-    if (! is_op(t, op_name)) {
+    if (! fh_get_op(op_name)) {
       op_name[--op_len] = '\0';
       unget_byte(t, c);
       break;
