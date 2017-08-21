@@ -1,7 +1,6 @@
 /* gc.c */
 
 #include <stdio.h>
-#include <inttypes.h>
 
 #include "fh_internal.h"
 #include "program.h"
@@ -21,8 +20,8 @@
 struct fh_gc_state {
   struct fh_object *container_list;
 #ifdef COUNT_MEM_USAGE
-  uint64_t used;
-  uint64_t released;
+  size_t used;
+  size_t released;
 #endif
 };
 
@@ -307,7 +306,7 @@ void fh_collect_garbage(struct fh_program *prog)
   debug_log("== GC DONE ======================\n");
 
 #ifdef COUNT_MEM_USAGE
-  printf("gc used:     %" PRIu64 "\n", gc.used);
-  printf("gc released: %" PRIu64 "\n", gc.released);
+  printf("gc used:     %zu\n", gc.used);
+  printf("gc released: %zu\n", gc.released);
 #endif
 }
