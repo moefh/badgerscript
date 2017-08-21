@@ -1,2 +1,6 @@
 
-include "./closure.fh"
+include "half_func.fh"
+
+  printf("after: %d\n", x);
+  return x;
+}

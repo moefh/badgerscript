@@ -269,9 +269,9 @@ static void dump_func_def(struct fh_program *prog, struct fh_func_def *func_def)
   for (int i = 0; i < func_def->code_size; i++) {
     if (code_src_loc) {
       code_src_loc = fh_decode_src_loc(code_src_loc, code_src_loc_end - code_src_loc, &loc, 1);
-      printf("%4d:%-4d     ", loc.line, loc.col);
+      printf("<%d> %4d:%-4d     ", loc.file_id, loc.line, loc.col);
     } else {
-      printf("              ");
+      printf("                  ");
     }
     fh_dump_bc_instr(prog, i, func_def->code[i]);
   }

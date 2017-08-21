@@ -1,0 +1,6 @@
+
+function make_error(msg)
+{
+  printf("will cause error '%s'\n", msg);
+  error(msg);
+}

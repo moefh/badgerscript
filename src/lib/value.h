@@ -76,7 +76,6 @@ struct fh_func_def {
   int n_upvals;
   int code_src_loc_size;
   void *code_src_loc;
-  fh_symbol_id src_file_id;
 };
 
 struct fh_upval {

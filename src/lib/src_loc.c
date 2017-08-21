@@ -9,7 +9,7 @@
 struct fh_src_loc fh_get_addr_src_loc(struct fh_func_def *func_def, int addr)
 {
   struct fh_src_loc loc = fh_make_src_loc(0,0,0);
-  printf("decoding src_loc for address %d\n", addr);
+  //printf("decoding src_loc for address %d\n", addr);
   fh_decode_src_loc(func_def->code_src_loc, func_def->code_src_loc_size, &loc, addr);
   return loc;
 }
@@ -25,11 +25,13 @@ const void *fh_decode_src_loc(const void *encoded, int encoded_len, struct fh_sr
       break;
     uint8_t b = *p++;
     if ((b & 0xc0) == 0xc0) {
-      if (p + 4 > end)
+      if (p + 6 > end)
         return NULL;
-      loc.col  = p[0] | (p[1] << 8);
-      loc.line = p[2] | (p[3] << 8);
-      p += 4;
+      loc.col     = p[0] | (p[1] << 8);
+      loc.line    = p[2] | (p[3] << 8);
+      loc.file_id = p[4] | (p[5] << 8);
+      p += 6;
+      //printf("decoded absolute %d:%d:%d\n", loc.file_id, loc.line, loc.col);
       continue;
     }
     if ((b & 0xc0) == 0x80) {
@@ -69,12 +71,13 @@ int fh_encode_src_loc_change(struct fh_buffer *buf, struct fh_src_loc *old_loc, 
   
   int delta_line = get_encoded_delta(old_loc->line, new_loc->line);
   int delta_col = get_encoded_delta(old_loc->col, new_loc->col);
-  if (buf->size == 0 || delta_col < 0 || delta_line < 0) {
+  if (buf->size == 0 || old_loc->file_id != new_loc->file_id || delta_col < 0 || delta_line < 0) {
     // absolute
-    //printf("-> encoding absolute %3d:%-3d\n", new_loc->line, new_loc->col);
+    //printf("-> encoding absolute %d:%d:%d\n", new_loc->file_id, new_loc->line, new_loc->col);
     if (fh_buf_add_byte(buf, 0xff) < 0
         || fh_buf_add_u16(buf, new_loc->col) < 0
-        || fh_buf_add_u16(buf, new_loc->line) < 0)
+        || fh_buf_add_u16(buf, new_loc->line) < 0
+        || fh_buf_add_u16(buf, new_loc->file_id) < 0)
       return -1;
   } else if (delta_line != 63) {
     // relative line, col

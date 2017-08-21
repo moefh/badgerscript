@@ -1,5 +1,7 @@
 
+include "error_include.fh"
+
 function main()
 {
-  error("hello!");
+  make_error("hello!");
 }

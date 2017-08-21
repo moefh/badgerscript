@@ -1359,7 +1359,6 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
   func_def->code_src_loc_size = fi->code_src_loc.size;
   func_def->code_src_loc = fi->code_src_loc.p;
   fh_init_buffer(&fi->code_src_loc);
-  func_def->src_file_id = loc.file_id;
   
   pop_func_info(c);
   return 0;
