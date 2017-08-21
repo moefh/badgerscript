@@ -43,6 +43,7 @@ struct fh_token {
 };
 
 struct fh_tokenizer {
+  struct fh_tokenizer *next;
   struct fh_program *prog;
   struct fh_input *in;
   struct fh_ast *ast;
@@ -60,7 +61,8 @@ struct fh_tokenizer {
   struct fh_src_loc saved_loc;
 };
 
-void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id);
+struct fh_tokenizer *fh_new_tokenizer(struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id);
+void fh_free_tokenizer(struct fh_tokenizer *t);
 int fh_read_token(struct fh_tokenizer *t, struct fh_token *tok);
 struct fh_src_loc fh_get_tokenizer_error_loc(struct fh_tokenizer *t);
 const char *fh_get_token_keyword(struct fh_token *tok);

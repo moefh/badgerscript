@@ -14,6 +14,29 @@ static struct fh_p_stmt_block *parse_block(struct fh_parser *p, struct fh_p_stmt
 static struct fh_p_expr *parse_func(struct fh_parser *p);
 static struct fh_p_expr *parse_expr(struct fh_parser *p, bool consume_stop, char *stop_chars);
 static struct fh_p_stmt *parse_stmt(struct fh_parser *p);
+static void reset_parser(struct fh_parser *p);
+
+void fh_init_parser(struct fh_parser *p, struct fh_program *prog)
+{
+  p->prog = prog;
+  fh_init_buffer(&p->tmp_buf);
+  p->tokenizer = NULL;
+  reset_parser(p);
+}
+
+void fh_destroy_parser(struct fh_parser *p)
+{
+  reset_parser(p);
+  fh_destroy_buffer(&p->tmp_buf);
+}
+
+static void close_tokenizer(struct fh_parser *p)
+{
+  struct fh_tokenizer *next = p->tokenizer->next;
+  fh_close_input(p->tokenizer->in);
+  fh_free_tokenizer(p->tokenizer);
+  p->tokenizer = next;
+}
 
 static void reset_parser(struct fh_parser *p)
 {
@@ -21,31 +44,8 @@ static void reset_parser(struct fh_parser *p)
   p->tmp_buf.size = 0;
   p->has_saved_tok = 0;
   p->last_loc = fh_make_src_loc(-1,0,0);
-  tokenizer_stack_set_size(&p->tokenizers, 0);
-}
-
-void fh_init_parser(struct fh_parser *p, struct fh_program *prog)
-{
-  p->prog = prog;
-  fh_init_buffer(&p->tmp_buf);
-  tokenizer_stack_init(&p->tokenizers);
-  reset_parser(p);
-}
-
-static void close_tokenizer(struct fh_parser *p)
-{
-  struct fh_tokenizer *t = tokenizer_stack_top(&p->tokenizers);
-  fh_close_input(t->in);
-  tokenizer_stack_pop(&p->tokenizers, NULL);
-}
-
-void fh_destroy_parser(struct fh_parser *p)
-{
-  while (tokenizer_stack_size(&p->tokenizers) > 0)
+  while (p->tokenizer)
     close_tokenizer(p);
-  reset_parser(p);
-  tokenizer_stack_free(&p->tokenizers);
-  fh_destroy_buffer(&p->tmp_buf);
 }
 
 void *fh_parse_error(struct fh_parser *p, struct fh_src_loc loc, char *fmt, ...)
@@ -80,11 +80,18 @@ static int get_token(struct fh_parser *p, struct fh_token *tok)
     return 0;
   }
 
+  if (! p->tokenizer) {
+    tok->type = TOK_EOF;
+    tok->loc = p->last_loc;
+  }
+
   while (true) {
-    if (fh_read_token(tokenizer_stack_top(&p->tokenizers), tok) < 0)
+    if (fh_read_token(p->tokenizer, tok) < 0)
       return -1;
-    if (tok_is_eof(tok) && tokenizer_stack_size(&p->tokenizers) > 1) {
+    if (tok_is_eof(tok)) {
       close_tokenizer(p);
+      if (! p->tokenizer)
+        break;
       continue;
     }
     break;
@@ -939,18 +946,16 @@ static struct fh_p_named_func *parse_named_func(struct fh_parser *p)
 
 static int new_input(struct fh_parser *p, struct fh_src_loc loc, struct fh_input *in)
 {
-  struct fh_tokenizer *t = tokenizer_stack_push(&p->tokenizers, NULL);
-  if (! t) {
+  fh_symbol_id file_id = fh_add_ast_file_name(p->ast, fh_get_input_filename(in));
+  if (file_id < 0) {
     fh_parse_error_oom(p, loc);
     return -1;
   }
-  fh_symbol_id file_id = fh_add_ast_file_name(p->ast, fh_get_input_filename(in));
-  if (file_id < 0) {
-    tokenizer_stack_pop(&p->tokenizers, NULL);
-    fh_parse_error_oom(p, loc);
+  struct fh_tokenizer *t = fh_new_tokenizer(p->prog, in, p->ast, &p->tmp_buf, (uint16_t) file_id);
+  if (! t)
     return -1;
-  }  
-  fh_init_tokenizer(t, p->prog, in, p->ast, &p->tmp_buf, (uint16_t) file_id);
+  t->next = p->tokenizer;
+  p->tokenizer = t;
   return 0;
 }
 
@@ -965,8 +970,7 @@ static int process_include(struct fh_parser *p)
   }
 
   const char *filename = fh_get_token_string(p->ast, &tok);
-  struct fh_tokenizer *t = tokenizer_stack_top(&p->tokenizers);
-  struct fh_input *in = fh_open_input(t->in, filename);
+  struct fh_input *in = fh_open_input(p->tokenizer->in, filename);
   if (! in) {
     fh_parse_error(p, tok.loc, "can't open file '%s'", filename);
     return -1;

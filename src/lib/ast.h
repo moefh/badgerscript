@@ -158,9 +158,6 @@ struct fh_p_named_func {
 
 /* =========================================== */
 
-//DECLARE_STACK(named_func_stack, struct fh_p_named_func);
-DECLARE_STACK(p_expr_stack, struct fh_p_expr *);
-
 struct fh_ast {
   struct fh_buffer string_pool;
   struct fh_symtab symtab;
