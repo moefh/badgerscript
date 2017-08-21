@@ -137,7 +137,7 @@ struct fh_object {
 
 // object types
 struct fh_func_def *fh_make_func_def(struct fh_program *prog, bool pinned);
-struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned);
+struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned, struct fh_func_def *func_def);
 struct fh_upval *fh_make_upval(struct fh_program *prog, bool pinned);
 struct fh_array *fh_make_array(struct fh_program *prog, bool pinned);
 struct fh_map *fh_make_map(struct fh_program *prog, bool pinned);

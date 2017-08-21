@@ -144,24 +144,6 @@ static int call_c_func(struct fh_vm *vm, fh_c_func func, struct fh_value *ret, s
   return r;
 }
 
-static struct fh_closure *new_closure(struct fh_vm *vm, struct fh_func_def *func_def)
-{
-  struct fh_closure *c = fh_make_closure(vm->prog, false);
-  if (! c)
-    return NULL;
-  c->func_def = func_def;
-  c->n_upvals = func_def->n_upvals;
-  if (c->n_upvals > 0) {
-    c->upvals = malloc(c->n_upvals * sizeof(struct fh_upval *));
-    if (! c->upvals) {
-      vm_error(vm, "out of memory");
-      return NULL;
-    }
-  } else
-    c->upvals = NULL;
-  return c;
-}
-
 bool fh_val_is_true(struct fh_value *val)
 {
   if (val->type == FH_VAL_UPVAL)
@@ -442,7 +424,7 @@ int fh_run_vm(struct fh_vm *vm)
           goto err;
         }
         struct fh_func_def *func_def = GET_VAL_FUNC_DEF(rb);
-        struct fh_closure *c = new_closure(vm, func_def);
+        struct fh_closure *c = fh_make_closure(vm->prog, false, func_def);
         if (! c)
           goto err;
         GC_PIN_OBJ(c);

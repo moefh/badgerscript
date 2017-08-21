@@ -1410,14 +1410,11 @@ int fh_compile(struct fh_compiler *c, struct fh_ast *ast)
       goto err;
     }
     
-    struct fh_closure *closure = fh_make_closure(c->prog, true);
+    struct fh_closure *closure = fh_make_closure(c->prog, true, func_def);
     if (! closure) {
       fh_compiler_error(c, f->loc, "out of memory");
       goto err;
     }
-    closure->func_def = func_def;
-    closure->n_upvals = 0;
-    closure->upvals = NULL;
     if (fh_add_global_func(c->prog, closure) < 0) {
       fh_compiler_error(c, f->loc, "out of memory");
       goto err;
