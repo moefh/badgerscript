@@ -36,13 +36,6 @@ struct fh_operator {
   int32_t prec;
 };
 
-DECLARE_STACK(op_stack, struct fh_operator);
-
-struct fh_op_table {
-  struct op_stack prefix;
-  struct op_stack binary;
-};
-
 struct fh_symtab {
   int num;
   int cap;
