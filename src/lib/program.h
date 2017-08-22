@@ -25,8 +25,6 @@ struct fh_program {
   int gc_frequency;
   int n_created_objs_since_last_gc;
   struct fh_value null_value;
-  struct fh_parser parser;
-  struct fh_compiler compiler;
   struct fh_symtab src_file_names;
   struct named_c_func_stack c_funcs;
   struct fh_vm vm;                       // GC roots (VM stack)

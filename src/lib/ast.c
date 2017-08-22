@@ -6,24 +6,24 @@
 
 #include "ast.h"
 
-struct fh_ast *fh_new_ast(struct fh_symtab *file_names)
+struct fh_ast *fh_new_ast(struct fh_mem_pool *pool, struct fh_symtab *file_names)
 {
-  struct fh_ast *ast = malloc(sizeof(struct fh_ast));
+  struct fh_ast *ast = fh_malloc(pool, sizeof(struct fh_ast));
   if (! ast)
     return NULL;
+  ast->pool = pool;
   ast->func_list = NULL;
   ast->file_names = file_names;
-  fh_init_symtab(&ast->symtab);
-  fh_init_buffer(&ast->string_pool);
+  fh_init_symtab(&ast->symtab, pool);
+  fh_init_buffer(&ast->string_pool, pool);
   return ast;
 }
 
 void fh_free_ast(struct fh_ast *ast)
 {
-  fh_free_named_func_list(ast->func_list);
   fh_destroy_buffer(&ast->string_pool);
   fh_destroy_symtab(&ast->symtab);
-  free(ast);
+  fh_free(ast->pool, ast);
 }
 
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id)
@@ -50,8 +50,7 @@ const char *fh_get_ast_file_name(struct fh_ast *ast, fh_symbol_id file_id)
 
 struct fh_p_named_func *fh_new_named_func(struct fh_ast *ast, struct fh_src_loc loc)
 {
-  UNUSED(ast);
-  struct fh_p_named_func *func = malloc(sizeof(struct fh_p_named_func));
+  struct fh_p_named_func *func = fh_malloc(ast->pool, sizeof(struct fh_p_named_func));
   func->next = NULL;
   func->loc = loc;
   return func;
@@ -59,8 +58,7 @@ struct fh_p_named_func *fh_new_named_func(struct fh_ast *ast, struct fh_src_loc 
 
 struct fh_p_expr *fh_new_expr(struct fh_ast *ast, struct fh_src_loc loc, enum fh_expr_type type, size_t extra_size)
 {
-  UNUSED(ast);
-  struct fh_p_expr *expr = malloc(sizeof(struct fh_p_expr) + extra_size);
+  struct fh_p_expr *expr = fh_malloc(ast->pool, sizeof(struct fh_p_expr) + extra_size);
   if (! expr)
     return NULL;
   expr->next = NULL;
@@ -72,7 +70,7 @@ struct fh_p_expr *fh_new_expr(struct fh_ast *ast, struct fh_src_loc loc, enum fh
 struct fh_p_stmt *fh_new_stmt(struct fh_ast *ast, struct fh_src_loc loc, enum fh_stmt_type type, size_t extra_size)
 {
   UNUSED(ast);
-  struct fh_p_stmt *stmt = malloc(sizeof(struct fh_p_stmt) + extra_size);
+  struct fh_p_stmt *stmt = fh_malloc(ast->pool, sizeof(struct fh_p_stmt) + extra_size);
   if (! stmt)
     return NULL;
   stmt->next = NULL;
@@ -96,149 +94,6 @@ int fh_stmt_list_size(struct fh_p_stmt *list)
   for (struct fh_p_stmt *s = list; s != NULL; s = s->next)
     n++;
   return n;
-}
-
-/* node destruction */
-
-void fh_free_named_func(struct fh_p_named_func *func)
-{
-  fh_free_expr(func->func);
-  free(func);
-}
-
-void fh_free_named_func_list(struct fh_p_named_func *list)
-{
-  struct fh_p_named_func *f = list;
-  while (f != NULL) {
-    struct fh_p_named_func *next = f->next;
-    fh_free_named_func(f);
-    f = next;
-  }
-}
-
-void fh_free_expr_children(struct fh_p_expr *expr)
-{
-  switch (expr->type) {
-  case EXPR_NONE: return;
-  case EXPR_VAR: return;
-  case EXPR_NULL: return;
-  case EXPR_BOOL: return;
-  case EXPR_NUMBER: return;
-  case EXPR_STRING: return;
-
-  case EXPR_UN_OP:
-    fh_free_expr(expr->data.un_op.arg);
-    return;
-
-  case EXPR_BIN_OP:
-    fh_free_expr(expr->data.bin_op.left);
-    fh_free_expr(expr->data.bin_op.right);
-    return;
-
-  case EXPR_INDEX:
-    fh_free_expr(expr->data.index.container);
-    fh_free_expr(expr->data.index.index);
-    return;
-
-  case EXPR_FUNC_CALL:
-    fh_free_expr(expr->data.func_call.func);
-    fh_free_expr_list(expr->data.func_call.arg_list);
-    return;
-
-  case EXPR_ARRAY_LIT:
-    fh_free_expr_list(expr->data.array_lit.elem_list);
-    return;
-
-  case EXPR_MAP_LIT:
-    fh_free_expr_list(expr->data.map_lit.elem_list);
-    return;
-
-  case EXPR_FUNC:
-    fh_free_block(expr->data.func.body);
-    return;
-  }
-  
-  fprintf(stderr, "INTERNAL ERROR: unknown expression type '%d'\n", expr->type);
-}
-
-void fh_free_expr(struct fh_p_expr *expr)
-{
-  if (expr) {
-    fh_free_expr_children(expr);
-    free(expr);
-  }
-}
-
-void fh_free_expr_list(struct fh_p_expr *list)
-{
-  struct fh_p_expr *e = list;
-  while (e != NULL) {
-    struct fh_p_expr *next = e->next;
-    fh_free_expr(e);
-    e = next;
-  }
-}
-
-void fh_free_stmt_children(struct fh_p_stmt *stmt)
-{
-  switch (stmt->type) {
-  case STMT_NONE: return;
-  case STMT_EMPTY: return;
-  case STMT_BREAK: return;
-  case STMT_CONTINUE: return;
-
-  case STMT_EXPR:
-    fh_free_expr(stmt->data.expr);
-    return;
-
-  case STMT_VAR_DECL:
-    fh_free_expr(stmt->data.decl.val);
-    return;
-
-  case STMT_BLOCK:
-    fh_free_block(stmt->data.block);
-    return;
-
-  case STMT_RETURN:
-    fh_free_expr(stmt->data.ret.val);
-    return;
-
-  case STMT_IF:
-    fh_free_expr(stmt->data.stmt_if.test);
-    fh_free_stmt(stmt->data.stmt_if.true_stmt);
-    fh_free_stmt(stmt->data.stmt_if.false_stmt);
-    return;
-
-  case STMT_WHILE:
-    fh_free_expr(stmt->data.stmt_while.test);
-    fh_free_stmt(stmt->data.stmt_while.stmt);
-    return;
-  }
-  
-  fprintf(stderr, "INTERNAL ERROR: unknown statement type '%d'\n", stmt->type);
-}
-
-void fh_free_stmt(struct fh_p_stmt *stmt)
-{
-  if (stmt) {
-    fh_free_stmt_children(stmt);
-    free(stmt);
-  }
-}
-
-void fh_free_stmt_list(struct fh_p_stmt *list)
-{
-  struct fh_p_stmt *s = list;
-  while (s != NULL) {
-    struct fh_p_stmt *next = s->next;
-    fh_free_stmt(s);
-    s = next;
-  }
-}
-
-void fh_free_block(struct fh_p_stmt_block block)
-{
-  fh_free_stmt_list(block.stmt_list);
 }
 
 int fh_ast_visit_expr_nodes(struct fh_p_expr *expr, int (*visit)(struct fh_p_expr *expr, void *data), void *data)

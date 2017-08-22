@@ -5,8 +5,9 @@
 
 #include "fh_internal.h"
 
-void fh_init_buffer(struct fh_buffer *buf)
+void fh_init_buffer(struct fh_buffer *buf, struct fh_mem_pool *pool)
 {
+  buf->pool = pool;
   buf->p = NULL;
   buf->size = 0;
   buf->cap = 0;
@@ -15,7 +16,7 @@ void fh_init_buffer(struct fh_buffer *buf)
 void fh_destroy_buffer(struct fh_buffer *buf)
 {
   if (buf->p != NULL)
-    free(buf->p);
+    fh_free(buf->pool, buf->p);
   buf->p = NULL;
   buf->size = 0;
   buf->cap = 0;
@@ -27,10 +28,10 @@ int fh_buf_grow(struct fh_buffer *buf, size_t add_size)
   if (new_size > INT_MAX || new_size < (size_t)buf->size)
     return -1;
   if ((int)new_size > buf->cap) {
-    size_t new_cap = ((new_size + 1024 + 1) / 1024) * 1024;
+    size_t new_cap = ((new_size + 1024 - 1) / 1024) * 1024;
     if (new_cap > INT_MAX || new_cap < new_size)
       return -1;
-    void *new_p = realloc(buf->p, new_cap);
+    void *new_p = fh_realloc(buf->pool, buf->p, new_cap);
     if (new_p == NULL)
       return -1;
     buf->p = new_p;

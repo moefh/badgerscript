@@ -28,11 +28,8 @@ static const struct keyword {
   { KW_CONTINUE,   "continue" },
 };
 
-struct fh_tokenizer *fh_new_tokenizer(struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id)
+void fh_init_tokenizer(struct fh_tokenizer *t, struct fh_program *prog, struct fh_input *in, struct fh_ast *ast, struct fh_buffer *tmp_buf, uint16_t file_id)
 {
-  struct fh_tokenizer *t = malloc(sizeof(struct fh_tokenizer));
-  if (! t)
-    return NULL;
   t->next = NULL;
   t->prog = prog;
   t->in = in;
@@ -46,12 +43,6 @@ struct fh_tokenizer *fh_new_tokenizer(struct fh_program *prog, struct fh_input *
   t->saved_byte = -1;
 
   t->last_err_loc = t->cur_loc;
-  return t;
-}
-
-void fh_free_tokenizer(struct fh_tokenizer *t)
-{
-  free(t);
 }
 
 static void set_error(struct fh_tokenizer *t, struct fh_src_loc loc, char *fmt, ...)

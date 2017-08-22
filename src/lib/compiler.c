@@ -59,7 +59,7 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc 
   int_stack_init(&fi->break_addrs);
   block_info_stack_init(&fi->blocks);
   fi->last_instr_src_loc = loc;
-  fh_init_buffer(&fi->code_src_loc);
+  fh_init_buffer(&fi->code_src_loc, NULL);
   
   return func_info_stack_top(&c->funcs);
 }
@@ -1358,7 +1358,7 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
 
   func_def->code_src_loc_size = fi->code_src_loc.size;
   func_def->code_src_loc = fi->code_src_loc.p;
-  fh_init_buffer(&fi->code_src_loc);
+  fh_init_buffer(&fi->code_src_loc, NULL);
   
   pop_func_info(c);
   return 0;

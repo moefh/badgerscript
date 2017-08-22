@@ -4,18 +4,21 @@
 
 #include "fh_internal.h"
 
-void fh_init_symtab(struct fh_symtab *s)
+#define GROW_SIZE 128
+
+void fh_init_symtab(struct fh_symtab *s, struct fh_mem_pool *pool)
 {
+  s->pool = pool;
   s->num = 0;
   s->cap = 0;
   s->entries = NULL;
-  fh_init_buffer(&s->symbols);
+  fh_init_buffer(&s->symbols, pool);
 }
 
 void fh_destroy_symtab(struct fh_symtab *s)
 {
   if (s->entries)
-    free(s->entries);
+    fh_free(s->pool, s->entries);
   fh_destroy_buffer(&s->symbols);
 }
 
@@ -26,8 +29,8 @@ fh_symbol_id fh_add_symbol(struct fh_symtab *s, const void *symbol)
     return cur;
 
   if (s->num == s->cap) {
-    int new_cap = (s->cap + 1024 + 1) / 1024 * 1024;
-    void *new_entries = realloc(s->entries, new_cap * sizeof(s->entries[0]));
+    int new_cap = (s->cap + GROW_SIZE) / GROW_SIZE * GROW_SIZE;
+    void *new_entries = fh_realloc(s->pool, s->entries, new_cap * sizeof(s->entries[0]));
     if (new_entries == NULL)
       return -1;
     s->entries = new_entries;

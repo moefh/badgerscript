@@ -15,13 +15,11 @@ struct fh_program *fh_new_program(void)
   prog->objects = NULL;
   prog->null_value.type = FH_VAL_NULL;
   prog->last_error_msg[0] = '\0';
-  fh_init_symtab(&prog->src_file_names);
+  fh_init_symtab(&prog->src_file_names, NULL);
   p_closure_stack_init(&prog->global_funcs);
   named_c_func_stack_init(&prog->c_funcs);
 
   fh_init_vm(&prog->vm, prog);
-  fh_init_parser(&prog->parser, prog);
-  fh_init_compiler(&prog->compiler, prog);
   value_stack_init(&prog->c_vals);
   p_object_stack_init(&prog->pinned_objs);
 
@@ -36,8 +34,6 @@ struct fh_program *fh_new_program(void)
   p_object_stack_free(&prog->pinned_objs);
   named_c_func_stack_free(&prog->c_funcs);
   value_stack_free(&prog->c_vals);
-  fh_destroy_compiler(&prog->compiler);
-  fh_destroy_parser(&prog->parser);  
   free(prog);
   return NULL;
 }
@@ -57,9 +53,6 @@ void fh_free_program(struct fh_program *prog)
   fh_free_program_objects(prog);
   
   fh_destroy_vm(&prog->vm);
-  fh_destroy_compiler(&prog->compiler);
-  fh_destroy_parser(&prog->parser);
-
   free(prog);
 }
 
@@ -188,25 +181,39 @@ struct fh_closure *fh_get_global_func_by_name(struct fh_program *prog, const cha
 
 int fh_compile_input(struct fh_program *prog, struct fh_input *in)
 {
-  struct fh_ast *ast = fh_new_ast(&prog->src_file_names);
+  struct fh_mem_pool pool;
+  fh_init_mem_pool(&pool);
+  
+  struct fh_ast *ast = fh_new_ast(&pool, &prog->src_file_names);
   if (! ast) {
     fh_close_input(in);
     fh_set_error(prog, "out of memory for AST");
     return -1;
   }
-  if (fh_parse(&prog->parser, ast, in) < 0)
+  
+  struct fh_parser parser;
+  fh_init_parser(&parser, prog, &pool);
+  struct fh_compiler compiler;
+  fh_init_compiler(&compiler, prog);
+
+  if (fh_parse(&parser, ast, in) < 0)
     goto err;
   //fh_dump_ast(ast);
 
-  if (fh_compile(&prog->compiler, ast) < 0)
+  if (fh_compile(&compiler, ast) < 0)
     goto err;
 
+  fh_destroy_parser(&parser);
+  fh_destroy_compiler(&compiler);
   fh_free_ast(ast);
+  fh_destroy_mem_pool(&pool);
   return 0;
 
  err:
-  if (ast)
-    fh_free_ast(ast);
+  fh_destroy_parser(&parser);
+  fh_destroy_compiler(&compiler);
+  fh_free_ast(ast);
+  fh_destroy_mem_pool(&pool);
   return -1;
 }
 

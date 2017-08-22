@@ -4,6 +4,7 @@
 #define AST_H_FILE
 
 #include "fh_internal.h"
+#include "mem_pool.h"
 
 #define FUNC_CALL_PREC 1000
 
@@ -159,13 +160,14 @@ struct fh_p_named_func {
 /* =========================================== */
 
 struct fh_ast {
+  struct fh_mem_pool *pool;
   struct fh_buffer string_pool;
   struct fh_symtab symtab;
   struct fh_symtab *file_names;
   struct fh_p_named_func *func_list;
 };
 
-struct fh_ast *fh_new_ast(struct fh_symtab *file_names);
+struct fh_ast *fh_new_ast(struct fh_mem_pool *pool, struct fh_symtab *file_names);
 void fh_free_ast(struct fh_ast *ast);
 const char *fh_get_ast_symbol(struct fh_ast *ast, fh_symbol_id id);
 const char *fh_get_ast_string(struct fh_ast *ast, fh_string_id id);
@@ -180,16 +182,6 @@ struct fh_p_named_func *fh_new_named_func(struct fh_ast *ast, struct fh_src_loc 
 
 int fh_expr_list_size(struct fh_p_expr *list);
 int fh_stmt_list_size(struct fh_p_stmt *list);
-
-void fh_free_named_func(struct fh_p_named_func *func);
-void fh_free_named_func_list(struct fh_p_named_func *list);
-void fh_free_block(struct fh_p_stmt_block block);
-void fh_free_stmt(struct fh_p_stmt *stmt);
-void fh_free_stmt_children(struct fh_p_stmt *stmt);
-void fh_free_stmt_list(struct fh_p_stmt *list);
-void fh_free_expr(struct fh_p_expr *expr);
-void fh_free_expr_children(struct fh_p_expr *expr);
-void fh_free_expr_list(struct fh_p_expr *list);
 
 void fh_dump_named_func(struct fh_ast *ast, struct fh_p_named_func *func);
 void fh_dump_expr(struct fh_ast *ast, struct fh_p_expr *expr);

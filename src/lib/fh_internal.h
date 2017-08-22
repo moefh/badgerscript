@@ -5,6 +5,7 @@
 
 #include "fh.h"
 #include "stack.h"
+#include "mem_pool.h"
 
 #define ARRAY_SIZE(arr)  ((int)(sizeof(arr)/sizeof(arr[0])))
 #define UNUSED(x)        ((void)(x))
@@ -23,12 +24,6 @@ struct fh_src_loc {
 
 #define fh_make_src_loc(f, l, c) ((struct fh_src_loc) { .file_id = (f), .line = (l), .col = (c) })
 
-struct fh_buffer {
-  char *p;
-  int size;
-  int cap;
-};
-
 struct fh_operator {
   uint32_t op;
   char name[4];
@@ -36,7 +31,15 @@ struct fh_operator {
   int32_t prec;
 };
 
+struct fh_buffer {
+  struct fh_mem_pool *pool;
+  char *p;
+  int size;
+  int cap;
+};
+
 struct fh_symtab {
+  struct fh_mem_pool *pool;
   int num;
   int cap;
   int *entries;
@@ -69,7 +72,7 @@ const void *fh_decode_src_loc(const void *encoded, int encoded_len, struct fh_sr
 int fh_encode_src_loc_change(struct fh_buffer *buf, struct fh_src_loc *old_loc, struct fh_src_loc *new_loc);
 struct fh_src_loc fh_get_addr_src_loc(struct fh_func_def *func_def, int addr);
 
-void fh_init_buffer(struct fh_buffer *buf);
+void fh_init_buffer(struct fh_buffer *buf, struct fh_mem_pool *pool);
 void fh_destroy_buffer(struct fh_buffer *buf);
 int fh_buf_grow(struct fh_buffer *buf, size_t add_size);
 int fh_buf_shrink_to_fit(struct fh_buffer *buf);
@@ -77,7 +80,7 @@ int fh_buf_add_string(struct fh_buffer *buf, const void *str, size_t str_size);
 int fh_buf_add_byte(struct fh_buffer *buf, uint8_t c);
 int fh_buf_add_u16(struct fh_buffer *buf, uint16_t c);
 
-void fh_init_symtab(struct fh_symtab *s);
+void fh_init_symtab(struct fh_symtab *s, struct fh_mem_pool *pool);
 void fh_destroy_symtab(struct fh_symtab *s);
 fh_symbol_id fh_add_symbol(struct fh_symtab *s, const void *symbol);
 fh_symbol_id fh_get_symbol_id(struct fh_symtab *s, const void *symbol);
