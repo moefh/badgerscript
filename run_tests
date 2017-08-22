@@ -2,5 +2,5 @@
 
 for a in tests/test_*.fh; do
   echo -n "$a: ";
-  src/fh $a;
+  valgrind -q --leak-check=full --errors-for-leak-kinds=all src/fh $a;
 done

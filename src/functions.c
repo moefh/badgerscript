@@ -12,6 +12,18 @@
 #include <windows.h>
 #endif
 
+static int fn_leak_mem(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
+{
+  (void)prog;
+  (void)args;
+  (void)n_args;
+
+  char *str = malloc(42);
+  snprintf(str, 42, "Hello, world!");
+  *ret = fh_new_string(prog, str);
+  return 0;
+}
+
 static int fn_get_term_lines(struct fh_program *prog, struct fh_value *ret, struct fh_value *args, int n_args)
 {
   (void)prog;
@@ -49,9 +61,11 @@ static int fn_gc(struct fh_program *prog, struct fh_value *ret, struct fh_value 
 
 int add_functions(struct fh_program *prog)
 {
+#define ADD_FUNC(name) { #name, fn_##name }
   static const struct fh_named_c_func c_funcs[] = {
-    { "get_term_lines",  fn_get_term_lines  },
-    { "gc",              fn_gc              },
+    ADD_FUNC(get_term_lines),
+    ADD_FUNC(gc),
+    ADD_FUNC(leak_mem),
   };
   return fh_add_c_funcs(prog, c_funcs, sizeof(c_funcs)/sizeof(c_funcs[0]));
 }
