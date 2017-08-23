@@ -16,29 +16,33 @@ DECLARE_STACK(value_stack, struct fh_value);
 #define GC_BIT_MARK  (1<<0)
 #define GC_BIT_PIN   (1<<1)
 
-#define GC_SET_BIT(o,b)   (((struct fh_object *)o)->obj.header.gc_bits|=(b))
-#define GC_CLEAR_BIT(o,b) (((struct fh_object *)o)->obj.header.gc_bits&=~(b))
+#define GC_SET_BIT(o,b)      ((o)->header.gc_bits|=(b))
+#define GC_CLEAR_BIT(o,b)    ((o)->header.gc_bits&=~(b))
 #define GC_PIN_OBJ(o)        GC_SET_BIT(o, GC_BIT_PIN)
 #define GC_UNPIN_OBJ(o)      GC_CLEAR_BIT(o, GC_BIT_PIN)
 
-#define OBJ_HEADER  \
-  struct fh_object *next;  \
-  uint8_t gc_bits;         \
-  enum fh_value_type type
-
 struct fh_object_header {
-  OBJ_HEADER;
+  union fh_object *next;
+  uint8_t gc_bits;
+  enum fh_value_type type;
+};
+
+union fh_align {
+  double d;
+  void *p;
+  uint32_t u32;
+  int i;
 };
 
 struct fh_string {
-  OBJ_HEADER;
+  struct fh_object_header header;
   uint32_t size;
   uint32_t hash;
 };
 
 struct fh_array {
-  OBJ_HEADER;
-  struct fh_object *gc_next_container;
+  struct fh_object_header header;
+  union fh_object *gc_next_container;
   struct fh_value *items;
   int len;
   int cap;
@@ -50,8 +54,8 @@ struct fh_map_entry {
 };
 
 struct fh_map {
-  OBJ_HEADER;
-  struct fh_object *gc_next_container;
+  struct fh_object_header header;
+  union fh_object *gc_next_container;
   struct fh_map_entry *entries;
   uint32_t len;
   uint32_t cap;
@@ -63,8 +67,8 @@ struct fh_upval_def {
 };
 
 struct fh_func_def {
-  OBJ_HEADER;
-  struct fh_object *gc_next_container;
+  struct fh_object_header header;
+  union fh_object *gc_next_container;
   struct fh_string *name;
   int n_params;
   int n_regs;
@@ -79,8 +83,8 @@ struct fh_func_def {
 };
 
 struct fh_upval {
-  OBJ_HEADER;
-  struct fh_object *gc_next_container;
+  struct fh_object_header header;
+  union fh_object *gc_next_container;
   struct fh_value *val;
   union {
     struct fh_value storage;
@@ -89,24 +93,21 @@ struct fh_upval {
 };
 
 struct fh_closure {
-  OBJ_HEADER;
-  struct fh_object *gc_next_container;
+  struct fh_object_header header;
+  union fh_object *gc_next_container;
   struct fh_func_def *func_def;
   int n_upvals;
-  struct fh_upval **upvals;
+  struct fh_upval *upvals[];
 };
 
-struct fh_object {
-  union {
-    double align;
-    struct fh_object_header header;
-    struct fh_string str;
-    struct fh_func_def func_def;
-    struct fh_upval upval;
-    struct fh_closure closure;
-    struct fh_array array;
-    struct fh_map map;
-  } obj;
+union fh_object {
+  struct fh_object_header header;
+  struct fh_string str;
+  struct fh_func_def func_def;
+  struct fh_upval upval;
+  struct fh_closure closure;
+  struct fh_array array;
+  struct fh_map map;
 };
 
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
@@ -119,13 +120,13 @@ struct fh_object {
 #define GET_OBJ_STRING(o)      ((struct fh_string    *) (o))
 #define GET_OBJ_STRING_DATA(o) (((char *) (o)) + sizeof(struct fh_string))
 
-#define GET_VAL_OBJ(v)         ((struct fh_object *) ((v)->data.obj))
+#define GET_VAL_OBJ(v)         ((union fh_object *) ((v)->data.obj))
 #define GET_VAL_CLOSURE(v)     (((v)->type == FH_VAL_CLOSURE ) ? ((struct fh_closure  *) ((v)->data.obj)) : NULL)
 #define GET_VAL_FUNC_DEF(v)    (((v)->type == FH_VAL_FUNC_DEF) ? ((struct fh_func_def *) ((v)->data.obj)) : NULL)
 #define GET_VAL_ARRAY(v)       (((v)->type == FH_VAL_ARRAY   ) ? ((struct fh_array    *) ((v)->data.obj)) : NULL)
 #define GET_VAL_MAP(v)         (((v)->type == FH_VAL_MAP     ) ? ((struct fh_map      *) ((v)->data.obj)) : NULL)
 #define GET_VAL_STRING(v)      (((v)->type == FH_VAL_STRING  ) ? ((struct fh_string   *) ((v)->data.obj)) : NULL)
-#define GET_VAL_STRING_DATA(v) (((v)->type == FH_VAL_STRING  ) ? ((const char *) ((v)->data.obj) + sizeof(struct fh_string)) : NULL)
+#define GET_VAL_STRING_DATA(v) (((v)->type == FH_VAL_STRING  ) ? GET_OBJ_STRING_DATA((v)->data.obj) : NULL)
 
 #define UPVAL_IS_OPEN(uv)    ((uv)->val != (uv)->data.storage)
 
@@ -145,7 +146,7 @@ struct fh_string *fh_make_string(struct fh_program *prog, bool pinned, const cha
 struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const char *str, size_t str_len);
 
 // object functions
-void fh_free_object(struct fh_object *obj);
+void fh_free_object(union fh_object *obj);
 struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items);
 const char *fh_get_func_def_name(struct fh_func_def *func_def);
 int fh_alloc_map_object_len(struct fh_map *map, uint32_t len);

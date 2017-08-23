@@ -18,7 +18,7 @@
 #endif
 
 struct fh_gc_state {
-  struct fh_object *container_list;
+  union fh_object *container_list;
 #ifdef COUNT_MEM_USAGE
   size_t used;
   size_t released;
@@ -28,10 +28,10 @@ struct fh_gc_state {
 #ifdef DEBUG_GC
 /* NOTE: we can't access any objects referenced by the object being
  * dumped, as they might already be free */
-static void debug_obj(const char *prefix, struct fh_object *obj)
+static void debug_obj(const char *prefix, union fh_object *obj)
 {
-  printf("%s object %p of type %d", prefix, (void *) obj, obj->obj.header.type);
-  switch (obj->obj.header.type) {
+  printf("%s object %p of type %d", prefix, (void *) obj, obj->header.type);
+  switch (obj->header.type) {
   case FH_VAL_STRING:    printf(" (string) "); fh_dump_string(GET_OBJ_STRING_DATA(obj)); printf("\n"); break;
   case FH_VAL_UPVAL:     printf(" (upval)\n"); break;
   case FH_VAL_CLOSURE:   printf(" (closure)\n"); break;
@@ -45,9 +45,9 @@ static void debug_obj(const char *prefix, struct fh_object *obj)
 #endif
 
 #ifdef COUNT_MEM_USAGE
-static inline size_t obj_size(struct fh_object *obj)
+static inline size_t obj_size(union fh_object *obj)
 {
-  switch (obj->obj.header.type) {
+  switch (obj->header.type) {
   case FH_VAL_STRING:  return sizeof(struct fh_string) + GET_OBJ_STRING(obj)->size;
   case FH_VAL_CLOSURE: return sizeof(struct fh_closure) + sizeof(struct fh_upval *)*GET_OBJ_CLOSURE(obj)->n_upvals;
   case FH_VAL_UPVAL:   return sizeof(struct fh_upval);
@@ -77,16 +77,16 @@ static void sweep(struct fh_gc_state *gc, struct fh_program *prog)
 {
   UNUSED(gc);
   debug_log("***** sweeping\n");
-  struct fh_object **objs = &prog->objects;
-  struct fh_object *cur;
+  union fh_object **objs = &prog->objects;
+  union fh_object *cur;
   while ((cur = *objs) != NULL) {
-    if (cur->obj.header.gc_bits & (GC_BIT_MARK|GC_BIT_PIN)) {
-      objs = &cur->obj.header.next;
-      cur->obj.header.gc_bits &= ~GC_BIT_MARK;
+    if (cur->header.gc_bits & (GC_BIT_MARK|GC_BIT_PIN)) {
+      objs = &cur->header.next;
+      cur->header.gc_bits &= ~GC_BIT_MARK;
       count_used(gc, cur);
       debug_obj("-> keeping", cur);
     } else {
-      *objs = cur->obj.header.next;
+      *objs = cur->header.next;
       count_released(gc, cur);
       debug_obj("-> FREEING", cur);
       fh_free_object(cur);
@@ -97,24 +97,24 @@ static void sweep(struct fh_gc_state *gc, struct fh_program *prog)
 void fh_free_program_objects(struct fh_program *prog)
 {
   debug_log("***** FREEING ALL OBJECTS\n");
-  struct fh_object *o = prog->objects;
+  union fh_object *o = prog->objects;
   while (o) {
-    struct fh_object *next = o->obj.header.next;
+    union fh_object *next = o->header.next;
     debug_obj("-> FREEING", o);
     fh_free_object(o);
     o = next;
   }
 }
 
-#define MARK_VALUE(gc, v) do { if (VAL_IS_OBJECT(v)) MARK_OBJECT((gc), (struct fh_object *)((v)->data.obj)); } while (0)
-#define MARK_OBJECT(gc, o) do { if (((o)->obj.header.gc_bits&GC_BIT_MARK) == 0) mark_object((gc), (o)); } while (0)
+#define MARK_VALUE(gc, v) do { if (VAL_IS_OBJECT(v)) MARK_OBJECT((gc), (union fh_object *)((v)->data.obj)); } while (0)
+#define MARK_OBJECT(gc, o) do { if (((o)->header.gc_bits&GC_BIT_MARK) == 0) mark_object((gc), (union fh_object *)(&(o)->header)); } while (0)
 
-static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
+static void mark_object(struct fh_gc_state *gc, union fh_object *obj)
 {
   debug_obj("-> marking", obj);
   
   GC_SET_BIT(obj, GC_BIT_MARK);
-  switch (obj->obj.header.type) {
+  switch (obj->header.type) {
   case FH_VAL_STRING:
     return;
     
@@ -147,33 +147,33 @@ static void mark_object(struct fh_gc_state *gc, struct fh_object *obj)
   case FH_VAL_BOOL:
   case FH_VAL_NUMBER:
   case FH_VAL_C_FUNC:
-    fprintf(stderr, "GC ERROR: marking non-object type %d\n", obj->obj.header.type);
+    fprintf(stderr, "GC ERROR: marking non-object type %d\n", obj->header.type);
     return;
   }
     
-  fprintf(stderr, "GC ERROR: marking invalid object type %d\n", obj->obj.header.type);
+  fprintf(stderr, "GC ERROR: marking invalid object type %d\n", obj->header.type);
 }
 
 static void mark_func_def_children(struct fh_gc_state *gc, struct fh_func_def *func_def)
 {
   if (func_def->name)
-    MARK_OBJECT(gc, (struct fh_object *) func_def->name);
+    MARK_OBJECT(gc, func_def->name);
   for (int i = 0; i < func_def->n_consts; i++)
     MARK_VALUE(gc, &func_def->consts[i]);
 }
 
 static void mark_closure_children(struct fh_gc_state *gc, struct fh_closure *closure)
 {
-  MARK_OBJECT(gc, (struct fh_object *) closure->func_def);
+  MARK_OBJECT(gc, closure->func_def);
   for (int i = 0; i < closure->n_upvals; i++)
-    MARK_OBJECT(gc, (struct fh_object *) closure->upvals[i]);
+    MARK_OBJECT(gc, closure->upvals[i]);
 }
 
 static void mark_upval_children(struct fh_gc_state *gc, struct fh_upval *upval)
 {
   MARK_VALUE(gc, upval->val);
   if (upval->val != &upval->data.storage && upval->data.next != NULL)
-    MARK_OBJECT(gc, (struct fh_object *) upval->data.next);
+    MARK_OBJECT(gc, upval->data.next);
 }
 
 static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
@@ -195,7 +195,7 @@ static void mark_map_children(struct fh_gc_state *gc, struct fh_map *map)
 static void mark_container_children(struct fh_gc_state *gc)
 {
   while (gc->container_list) {
-    switch (gc->container_list->obj.header.type) {
+    switch (gc->container_list->header.type) {
     case FH_VAL_CLOSURE:
       {
         struct fh_closure *c = GET_OBJ_CLOSURE(gc->container_list);
@@ -241,11 +241,11 @@ static void mark_container_children(struct fh_gc_state *gc)
     case FH_VAL_NUMBER:
     case FH_VAL_C_FUNC:
     case FH_VAL_STRING:
-      fprintf(stderr, "GC ERROR: found non-container object (type %d)\n", gc->container_list->obj.header.type);
+      fprintf(stderr, "GC ERROR: found non-container object (type %d)\n", gc->container_list->header.type);
       continue;
     }
     
-    fprintf(stderr, "GC ERROR: found on invalid object of type %d\n", gc->container_list->obj.header.type);
+    fprintf(stderr, "GC ERROR: found on invalid object of type %d\n", gc->container_list->header.type);
   }
 }
 
@@ -254,7 +254,7 @@ static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
   // mark global functions
   debug_log("***** marking global functions\n");
   stack_foreach(struct fh_closure *, *, pc, &prog->global_funcs) {
-    MARK_OBJECT(gc, (struct fh_object *) *pc);
+    MARK_OBJECT(gc, *pc);
   }
 
   // mark stack
@@ -270,11 +270,11 @@ static void mark_roots(struct fh_gc_state *gc, struct fh_program *prog)
   // mark open upvals
   debug_log("***** marking first open upval\n");
   if (prog->vm.open_upvals)
-    MARK_OBJECT(gc, (struct fh_object *) prog->vm.open_upvals);
+    MARK_OBJECT(gc, prog->vm.open_upvals);
   
   // mark pinned values
   debug_log1("***** marking %d pinned values\n", p_object_stack_size(&prog->pinned_objs));
-  stack_foreach(struct fh_object *, *, o, &prog->pinned_objs) {
+  stack_foreach(union fh_object *, *, o, &prog->pinned_objs) {
     MARK_OBJECT(gc, *o);
   }
 

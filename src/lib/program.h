@@ -18,7 +18,7 @@ struct named_c_func {
 
 DECLARE_STACK(named_c_func_stack, struct named_c_func);
 DECLARE_STACK(p_closure_stack, struct fh_closure *);
-DECLARE_STACK(p_object_stack, struct fh_object *);
+DECLARE_STACK(p_object_stack, union fh_object *);
 
 struct fh_program {
   char last_error_msg[256];
@@ -33,7 +33,7 @@ struct fh_program {
   struct p_closure_stack global_funcs;   // GC roots (global functions)
   struct p_object_stack pinned_objs;     // GC roots (temporarily pinned objects)
   struct value_stack c_vals;             // GC roots (values held by running C functions)
-  struct fh_object *objects;             // all created objects
+  union fh_object *objects;              // all created objects
 };
 
 #endif /* PROGRAM_H_FILE */

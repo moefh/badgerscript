@@ -44,14 +44,14 @@ static void free_map(struct fh_map *map)
   free(map);
 }
 
-void fh_free_object(struct fh_object *obj)
+void fh_free_object(union fh_object *obj)
 {
-  switch (obj->obj.header.type) {
+  switch (obj->header.type) {
   case FH_VAL_NULL:
   case FH_VAL_BOOL:
   case FH_VAL_NUMBER:
   case FH_VAL_C_FUNC:
-    fprintf(stderr, "**** ERROR: freeing object of NON-OBJECT type %d\n", obj->obj.header.type);
+    fprintf(stderr, "**** ERROR: freeing object of NON-OBJECT type %d\n", obj->header.type);
     free(obj);
     return;
 
@@ -63,7 +63,7 @@ void fh_free_object(struct fh_object *obj)
   case FH_VAL_MAP:       free_map(GET_OBJ_MAP(obj)); return;
   }
 
-  fprintf(stderr, "**** ERROR: freeing object of INVALID type %d\n", obj->obj.header.type);
+  fprintf(stderr, "**** ERROR: freeing object of INVALID type %d\n", obj->header.type);
   free(obj);
 }
 
@@ -95,7 +95,7 @@ struct fh_value *fh_get_array_item(struct fh_value *val, int index)
 
 struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items)
 {
-  if (arr->type != FH_VAL_ARRAY)
+  if (arr->header.type != FH_VAL_ARRAY)
     return NULL;
 
   if (num_items <= 0
@@ -126,7 +126,7 @@ struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, in
 
 const char *fh_get_func_def_name(struct fh_func_def *func_def)
 {
-  if (func_def->type != FH_VAL_FUNC_DEF || ! func_def->name)
+  if (func_def->header.type != FH_VAL_FUNC_DEF || ! func_def->name)
     return NULL;
   return GET_OBJ_STRING_DATA(func_def->name);
 }
@@ -148,7 +148,7 @@ static void *fh_make_object(struct fh_program *prog, bool pinned, enum fh_value_
   if (prog->gc_frequency >= 0 && ++prog->n_created_objs_since_last_gc > prog->gc_frequency)
     fh_collect_garbage(prog);
   
-  struct fh_object *obj = malloc(size);
+  union fh_object *obj = malloc(size);
   if (! obj) {
     fh_set_error(prog, "out of memory");
     return NULL;
@@ -161,10 +161,10 @@ static void *fh_make_object(struct fh_program *prog, bool pinned, enum fh_value_
     }
   }
 
-  obj->obj.header.next = prog->objects;
+  obj->header.next = prog->objects;
   prog->objects = obj;
-  obj->obj.header.type = type;
-  obj->obj.header.gc_bits = 0;
+  obj->header.type = type;
+  obj->header.gc_bits = 0;
   return obj;
 }
 
@@ -185,10 +185,6 @@ struct fh_closure *fh_make_closure(struct fh_program *prog, bool pinned, struct 
   c->gc_next_container = NULL;
   c->func_def = func_def;
   c->n_upvals = func_def->n_upvals;
-  if (c->n_upvals > 0)
-    c->upvals = (struct fh_upval **) ((char*)c + sizeof(struct fh_closure));
-  else
-    c->upvals = NULL;
   return c;
 }
 
