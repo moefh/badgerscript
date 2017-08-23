@@ -2,13 +2,21 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "mem_pool.h"
 
 #define INITIAL_PAGE_SIZE (16*1024)
 
-#define ALIGNMENT_SIZE   (sizeof(double))
+union align {
+  double d;
+  int i;
+  uint32_t u32;
+  void *p;
+};
+
+#define ALIGNMENT_SIZE   (sizeof(union align))
 #define ALIGN(p)         (((size_t)(p) + ALIGNMENT_SIZE-1) & ~(ALIGNMENT_SIZE-1))
 
 struct fh_mem_page {
