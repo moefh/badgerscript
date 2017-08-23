@@ -7,9 +7,7 @@
 #include "stack.h"
 #include "value.h"
 
-DECLARE_STACK(int_stack, int);
 DECLARE_STACK(code_stack, uint32_t);
-
 DECLARE_STACK(upval_def_stack, struct fh_upval_def);
 
 enum compiler_block_type {
@@ -19,12 +17,11 @@ enum compiler_block_type {
 };
 
 struct block_info {
+  struct block_info *parent;
   enum compiler_block_type type;
   int32_t start_addr;
   int parent_num_regs;
 };
-
-DECLARE_STACK(block_info_stack, struct block_info);
 
 struct reg_info {
   struct reg_info *next;
@@ -34,17 +31,23 @@ struct reg_info {
   bool used_by_inner_func;
 };
 
+struct break_addr {
+  struct break_addr *next;
+  int address;
+  int num;
+};
+
 struct func_info {
   struct func_info *parent;
   int num_regs;
   struct reg_info *reg_list;
-  struct int_stack break_addrs;
-  struct block_info_stack blocks;
+  struct break_addr *break_addr_list;
+  struct block_info *block_list;
   struct code_stack code;
   struct value_stack consts;
   struct upval_def_stack upvals;
-  struct fh_src_loc last_instr_src_loc;
   struct fh_buffer code_src_loc;
+  struct fh_src_loc last_instr_src_loc;
 };
 
 struct fh_compiler {

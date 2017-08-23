@@ -58,12 +58,13 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc 
   
   fi->num_regs = 0;
   fi->reg_list = NULL;
+  fi->block_list = NULL;
+  fi->break_addr_list = NULL;
+  fi->last_instr_src_loc = loc;
+  
   code_stack_init(&fi->code);
   value_stack_init(&fi->consts);
   upval_def_stack_init(&fi->upvals);
-  int_stack_init(&fi->break_addrs);
-  block_info_stack_init(&fi->blocks);
-  fi->last_instr_src_loc = loc;
   fh_init_buffer(&fi->code_src_loc, NULL);
   
   return fi;
@@ -74,37 +75,47 @@ static void pop_func_info(struct fh_compiler *c)
   struct func_info *fi = c->func_info;
   c->func_info = fi->parent;
   
-  int_stack_free(&fi->break_addrs);
   code_stack_free(&fi->code);
   value_stack_free(&fi->consts);
   upval_def_stack_free(&fi->upvals);
-  block_info_stack_free(&fi->blocks);
   fh_destroy_buffer(&fi->code_src_loc);
 }
 
-static struct block_info *new_block_info(struct func_info *fi)
+static struct block_info *new_block_info(struct fh_compiler *c)
 {
-  struct block_info *bi = block_info_stack_push(&fi->blocks, NULL);
+  struct block_info *bi = fh_malloc(c->pool, sizeof(struct block_info));
   if (! bi)
     return NULL;
+  bi->parent = c->func_info->block_list;
+  c->func_info->block_list = bi;
 
   bi->type = COMP_BLOCK_PLAIN;
   bi->start_addr = -1;
   bi->parent_num_regs = 0;
 
-  return block_info_stack_top(&fi->blocks);
+  return bi;
 }
 
-static struct block_info *get_cur_block_info(struct fh_compiler *c, struct fh_src_loc loc, enum compiler_block_type type)
+static struct break_addr *new_break_address(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  for (int i = block_info_stack_size(&c->func_info->blocks)-1; i >= 0; i--) {
-    struct block_info *bi = block_info_stack_item(&c->func_info->blocks, i);
-    if (! bi)
-      fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: no current block");
+  struct break_addr *ba = fh_malloc(c->pool, sizeof(struct break_addr));
+  if (! ba) {
+    fh_compiler_error(c, loc, "out of memory");
+    return NULL;
+  }
+  ba->next = c->func_info->break_addr_list;
+  c->func_info->break_addr_list = ba;
+  
+  ba->num = (ba->next) ? ba->next->num+1 : 0;
+  return ba;
+}
+
+static struct block_info *get_cur_block_info(struct fh_compiler *c, enum compiler_block_type type)
+{
+  for (struct block_info *bi = c->func_info->block_list; bi != NULL; bi = bi->parent) {
     if (type == bi->type)
       return bi;
   }
-  fh_compiler_error(c, loc, "not inside loop");
   return NULL;
 }
 
@@ -1074,7 +1085,7 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 {
   struct func_info *fi = c->func_info;
 
-  int parent_num_break_addrs = int_stack_size(&fi->break_addrs);
+  int parent_top_break_addr = (fi->break_addr_list) ? fi->break_addr_list->num : -1;
   
   int addr_jmp_to_end = -1;
   int start_addr = get_cur_pc(c);
@@ -1114,26 +1125,29 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
       return -1;
   }
 
-  while (int_stack_size(&fi->break_addrs) > parent_num_break_addrs) {
-    int break_addr;
-    if (int_stack_pop(&fi->break_addrs, &break_addr) < 0)
-      return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: can't pop break address");
-    if (set_jmp_target(c, loc, break_addr, addr_end) < 0)
+  struct break_addr *ba = fi->break_addr_list;
+  while (ba != NULL) {
+    if (ba->num < parent_top_break_addr)
+      break;
+    if (set_jmp_target(c, loc, ba->address, addr_end) < 0)
       return -1;
+    ba = ba->next;
   }
+  fi->break_addr_list = ba;
   return 0;
 }
 
 static int compile_break(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct block_info *bi = get_cur_block_info(c, loc, COMP_BLOCK_WHILE);
+  struct block_info *bi = get_cur_block_info(c, COMP_BLOCK_WHILE);
   if (! bi)
     return fh_compiler_error(c, loc, "break must be inside while");
 
   int num_open_upvals = get_num_open_upvals(c, loc, bi->parent_num_regs);
-  int break_addr = get_cur_pc(c);
-  if (! int_stack_push(&c->func_info->break_addrs, &break_addr))
+  struct break_addr *ba = new_break_address(c, loc);
+  if (! ba)
     return fh_compiler_error(c, loc, "out of memory");
+  ba->address = get_cur_pc(c);
   if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, 0)) < 0)
     return -1;
   return 0;
@@ -1141,7 +1155,7 @@ static int compile_break(struct fh_compiler *c, struct fh_src_loc loc)
 
 static int compile_continue(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct block_info *bi = get_cur_block_info(c, loc, COMP_BLOCK_WHILE);
+  struct block_info *bi = get_cur_block_info(c, COMP_BLOCK_WHILE);
   if (! bi)
     return fh_compiler_error(c, loc, "continue must be inside while");
 
@@ -1190,7 +1204,7 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
 
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block, enum compiler_block_type block_type, int32_t block_start_addr)
 {
-  struct block_info *bi = new_block_info(c->func_info);
+  struct block_info *bi = new_block_info(c);
   if (! bi)
     return fh_compiler_error(c, loc, "out of memory");
 
