@@ -57,10 +57,10 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc 
   c->func_info = fi;
   
   fi->num_regs = 0;
+  fi->reg_list = NULL;
   code_stack_init(&fi->code);
   value_stack_init(&fi->consts);
   upval_def_stack_init(&fi->upvals);
-  reg_stack_init(&fi->regs);
   int_stack_init(&fi->break_addrs);
   block_info_stack_init(&fi->blocks);
   fi->last_instr_src_loc = loc;
@@ -74,7 +74,6 @@ static void pop_func_info(struct fh_compiler *c)
   struct func_info *fi = c->func_info;
   c->func_info = fi->parent;
   
-  reg_stack_free(&fi->regs);
   int_stack_free(&fi->break_addrs);
   code_stack_free(&fi->code);
   value_stack_free(&fi->consts);
@@ -369,41 +368,55 @@ static int add_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_i
   return upval;
 }
 
+static struct reg_info *make_new_reg(struct fh_compiler *c, struct fh_src_loc loc, int reg)
+{
+  struct reg_info *ri = fh_malloc(c->pool, sizeof(struct reg_info));
+  if (! ri) {
+    fh_compiler_error(c, loc, "out of memory");
+    return NULL;
+  }
+  ri->next = c->func_info->reg_list;
+  ri->reg = reg;
+  c->func_info->reg_list = ri;
+  c->func_info->num_regs = ri->reg+1;
+  return ri;
+}
+
 static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
-  struct func_info *fi = c->func_info;
-
-  int new_reg = -1;
-  int i = 0;
-  stack_foreach(struct reg_info, *, ri, &fi->regs) {
-    if (! ri->alloc) {
-      new_reg = i;
+  int new_reg = 0;
+  struct reg_info *ri;
+  for (ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
+    if (! ri->alloc)
       break;
-    }
-    i++;
+    new_reg++;
   }
 
-  if (new_reg < 0) {
-    new_reg = reg_stack_size(&fi->regs);
+  if (! ri) {
     if (new_reg >= MAX_FUNC_REGS)
       return fh_compiler_error(c, loc, "too many registers used");
-    if (! reg_stack_push(&fi->regs, NULL))
-      return fh_compiler_error(c, loc, "out of memory");
+    ri = make_new_reg(c, loc, new_reg);
+    if (! ri)
+      return -1;
   }
 
-  struct reg_info *ri = reg_stack_item(&fi->regs, new_reg);
   ri->var = var;
   ri->alloc = true;
   ri->used_by_inner_func = false;
+  return ri->reg;
+}
 
-  if (fi->num_regs <= new_reg)
-    fi->num_regs = new_reg+1;
-  return new_reg;
+static struct reg_info *get_reg_info(struct func_info *fi, int reg)
+{
+  for (struct reg_info *ri = fi->reg_list; ri != NULL; ri = ri->next)
+    if (ri->reg == reg)
+      return ri;
+  return NULL;
 }
 
 static void free_reg(struct fh_compiler *c, int reg)
 {
-  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
+  struct reg_info *ri = get_reg_info(c->func_info, reg);
   if (! ri) {
     fprintf(stderr, "INTERNAL COMPILER ERROR: freeing invalid register (%d)\n", reg);
     return;
@@ -414,53 +427,39 @@ static void free_reg(struct fh_compiler *c, int reg)
 
 static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
 {
-  struct func_info *fi = c->func_info;
-
+  int n_regs_to_alloc = n;
   int last_alloc = -1;
-  for (int i = reg_stack_size(&fi->regs)-1; i >= 0; i--) {
-    struct reg_info *ri = reg_stack_item(&fi->regs, i);
+  for (struct reg_info *ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
     if (ri->alloc) {
-      last_alloc = i;
+      last_alloc = ri->reg;
       break;
     }
+    n_regs_to_alloc--;
   }
 
   int first_reg = last_alloc + 1;
   if (first_reg+n >= MAX_FUNC_REGS)
     return fh_compiler_error(c, loc, "too many registers used");
+
   for (int i = 0; i < n; i++) {
     int reg = first_reg + i;
-    if (reg_stack_size(&fi->regs) <= reg) {
-      if (! reg_stack_push(&fi->regs, NULL))
+    struct reg_info *ri;
+    if (n_regs_to_alloc >= n - i) {
+      ri = make_new_reg(c, loc, reg);
+      if (! ri)
         return fh_compiler_error(c, loc, "out of memory");
-    }
-    struct reg_info *ri = reg_stack_item(&fi->regs, reg);
+    } else
+      ri = get_reg_info(c->func_info, reg);
     ri->var = TMP_VARIABLE;
     ri->alloc = true;
     ri->used_by_inner_func = false;
   }
-
-  if (fi->num_regs <= first_reg+n-1)
-    fi->num_regs = first_reg+n;
   return first_reg;
 }
 
-#if 0
-static bool reg_is_tmp(struct fh_compiler *c, struct fh_src_loc loc, int reg)
-{
-  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
-  if (! ri) {
-    fprintf(stderr, "INTERNAL COMPILER ERROR: invalid register (%d)\n", reg);
-    return false;
-  }
-
-  return ri->var == TMP_VARIABLE;
-}
-#endif
-
 static void free_tmp_regs(struct fh_compiler *c)
 {
-  stack_foreach(struct reg_info, *, ri, &c->func_info->regs) {
+  for (struct reg_info *ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
     if (ri->alloc && ri->var == TMP_VARIABLE)
       ri->alloc = false;
   }
@@ -468,10 +467,9 @@ static void free_tmp_regs(struct fh_compiler *c)
 
 static void free_var_regs(struct fh_compiler *c, int first_var_reg)
 {
-  struct func_info *fi = c->func_info;
-
-  for (int i = reg_stack_size(&fi->regs) - 1; i >= first_var_reg; i--) {
-    struct reg_info *ri = reg_stack_item(&fi->regs, i);
+  for (struct reg_info *ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
+    if (ri->reg < first_var_reg)
+      break;
     if (ri->alloc && ri->var != TMP_VARIABLE)
       ri->alloc = false;
   }
@@ -479,7 +477,7 @@ static void free_var_regs(struct fh_compiler *c, int first_var_reg)
 
 static int set_reg_var(struct fh_compiler *c, struct fh_src_loc loc, int reg, fh_symbol_id var)
 {
-  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
+  struct reg_info *ri = get_reg_info(c->func_info, reg);
   if (! ri)
     return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: unknown register %d", reg);
   ri->var = var;
@@ -488,10 +486,9 @@ static int set_reg_var(struct fh_compiler *c, struct fh_src_loc loc, int reg, fh
 
 static int get_func_var_reg(struct func_info *fi, fh_symbol_id var)
 {
-  for (int i = reg_stack_size(&fi->regs)-1; i >= 0; i--) {
-    struct reg_info *ri = reg_stack_item(&fi->regs, i);
+  for (struct reg_info *ri = fi->reg_list; ri != NULL; ri = ri->next) {
     if (ri->alloc && ri->var == var)
-      return i;
+      return ri->reg;
   }
   return -1;
 }
@@ -510,7 +507,7 @@ static int add_func_var_upval(struct fh_compiler *c, struct fh_src_loc loc, stru
   
   int reg = get_func_var_reg(fi->parent, var);
   if (reg >= 0) {
-    struct reg_info *ri = reg_stack_item(&fi->parent->regs, reg);
+    struct reg_info *ri = get_reg_info(fi->parent, reg);
     ri->used_by_inner_func = true;
     
     int upval = add_upval(c, loc, fi, FH_UPVAL_TYPE_REG, reg);
@@ -538,24 +535,22 @@ static int add_var_upval(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol
 
 static int get_top_var_reg(struct fh_compiler *c)
 {
-  struct func_info *fi = c->func_info;
-  for (int i = reg_stack_size(&fi->regs)-1; i >= 0; i--) {
-    struct reg_info *ri = reg_stack_item(&fi->regs, i);
+  for (struct reg_info *ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
     if (ri->alloc && ri->var != TMP_VARIABLE)
-      return i;
+      return ri->reg;
   }
   return -1;
 }
 
 static int get_num_open_upvals(struct fh_compiler *c, struct fh_src_loc loc, int first_var_reg)
 {
-  struct func_info *fi = c->func_info;
   int num_open_upvals = 0;
-  for (int i = reg_stack_size(&fi->regs) - 1; i >= first_var_reg; i--) {
-    struct reg_info *ri = reg_stack_item(&fi->regs, i);
+  for (struct reg_info *ri = c->func_info->reg_list; ri != NULL; ri = ri->next) {
+    if (ri->reg < first_var_reg)
+      break;
     if (ri->alloc && ri->used_by_inner_func) {
       if (ri->var == TMP_VARIABLE)
-        return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: tmp reg used by inner function");
+        return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: tmp reg used by inner function?");
       num_open_upvals++;
     }
   }

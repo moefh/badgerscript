@@ -27,17 +27,17 @@ struct block_info {
 DECLARE_STACK(block_info_stack, struct block_info);
 
 struct reg_info {
+  struct reg_info *next;
+  int reg;
   fh_symbol_id var;
   bool alloc;
   bool used_by_inner_func;
 };
 
-DECLARE_STACK(reg_stack, struct reg_info);
-
 struct func_info {
   struct func_info *parent;
   int num_regs;
-  struct reg_stack regs;
+  struct reg_info *reg_list;
   struct int_stack break_addrs;
   struct block_info_stack blocks;
   struct code_stack code;
@@ -46,8 +46,6 @@ struct func_info {
   struct fh_src_loc last_instr_src_loc;
   struct fh_buffer code_src_loc;
 };
-
-DECLARE_STACK(func_info_stack, struct func_info);
 
 struct fh_compiler {
   struct fh_program *prog;
