@@ -194,7 +194,7 @@ int fh_compile_input(struct fh_program *prog, struct fh_input *in)
   struct fh_parser parser;
   fh_init_parser(&parser, prog, &pool);
   struct fh_compiler compiler;
-  fh_init_compiler(&compiler, prog);
+  fh_init_compiler(&compiler, prog, &pool);
 
   if (fh_parse(&parser, ast, in) < 0)
     goto err;

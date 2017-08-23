@@ -20,37 +20,42 @@ static int compile_expr_to_reg(struct fh_compiler *c, struct fh_p_expr *expr, in
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block, enum compiler_block_type block_type, int loop_start_addr);
 static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt);
 static int compile_expr(struct fh_compiler *c, struct fh_p_expr *expr);
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent);
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def);
 static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *expr);
 static int compile_test_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_bin_op *bin_op, bool invert_test);
 
-void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog)
+void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog, struct fh_mem_pool *pool)
 {
   c->prog = prog;
+  c->pool = pool;
   c->ast = NULL;
-  func_info_stack_init(&c->funcs);
+  c->func_info = NULL;
 }
 
 static void reset_compiler(struct fh_compiler *c)
 {
   c->ast = NULL;
-  while (func_info_stack_size(&c->funcs) > 0)
+  while (c->func_info != NULL)
     pop_func_info(c);
 }
 
 void fh_destroy_compiler(struct fh_compiler *c)
 {
   reset_compiler(c);
-  func_info_stack_free(&c->funcs);
+  while (c->func_info != NULL)
+    pop_func_info(c);
 }
 
-static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *parent)
+static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct func_info *fi = func_info_stack_push(&c->funcs, NULL);
-  if (! fi)
+  struct func_info *fi = fh_malloc(c->pool, sizeof(struct func_info));
+  if (! fi) {
+    fh_compiler_error(c, loc, "out of memory");
     return NULL;
-
-  fi->parent = parent;
+  }
+  fi->parent = c->func_info;
+  c->func_info = fi;
+  
   fi->num_regs = 0;
   code_stack_init(&fi->code);
   value_stack_init(&fi->consts);
@@ -61,29 +66,21 @@ static struct func_info *new_func_info(struct fh_compiler *c, struct fh_src_loc 
   fi->last_instr_src_loc = loc;
   fh_init_buffer(&fi->code_src_loc, NULL);
   
-  return func_info_stack_top(&c->funcs);
+  return fi;
 }
 
 static void pop_func_info(struct fh_compiler *c)
 {
-  struct func_info fi;
-  if (func_info_stack_pop(&c->funcs, &fi) < 0)
-    return;
-  reg_stack_free(&fi.regs);
-  int_stack_free(&fi.break_addrs);
-  code_stack_free(&fi.code);
-  value_stack_free(&fi.consts);
-  upval_def_stack_free(&fi.upvals);
-  block_info_stack_free(&fi.blocks);
-  fh_destroy_buffer(&fi.code_src_loc);
-}
-
-static struct func_info *get_cur_func_info(struct fh_compiler *c, struct fh_src_loc loc)
-{
-  struct func_info *fi = func_info_stack_top(&c->funcs);
-  if (! fi)
-    fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: no current function");
-  return fi;
+  struct func_info *fi = c->func_info;
+  c->func_info = fi->parent;
+  
+  reg_stack_free(&fi->regs);
+  int_stack_free(&fi->break_addrs);
+  code_stack_free(&fi->code);
+  value_stack_free(&fi->consts);
+  upval_def_stack_free(&fi->upvals);
+  block_info_stack_free(&fi->blocks);
+  fh_destroy_buffer(&fi->code_src_loc);
 }
 
 static struct block_info *new_block_info(struct func_info *fi)
@@ -101,11 +98,8 @@ static struct block_info *new_block_info(struct func_info *fi)
 
 static struct block_info *get_cur_block_info(struct fh_compiler *c, struct fh_src_loc loc, enum compiler_block_type type)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return NULL;
-  for (int i = block_info_stack_size(&fi->blocks)-1; i >= 0; i--) {
-    struct block_info *bi = block_info_stack_item(&fi->blocks, i);
+  for (int i = block_info_stack_size(&c->func_info->blocks)-1; i >= 0; i--) {
+    struct block_info *bi = block_info_stack_item(&c->func_info->blocks, i);
     if (! bi)
       fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: no current block");
     if (type == bi->type)
@@ -115,12 +109,9 @@ static struct block_info *get_cur_block_info(struct fh_compiler *c, struct fh_sr
   return NULL;
 }
 
-static int get_cur_pc(struct fh_compiler *c, struct fh_src_loc loc)
+static int get_cur_pc(struct fh_compiler *c)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-  return code_stack_size(&fi->code);
+  return code_stack_size(&c->func_info->code);
 }
 
 static const char *get_ast_symbol_name(struct fh_compiler *c, fh_symbol_id sym)
@@ -171,10 +162,7 @@ static struct fh_func_def *new_func_def(struct fh_compiler *c, struct fh_src_loc
 
 static int add_instr(struct fh_compiler *c, struct fh_src_loc loc, uint32_t instr)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-
+  struct func_info *fi = c->func_info;
   if (! code_stack_push(&fi->code, &instr))
     return fh_compiler_error(c, loc, "out of memory for bytecode");
 
@@ -186,14 +174,12 @@ static int add_instr(struct fh_compiler *c, struct fh_src_loc loc, uint32_t inst
 
 static int set_jmp_target(struct fh_compiler *c, struct fh_src_loc loc, int instr_addr, int target_addr)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
 
   int diff = target_addr - instr_addr - 1;
   if (diff < -(1<<17) || diff > (1<<17))
     return fh_compiler_error(c, loc, "too far to jump (%u to %u)", instr_addr, target_addr);
-  int cur_pc = get_cur_pc(c, loc);
+  int cur_pc = get_cur_pc(c);
   if (target_addr > cur_pc)
     return fh_compiler_error(c, loc, "invalid jump target location (%d)", target_addr);
 
@@ -209,9 +195,7 @@ static int set_jmp_target(struct fh_compiler *c, struct fh_src_loc loc, int inst
 
 static struct fh_value *add_const(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return NULL;
+  struct func_info *fi = c->func_info;
 
   if (value_stack_size(&fi->consts) >= MAX_FUNC_CONSTS) {
     fh_compiler_error(c, loc, "too many constants in function");
@@ -228,9 +212,7 @@ static struct fh_value *add_const(struct fh_compiler *c, struct fh_src_loc loc)
 
 static int add_const_null(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
   int k = 0;
   stack_foreach(struct fh_value, *, c, &fi->consts) {
     if (c->type == FH_VAL_NULL)
@@ -248,9 +230,7 @@ static int add_const_null(struct fh_compiler *c, struct fh_src_loc loc)
 
 static int add_const_bool(struct fh_compiler *c, struct fh_src_loc loc, bool b)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
   int k = 0;
   stack_foreach(struct fh_value, *, c, &fi->consts) {
     if (c->type == FH_VAL_BOOL && c->data.b == b)
@@ -269,9 +249,7 @@ static int add_const_bool(struct fh_compiler *c, struct fh_src_loc loc, bool b)
 
 static int add_const_number(struct fh_compiler *c, struct fh_src_loc loc, double num)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
   int k = 0;
   stack_foreach(struct fh_value, *, c, &fi->consts) {
     if (c->type == FH_VAL_NUMBER && c->data.num == num)
@@ -290,9 +268,7 @@ static int add_const_number(struct fh_compiler *c, struct fh_src_loc loc, double
 
 static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_string_id str_id)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
   int k = 0;
   const char *str = fh_get_ast_string(c->ast, str_id);
   stack_foreach(struct fh_value, *, c, &fi->consts) {
@@ -317,9 +293,7 @@ static int add_const_string(struct fh_compiler *c, struct fh_src_loc loc, fh_str
 
 static int add_const_global_func(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id func)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
 
   const char *name = fh_get_ast_symbol(c->ast, func);
   
@@ -365,9 +339,7 @@ static int add_const_global_func(struct fh_compiler *c, struct fh_src_loc loc, f
 
 static int add_const_func_def(struct fh_compiler *c, struct fh_src_loc loc, struct fh_func_def *func_def)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
   int k = value_stack_size(&fi->consts);
   struct fh_value *val = add_const(c, loc);
   if (! c)
@@ -399,9 +371,7 @@ static int add_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_i
 
 static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
 
   int new_reg = -1;
   int i = 0;
@@ -431,15 +401,9 @@ static int alloc_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id 
   return new_reg;
 }
 
-static void free_reg(struct fh_compiler *c, struct fh_src_loc loc, int reg)
+static void free_reg(struct fh_compiler *c, int reg)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi) {
-    fprintf(stderr, "%s\n", fh_get_error(c->prog));
-    return;
-  }
-
-  struct reg_info *ri = reg_stack_item(&fi->regs, reg);
+  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
   if (! ri) {
     fprintf(stderr, "INTERNAL COMPILER ERROR: freeing invalid register (%d)\n", reg);
     return;
@@ -450,9 +414,7 @@ static void free_reg(struct fh_compiler *c, struct fh_src_loc loc, int reg)
 
 static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
 
   int last_alloc = -1;
   for (int i = reg_stack_size(&fi->regs)-1; i >= 0; i--) {
@@ -486,13 +448,7 @@ static int alloc_n_regs(struct fh_compiler *c, struct fh_src_loc loc, int n)
 #if 0
 static bool reg_is_tmp(struct fh_compiler *c, struct fh_src_loc loc, int reg)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi) {
-    fprintf(stderr, "%s\n", fh_get_error(c->prog));
-    return false;
-  }
-
-  struct reg_info *ri = reg_stack_item(&fi->regs, reg);
+  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
   if (! ri) {
     fprintf(stderr, "INTERNAL COMPILER ERROR: invalid register (%d)\n", reg);
     return false;
@@ -502,23 +458,17 @@ static bool reg_is_tmp(struct fh_compiler *c, struct fh_src_loc loc, int reg)
 }
 #endif
 
-static void free_tmp_regs(struct fh_compiler *c, struct fh_src_loc loc)
+static void free_tmp_regs(struct fh_compiler *c)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return;
-
-  stack_foreach(struct reg_info, *, ri, &fi->regs) {
+  stack_foreach(struct reg_info, *, ri, &c->func_info->regs) {
     if (ri->alloc && ri->var == TMP_VARIABLE)
       ri->alloc = false;
   }
 }
 
-static void free_var_regs(struct fh_compiler *c, struct fh_src_loc loc, int first_var_reg)
+static void free_var_regs(struct fh_compiler *c, int first_var_reg)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return;
+  struct func_info *fi = c->func_info;
 
   for (int i = reg_stack_size(&fi->regs) - 1; i >= first_var_reg; i--) {
     struct reg_info *ri = reg_stack_item(&fi->regs, i);
@@ -529,11 +479,7 @@ static void free_var_regs(struct fh_compiler *c, struct fh_src_loc loc, int firs
 
 static int set_reg_var(struct fh_compiler *c, struct fh_src_loc loc, int reg, fh_symbol_id var)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-
-  struct reg_info *ri = reg_stack_item(&fi->regs, reg);
+  struct reg_info *ri = reg_stack_item(&c->func_info->regs, reg);
   if (! ri)
     return fh_compiler_error(c, loc, "INTERNAL COMPILER ERROR: unknown register %d", reg);
   ri->var = var;
@@ -550,12 +496,9 @@ static int get_func_var_reg(struct func_info *fi, fh_symbol_id var)
   return -1;
 }
 
-static int get_var_reg(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
+static int get_var_reg(struct fh_compiler *c, fh_symbol_id var)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-  return get_func_var_reg(fi, var);
+  return get_func_var_reg(c->func_info, var);
 }
 
 static int add_func_var_upval(struct fh_compiler *c, struct fh_src_loc loc, struct func_info *fi, fh_symbol_id var, int *ret_upval)
@@ -590,18 +533,12 @@ static int add_func_var_upval(struct fh_compiler *c, struct fh_src_loc loc, stru
 
 static int add_var_upval(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var, int *ret_upval)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-  return add_func_var_upval(c, loc, fi, var, ret_upval);
+  return add_func_var_upval(c, loc, c->func_info, var, ret_upval);
 }
 
-static int get_top_var_reg(struct fh_compiler *c, struct fh_src_loc loc)
+static int get_top_var_reg(struct fh_compiler *c)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-
+  struct func_info *fi = c->func_info;
   for (int i = reg_stack_size(&fi->regs)-1; i >= 0; i--) {
     struct reg_info *ri = reg_stack_item(&fi->regs, i);
     if (ri->alloc && ri->var != TMP_VARIABLE)
@@ -612,10 +549,7 @@ static int get_top_var_reg(struct fh_compiler *c, struct fh_src_loc loc)
 
 static int get_num_open_upvals(struct fh_compiler *c, struct fh_src_loc loc, int first_var_reg)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-
+  struct func_info *fi = c->func_info;
   int num_open_upvals = 0;
   for (int i = reg_stack_size(&fi->regs) - 1; i >= first_var_reg; i--) {
     struct reg_info *ri = reg_stack_item(&fi->regs, i);
@@ -631,7 +565,7 @@ static int get_num_open_upvals(struct fh_compiler *c, struct fh_src_loc loc, int
 static int compile_var(struct fh_compiler *c, struct fh_src_loc loc, fh_symbol_id var)
 {
   // local variable
-  int reg = get_var_reg(c, loc, var);
+  int reg = get_var_reg(c, var);
   if (reg >= 0)
     return reg;
 
@@ -717,12 +651,12 @@ static int compile_bin_op_to_reg(struct fh_compiler *c, struct fh_src_loc loc, s
       return -1;
     if (add_instr(c, loc, MAKE_INSTR_AB(OPC_TEST, expr->op == AST_OP_OR, dest_reg)) < 0)
       return -1;
-    int jmp_addr = get_cur_pc(c, loc);
+    int jmp_addr = get_cur_pc(c);
     if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
       return -1;
     if (compile_expr_to_reg(c, expr->right, dest_reg) < 0)
       return -1;
-    if (set_jmp_target(c, loc, jmp_addr, get_cur_pc(c, loc)) < 0)
+    if (set_jmp_target(c, loc, jmp_addr, get_cur_pc(c)) < 0)
       return -1;
     return dest_reg;
   }
@@ -756,7 +690,7 @@ static int compile_bin_op(struct fh_compiler *c, struct fh_src_loc loc, struct f
   if (expr->op == '=') {
     if (expr->left->type == EXPR_VAR) {
       // local var
-      int left_reg = get_var_reg(c, loc, expr->left->data.var);
+      int left_reg = get_var_reg(c, expr->left->data.var);
       if (left_reg >= 0)
         return compile_expr_to_reg(c, expr->right, left_reg);
       
@@ -855,7 +789,7 @@ static int compile_func_call(struct fh_compiler *c, struct fh_src_loc loc, struc
     return -1;
 
   for (int i = 1; i < n_args+1; i++)
-    free_reg(c, loc, func_reg+i);
+    free_reg(c, func_reg+i);
 
   return func_reg;
 }
@@ -899,7 +833,7 @@ static int compile_array_lit(struct fh_compiler *c, struct fh_src_loc loc, struc
     return -1;
 
   for (int i = 1; i < n_elems+1; i++)
-    free_reg(c, loc, array_reg+i);
+    free_reg(c, array_reg+i);
 
   return array_reg;
 }
@@ -922,20 +856,17 @@ static int compile_map_lit(struct fh_compiler *c, struct fh_src_loc loc, struct 
     return -1;
 
   for (int i = 1; i < n_elems+1; i++)
-    free_reg(c, loc, map_reg+i);
+    free_reg(c, map_reg+i);
 
   return map_reg;
 }
 
 static int compile_inner_func_to_reg(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *expr, int dest_reg)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
   struct fh_func_def *func_def = new_func_def(c, loc, NULL, expr->n_params);
   if (! func_def)
     return -1;
-  if (compile_func(c, loc, expr, func_def, fi) < 0)
+  if (compile_func(c, loc, expr, func_def) < 0)
     return -1;
 
   /*
@@ -1051,7 +982,7 @@ static int compile_var_decl(struct fh_compiler *c, struct fh_src_loc loc, struct
   }
   if (set_reg_var(c, loc, reg, decl->var) < 0)
     return -1;
-  free_tmp_regs(c, loc);
+  free_tmp_regs(c);
   return 0;
 }
 
@@ -1115,10 +1046,10 @@ static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_
 {
   if (compile_test(c, stmt_if->test, false) < 0)
     return -1;
-  free_tmp_regs(c, loc);
+  free_tmp_regs(c);
 
   // jmp to_false
-  int addr_jmp_to_false = get_cur_pc(c, loc);
+  int addr_jmp_to_false = get_cur_pc(c);
   if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
     return -1;
 
@@ -1126,19 +1057,19 @@ static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_
     return -1;
 
   // jmp to_end
-  int addr_jmp_to_end = get_cur_pc(c, loc);
+  int addr_jmp_to_end = get_cur_pc(c);
   if (stmt_if->false_stmt) {
     if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
       return -1;
   }
   // to_false:
-  if (set_jmp_target(c, loc, addr_jmp_to_false, get_cur_pc(c, loc)) < 0)
+  if (set_jmp_target(c, loc, addr_jmp_to_false, get_cur_pc(c)) < 0)
     return -1;
   if (stmt_if->false_stmt) {
     if (compile_stmt(c, stmt_if->false_stmt) < 0)
       return -1;
     // to_end:
-    if (set_jmp_target(c, loc, addr_jmp_to_end, get_cur_pc(c, loc)) < 0)
+    if (set_jmp_target(c, loc, addr_jmp_to_end, get_cur_pc(c)) < 0)
       return -1;
   }
   return 0;
@@ -1146,21 +1077,19 @@ static int compile_if(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_
 
 static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_while *stmt_while)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
+  struct func_info *fi = c->func_info;
 
   int parent_num_break_addrs = int_stack_size(&fi->break_addrs);
   
   int addr_jmp_to_end = -1;
-  int start_addr = get_cur_pc(c, loc);
+  int start_addr = get_cur_pc(c);
   if (! (stmt_while->test->type == EXPR_BOOL && stmt_while->test->data.b)) {
     if (compile_test(c, stmt_while->test, false) < 0)
       return -1;
-    free_tmp_regs(c, loc);
+    free_tmp_regs(c);
     
     // jmp to_end
-    addr_jmp_to_end = get_cur_pc(c, loc);
+    addr_jmp_to_end = get_cur_pc(c);
     if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, 0)) < 0)
       return -1;
   }
@@ -1179,12 +1108,12 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   default:
     if (compile_stmt(c, stmt_while->stmt) < 0)
       return -1;
-    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, start_addr - get_cur_pc(c, loc) - 1)) < 0)
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, 0, start_addr - get_cur_pc(c) - 1)) < 0)
       return -1;
   }
 
   // to_end:
-  int addr_end = get_cur_pc(c, loc);
+  int addr_end = get_cur_pc(c);
   if (addr_jmp_to_end >= 0) {
     if (set_jmp_target(c, loc, addr_jmp_to_end, addr_end) < 0)
       return -1;
@@ -1202,16 +1131,13 @@ static int compile_while(struct fh_compiler *c, struct fh_src_loc loc, struct fh
 
 static int compile_break(struct fh_compiler *c, struct fh_src_loc loc)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
   struct block_info *bi = get_cur_block_info(c, loc, COMP_BLOCK_WHILE);
   if (! bi)
     return fh_compiler_error(c, loc, "break must be inside while");
 
   int num_open_upvals = get_num_open_upvals(c, loc, bi->parent_num_regs);
-  int break_addr = get_cur_pc(c, loc);
-  if (! int_stack_push(&fi->break_addrs, &break_addr))
+  int break_addr = get_cur_pc(c);
+  if (! int_stack_push(&c->func_info->break_addrs, &break_addr))
     return fh_compiler_error(c, loc, "out of memory");
   if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, 0)) < 0)
     return -1;
@@ -1225,7 +1151,7 @@ static int compile_continue(struct fh_compiler *c, struct fh_src_loc loc)
     return fh_compiler_error(c, loc, "continue must be inside while");
 
   int num_open_upvals = get_num_open_upvals(c, loc, bi->parent_num_regs);
-  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, bi->start_addr - get_cur_pc(c, loc) - 1)) < 0)
+  if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, bi->start_addr - get_cur_pc(c) - 1)) < 0)
     return -1;
   return 0;
 }
@@ -1236,7 +1162,7 @@ static int compile_return(struct fh_compiler *c, struct fh_src_loc loc, struct f
     int tmp_rk = compile_expr(c, ret->val);
     if (tmp_rk < 0)
       return -1;
-    free_tmp_regs(c, loc);
+    free_tmp_regs(c);
     return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 1, tmp_rk));
   }
   return add_instr(c, loc, MAKE_INSTR_AB(OPC_RET, 0, 0));
@@ -1252,7 +1178,7 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
   case STMT_EXPR:
     if (compile_expr(c, stmt->data.expr) < 0)
       return -1;
-    free_tmp_regs(c, stmt->loc);
+    free_tmp_regs(c);
     return 0;
 
   case STMT_VAR_DECL:  return compile_var_decl(c, stmt->loc, &stmt->data.decl);
@@ -1269,17 +1195,13 @@ static int compile_stmt(struct fh_compiler *c, struct fh_p_stmt *stmt)
 
 static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_stmt_block *block, enum compiler_block_type block_type, int32_t block_start_addr)
 {
-  struct func_info *fi = get_cur_func_info(c, loc);
-  if (! fi)
-    return -1;
-
-  struct block_info *bi = new_block_info(fi);
+  struct block_info *bi = new_block_info(c->func_info);
   if (! bi)
     return fh_compiler_error(c, loc, "out of memory");
 
   bi->type = block_type;
   bi->start_addr = block_start_addr;
-  bi->parent_num_regs = get_top_var_reg(c, loc) + 1;
+  bi->parent_num_regs = get_top_var_reg(c) + 1;
 
   for (struct fh_p_stmt *s = block->stmt_list; s != NULL; s = s->next) {
     if (compile_stmt(c, s) < 0)
@@ -1289,7 +1211,7 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
   int num_open_upvals = get_num_open_upvals(c, loc, bi->parent_num_regs);
   switch (bi->type) {
   case COMP_BLOCK_WHILE:
-    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, bi->start_addr - get_cur_pc(c, loc) - 1)) < 0)
+    if (add_instr(c, loc, MAKE_INSTR_AS(OPC_JMP, num_open_upvals, bi->start_addr - get_cur_pc(c) - 1)) < 0)
       return -1;
     break;
 
@@ -1304,17 +1226,15 @@ static int compile_block(struct fh_compiler *c, struct fh_src_loc loc, struct fh
     break;
   }
 
-  free_var_regs(c, loc, bi->parent_num_regs);
+  free_var_regs(c, bi->parent_num_regs);
   return 0;
 }
 
-static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def, struct func_info *parent)
+static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_p_expr_func *func, struct fh_func_def *func_def)
 {
-  struct func_info *fi = new_func_info(c, loc, parent);
-  if (! fi) {
-    fh_compiler_error(c, loc, "out of memory");
-    goto err;
-  }
+  struct func_info *fi = new_func_info(c, loc);
+  if (! fi)
+    return -1;
 
   for (int i = 0; i < func_def->n_params; i++) {
     if (alloc_reg(c, loc, func->params[i]) < 0)
@@ -1370,10 +1290,10 @@ static int compile_func(struct fh_compiler *c, struct fh_src_loc loc, struct fh_
 
 static int compile_named_func(struct fh_compiler *c, struct fh_p_named_func *func, struct fh_func_def *func_def)
 {
-  if (compile_func(c, func->loc, &func->func->data.func, func_def, NULL) < 0)
+  if (compile_func(c, func->loc, &func->func->data.func, func_def) < 0)
     return -1;
 
-  if (func_info_stack_size(&c->funcs) > 0)
+  if (c->func_info && c->func_info->parent)
     return fh_compiler_error(c, func->loc, "INTERNAL COMPILER ERROR: function info was not cleared");
 
   return 0;

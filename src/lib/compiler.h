@@ -51,11 +51,12 @@ DECLARE_STACK(func_info_stack, struct func_info);
 
 struct fh_compiler {
   struct fh_program *prog;
+  struct fh_mem_pool *pool;
   struct fh_ast *ast;
-  struct func_info_stack funcs;
+  struct func_info *func_info;
 };
 
-void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog);
+void fh_init_compiler(struct fh_compiler *c, struct fh_program *prog, struct fh_mem_pool *pool);
 void fh_destroy_compiler(struct fh_compiler *c);
 int fh_compile(struct fh_compiler *c, struct fh_ast *ast);
 int fh_compiler_error(struct fh_compiler *c, struct fh_src_loc loc, char *fmt, ...) FH_PRINTF_FORMAT(3, 4);
