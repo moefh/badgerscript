@@ -18,10 +18,10 @@ Or, with Visual Studio on Windows:
 
 ## Features
 
-- full closure support
-- bytecode compilation
+- compilation to bytecode
 - pretty fast register-based VM following [Lua](https://www.lua.org/)'s design
 - simple mark-and-sweep garbage collector
+- full closures
 - dynamic typing with `null`, `boolean`, `number`, `string`, `array`,
   `map`, `closure` (function), and `c_func` (C function) values
 

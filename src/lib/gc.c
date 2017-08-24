@@ -178,7 +178,7 @@ static void mark_upval_children(struct fh_gc_state *gc, struct fh_upval *upval)
 
 static void mark_array_children(struct fh_gc_state *gc, struct fh_array *arr)
 {
-  for (int i = 0; i < arr->len; i++)
+  for (uint32_t i = 0; i < arr->len; i++)
     MARK_VALUE(gc, &arr->items[i]);
 }
 

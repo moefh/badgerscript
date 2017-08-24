@@ -111,8 +111,8 @@ const char *fh_get_string(const struct fh_value *str);
 
 struct fh_value fh_new_array(struct fh_program *prog);
 int fh_get_array_len(const struct fh_value *arr);
-struct fh_value *fh_get_array_item(struct fh_value *arr, int index);
-struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items);
+struct fh_value *fh_get_array_item(struct fh_value *arr, uint32_t index);
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, uint32_t num_items);
 
 struct fh_value fh_new_map(struct fh_program *prog);
 int fh_alloc_map_len(struct fh_value *map, uint32_t len);

@@ -6,13 +6,6 @@
 #include "fh_internal.h"
 #include "stack.h"
 
-enum fh_upval_def_type {
-  FH_UPVAL_TYPE_REG,
-  FH_UPVAL_TYPE_UPVAL,
-};
-
-DECLARE_STACK(value_stack, struct fh_value);
-
 #define GC_BIT_MARK  (1<<0)
 #define GC_BIT_PIN   (1<<1)
 
@@ -27,13 +20,6 @@ struct fh_object_header {
   enum fh_value_type type;
 };
 
-union fh_align {
-  double d;
-  void *p;
-  uint32_t u32;
-  int i;
-};
-
 struct fh_string {
   struct fh_object_header header;
   uint32_t size;
@@ -44,8 +30,8 @@ struct fh_array {
   struct fh_object_header header;
   union fh_object *gc_next_container;
   struct fh_value *items;
-  int len;
-  int cap;
+  uint32_t len;
+  uint32_t cap;
 };
 
 struct fh_map_entry {
@@ -59,11 +45,6 @@ struct fh_map {
   struct fh_map_entry *entries;
   uint32_t len;
   uint32_t cap;
-};
-
-struct fh_upval_def {
-  enum fh_upval_def_type type;
-  int num;
 };
 
 struct fh_func_def {
@@ -110,6 +91,16 @@ union fh_object {
   struct fh_map map;
 };
 
+enum fh_upval_def_type {
+  FH_UPVAL_TYPE_REG,
+  FH_UPVAL_TYPE_UPVAL,
+};
+
+struct fh_upval_def {
+  enum fh_upval_def_type type;
+  int num;
+};
+
 #define VAL_IS_OBJECT(v)  ((v)->type >= FH_FIRST_OBJECT_VAL)
 
 #define GET_OBJ_CLOSURE(o)     ((struct fh_closure   *) (o))
@@ -147,12 +138,14 @@ struct fh_string *fh_make_string_n(struct fh_program *prog, bool pinned, const c
 
 // object functions
 void fh_free_object(union fh_object *obj);
-struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items);
+struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, uint32_t num_items);
 const char *fh_get_func_def_name(struct fh_func_def *func_def);
 int fh_alloc_map_object_len(struct fh_map *map, uint32_t len);
 int fh_next_map_object_key(struct fh_map *map, struct fh_value *key, struct fh_value *next_key);
 int fh_get_map_object_value(struct fh_map *map, struct fh_value *key, struct fh_value *val);
 int fh_add_map_object_entry(struct fh_program *prog, struct fh_map *map, struct fh_value *key, struct fh_value *val);
 int fh_delete_map_object_entry(struct fh_map *map, struct fh_value *key);
+
+DECLARE_STACK(value_stack, struct fh_value);
 
 #endif /* VALUE_H_FILE */

@@ -82,25 +82,24 @@ int fh_get_array_len(const struct fh_value *val)
   return GET_OBJ_ARRAY(val->data.obj)->len;
 }
 
-struct fh_value *fh_get_array_item(struct fh_value *val, int index)
+struct fh_value *fh_get_array_item(struct fh_value *val, uint32_t index)
 {
   if (val->type != FH_VAL_ARRAY)
     return NULL;
 
   struct fh_array *arr = GET_OBJ_ARRAY(val->data.obj);
-  if (index < 0 || index >= arr->len)
+  if (index >= arr->len)
     return NULL;
   return &arr->items[index];
 }
 
-struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, int num_items)
+struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *arr, uint32_t num_items)
 {
   if (arr->header.type != FH_VAL_ARRAY)
     return NULL;
 
-  if (num_items <= 0
-      || (size_t) arr->len + num_items + 15 < (size_t) arr->len
-      || (size_t) arr->len + num_items + 15 > INT_MAX)
+  if ((size_t) arr->len + num_items + 15 < (size_t) arr->len
+      || (size_t) arr->len + num_items + 15 > UINT32_MAX)
     return NULL;
   if (arr->len + num_items >= arr->cap) {
     size_t new_cap = ((size_t) arr->len + num_items + 15) / 16 * 16;
@@ -110,16 +109,16 @@ struct fh_value *fh_grow_array_object(struct fh_program *prog, struct fh_array *
       return NULL;
     }
     arr->items = new_items;
-    arr->cap = (int) new_cap;
+    arr->cap = (uint32_t) new_cap;
   }
   struct fh_value *ret = &arr->items[arr->len];
-  for (int i = 0; i < num_items; i++)
+  for (uint32_t i = 0; i < num_items; i++)
     ret[i].type = FH_VAL_NULL;
   arr->len += num_items;
   return ret;
 }
 
-struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, int num_items)
+struct fh_value *fh_grow_array(struct fh_program *prog, struct fh_value *val, uint32_t num_items)
 {
   return fh_grow_array_object(prog, GET_OBJ_ARRAY(val->data.obj), num_items);
 }

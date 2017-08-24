@@ -88,8 +88,8 @@ static int fn_delete(struct fh_program *prog, struct fh_value *ret, struct fh_va
   if (arr) {
     if (! fh_is_number(&args[1]))
       return fh_set_error(prog, "delete(): argument 2 must be a number");
-    int index = (int) fh_get_number(&args[1]);
-    if (index < 0 || index >= arr->len)
+    uint32_t index = (uint32_t) (int) fh_get_number(&args[1]);
+    if (index >= arr->len)
       return fh_set_error(prog, "delete(): array index out of bounds: %d", index);
     *ret = arr->items[index];
     if (index+1 < arr->len)

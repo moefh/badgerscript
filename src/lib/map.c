@@ -103,7 +103,7 @@ int fh_add_map_object_entry(struct fh_program *prog, struct fh_map *map, struct 
     return -1;
   }
 
-  uint32_t i;
+  uint32_t i = 0;
   if (map->cap > 0) {
     i = find_slot(map->entries, map->cap, key);
     if (OCCUPIED(&map->entries[i])) {
